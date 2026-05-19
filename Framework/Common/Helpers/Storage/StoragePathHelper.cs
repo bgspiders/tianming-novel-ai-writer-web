@@ -11,6 +11,27 @@ namespace TM.Framework.Common.Helpers.Storage
         private static string _currentProjectName = "默认项目";
         private static readonly object _cacheLock = new();
 
+        /// <summary>
+        /// 由宿主进程在启动时显式设置 Storage 根目录，覆盖原本"按 BaseDirectory 向上查找"的行为。
+        /// Web 化场景下由 ASP.NET Core 启动时调用一次：StoragePathHelper.SetBasePath(builder.Configuration["Storage:RootPath"])。
+        /// 调用后所有 GetXxx 路径方法都基于此根目录。
+        /// </summary>
+        public static void SetBasePath(string absoluteRoot)
+        {
+            if (string.IsNullOrWhiteSpace(absoluteRoot))
+                throw new ArgumentException("absoluteRoot 不能为空", nameof(absoluteRoot));
+
+            if (!Path.IsPathRooted(absoluteRoot))
+                absoluteRoot = Path.GetFullPath(absoluteRoot);
+
+            lock (_cacheLock)
+            {
+                Directory.CreateDirectory(absoluteRoot);
+                _storageRootCache = absoluteRoot;
+                _projectRootCache = Directory.GetParent(absoluteRoot)?.FullName ?? absoluteRoot;
+            }
+        }
+
         public static event Action<string, string>? CurrentProjectChanging;
         public static event Action<string, string>? CurrentProjectChanged;
 

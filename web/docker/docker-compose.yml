@@ -1,0 +1,23 @@
+services:
+  tianming-web:
+    container_name: tianming-web
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: tianming-web:0.1
+    ports:
+      - "38721:38721"
+    volumes:
+      - ./data/Storage:/app/Storage
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:38721
+      - ASPNETCORE_ENVIRONMENT=Production
+      # 时区，避免容器内 UTC 时间与日志/计划任务对不上
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:38721/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

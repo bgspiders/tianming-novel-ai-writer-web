@@ -1,0 +1,80 @@
+# ============================================================
+# .NET / ASP.NET Core
+# ============================================================
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+*.cache
+*.log
+*.tmp
+*.pidb
+*.swp
+*.swo
+.vs/
+.vscode/
+*.sln.docstates
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# EF Core
+*.db
+*.db-shm
+*.db-wal
+
+# ============================================================
+# Node / Vite / Vue
+# ============================================================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+.npm/
+.pnpm-debug.log*
+.yarn-debug.log*
+.yarn-error.log*
+.eslintcache
+.cache/
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# ============================================================
+# IDE
+# ============================================================
+.idea/
+*.iml
+.fleet/
+*.swp
+*.swo
+
+# ============================================================
+# macOS / Windows / Linux
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# Docker / 数据
+# ============================================================
+docker/data/
+data/
+Storage/
+*.sqlite
+*.sqlite-journal
+
+# ============================================================
+# 环境变量与密钥
+# ============================================================
+.env
+.env.local
+.env.*.local
+secrets.json
+*.pfx
+appsettings.Production.json

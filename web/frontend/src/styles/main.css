@@ -1,0 +1,64 @@
+/*
+ * 阶段 0 主题变量雏形：仅承载明 / 暗两套基础色。
+ * 完整 21 色 design token + 17 套主题 + AI 配色 + 图片取色 留到阶段 9。
+ * 变量命名遵循 --tm-{语义} 约定，便于后续无痛扩展。
+ */
+
+:root,
+:root[data-theme='light'] {
+  --tm-bg: #f5f7fa;
+  --tm-bg-elevated: #ffffff;
+  --tm-border: #e4e7ed;
+
+  --tm-fg-primary: #1f2937;
+  --tm-fg-secondary: #6b7280;
+  --tm-fg-tertiary: #9ca3af;
+
+  --tm-primary: #3b82f6;
+  --tm-primary-hover: #2563eb;
+
+  --tm-success: #16a34a;
+  --tm-warning: #f59e0b;
+  --tm-danger: #ef4444;
+  --tm-info: #6b7280;
+}
+
+:root[data-theme='dark'] {
+  --tm-bg: #0f172a;
+  --tm-bg-elevated: #1e293b;
+  --tm-border: #334155;
+
+  --tm-fg-primary: #f1f5f9;
+  --tm-fg-secondary: #cbd5e1;
+  --tm-fg-tertiary: #94a3b8;
+
+  --tm-primary: #60a5fa;
+  --tm-primary-hover: #3b82f6;
+
+  --tm-success: #4ade80;
+  --tm-warning: #fbbf24;
+  --tm-danger: #f87171;
+  --tm-info: #94a3b8;
+
+  color-scheme: dark;
+}
+
+html {
+  background: var(--tm-bg);
+  color: var(--tm-fg-primary);
+}
+
+/* 简单覆盖 Element Plus 在 dark 模式下的部分基础色，避免视觉割裂 */
+:root[data-theme='dark'] {
+  --el-bg-color: var(--tm-bg);
+  --el-bg-color-page: var(--tm-bg);
+  --el-bg-color-overlay: var(--tm-bg-elevated);
+  --el-text-color-primary: var(--tm-fg-primary);
+  --el-text-color-regular: var(--tm-fg-secondary);
+  --el-text-color-secondary: var(--tm-fg-tertiary);
+  --el-border-color: var(--tm-border);
+  --el-border-color-light: var(--tm-border);
+  --el-border-color-lighter: var(--tm-border);
+  --el-fill-color-blank: var(--tm-bg-elevated);
+  --el-color-primary: var(--tm-primary);
+}

@@ -1,0 +1,30 @@
+{
+  "name": "tm-web-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "天命 Web 版前端 - Vue 3 + Vite + TypeScript",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview --port 38720 --host",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5",
+    "pinia": "^2.2.6",
+    "element-plus": "^2.8.8",
+    "@element-plus/icons-vue": "^2.3.1",
+    "axios": "^1.7.7",
+    "@microsoft/signalr": "^8.0.7",
+    "@vueuse/core": "^11.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.0",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.1",
+    "vue-tsc": "^2.1.10",
+    "@types/node": "^22.9.0"
+  }
+}

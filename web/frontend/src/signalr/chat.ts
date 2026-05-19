@@ -1,0 +1,89 @@
+import {
+  HubConnection,
+  HubConnectionBuilder,
+  HubConnectionState,
+  LogLevel
+} from '@microsoft/signalr'
+
+export type TokenHandler = (token: string) => void
+export type StatusHandler = (status: string) => void
+export type CompletedHandler = (finishReason: string) => void
+export type ErrorHandler = (message: string) => void
+
+class ChatHubClient {
+  private connection: HubConnection | null = null
+  private starting: Promise<void> | null = null
+
+  private tokenHandlers = new Set<TokenHandler>()
+  private statusHandlers = new Set<StatusHandler>()
+  private completedHandlers = new Set<CompletedHandler>()
+  private errorHandlers = new Set<ErrorHandler>()
+
+  private buildConnection(): HubConnection {
+    const conn = new HubConnectionBuilder()
+      .withUrl('/hubs/chat')
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Warning)
+      .build()
+
+    conn.on('ReceiveToken', (token: string) => {
+      this.tokenHandlers.forEach((h) => h(token))
+    })
+    conn.on('Status', (status: string) => {
+      this.statusHandlers.forEach((h) => h(status))
+    })
+    conn.on('Completed', (reason: string) => {
+      this.completedHandlers.forEach((h) => h(reason))
+    })
+    conn.on('Error', (msg: string) => {
+      this.errorHandlers.forEach((h) => h(msg))
+    })
+    return conn
+  }
+
+  async ensureStarted(): Promise<void> {
+    if (this.connection && this.connection.state === HubConnectionState.Connected) {
+      return
+    }
+    if (this.starting) {
+      return this.starting
+    }
+    if (!this.connection) {
+      this.connection = this.buildConnection()
+    }
+    this.starting = this.connection.start().finally(() => {
+      this.starting = null
+    })
+    return this.starting
+  }
+
+  async joinRun(runId: string): Promise<void> {
+    await this.ensureStarted()
+    await this.connection!.invoke('JoinRun', runId)
+  }
+
+  async leaveRun(runId: string): Promise<void> {
+    if (!this.connection || this.connection.state !== HubConnectionState.Connected) {
+      return
+    }
+    try {
+      await this.connection.invoke('LeaveRun', runId)
+    } catch {
+      // 关闭过程中的失败可忽略
+    }
+  }
+
+  onToken(handler: TokenHandler) { this.tokenHandlers.add(handler) }
+  offToken(handler: TokenHandler) { this.tokenHandlers.delete(handler) }
+
+  onStatus(handler: StatusHandler) { this.statusHandlers.add(handler) }
+  offStatus(handler: StatusHandler) { this.statusHandlers.delete(handler) }
+
+  onCompleted(handler: CompletedHandler) { this.completedHandlers.add(handler) }
+  offCompleted(handler: CompletedHandler) { this.completedHandlers.delete(handler) }
+
+  onError(handler: ErrorHandler) { this.errorHandlers.add(handler) }
+  offError(handler: ErrorHandler) { this.errorHandlers.delete(handler) }
+}
+
+export const chatHub = new ChatHubClient()

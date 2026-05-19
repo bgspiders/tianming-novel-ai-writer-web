@@ -1,0 +1,21 @@
+<!--
+    TM.Web.LegacyBridge
+
+    阶段 0/1：兼容层 stub（GlobalToast/TM.App.Log 替身），未源码包含 Services。
+    阶段 1.5 后半段：按模块通过 <Compile Include="..\..\..\..\..\Services\**\*.cs"> 拉入。
+    详见 README.md。
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>TM.Web.LegacyBridge</RootNamespace>
+    <AssemblyName>TM.Web.LegacyBridge</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TM.Web.Domain\TM.Web.Domain.csproj" />
+    <ProjectReference Include="..\TM.Web.Application\TM.Web.Application.csproj" />
+  </ItemGroup>
+
+</Project>

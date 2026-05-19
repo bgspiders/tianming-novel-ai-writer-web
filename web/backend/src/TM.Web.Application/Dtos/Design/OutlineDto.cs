@@ -1,0 +1,40 @@
+namespace TM.Web.Application.Dtos.Design;
+
+public record OutlineDto(
+    string Id,
+    string Name,
+    string Category,
+    string? CategoryId,
+    bool IsEnabled,
+    string? SourceBookId,
+    Dictionary<string, int> DependencyModuleVersions,
+    int TotalChapterCount,
+    string EstimatedWordCount,
+    string OneLineOutline,
+    string EmotionalTone,
+    string PhilosophicalMotif,
+    string Theme,
+    string CoreConflict,
+    string EndingState,
+    string VolumeDivision,
+    string OutlineOverview,
+    DateTime CreatedAt,
+    DateTime UpdatedAt) : IBusinessDataDto;
+
+public record OutlineUpsertDto(
+    string Name,
+    string Category = "",
+    string? CategoryId = null,
+    bool IsEnabled = true,
+    string? SourceBookId = null,
+    Dictionary<string, int>? DependencyModuleVersions = null,
+    int TotalChapterCount = 0,
+    string EstimatedWordCount = "",
+    string OneLineOutline = "",
+    string EmotionalTone = "",
+    string PhilosophicalMotif = "",
+    string Theme = "",
+    string CoreConflict = "",
+    string EndingState = "",
+    string VolumeDivision = "",
+    string OutlineOverview = "");
