@@ -67,12 +67,34 @@ npm run dev
 
 ## Docker 部署
 
+### 前置依赖
+
+- Docker Desktop / Docker Engine 24+
+- Docker Compose v2
+
+### 启动
+
 ```bash
 cd web/docker
 docker compose up -d --build
 ```
 
 访问 <http://localhost:38721> 即可。数据持久化在宿主机 `./data/Storage`。
+
+### 常用命令
+
+```bash
+# 查看日志
+docker compose logs -f
+
+# 停止服务
+docker compose down
+
+# 重新构建并启动
+docker compose up -d --build
+```
+
+健康检查地址：<http://localhost:38721/api/health>。
 
 ## 当前进度
 

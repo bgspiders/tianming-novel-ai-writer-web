@@ -35,6 +35,7 @@ public record CreativeMaterialUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     string Icon = "💡",
     string? SourceBookName = null,
     string Genre = "",

@@ -19,6 +19,7 @@ export interface AiTestResult {
   finishReason?: string
   elapsedMs: number
   model?: string
+  content?: string | null
 }
 
 export async function postTestCompletion(req: AiTestRequest): Promise<AiTestResult> {

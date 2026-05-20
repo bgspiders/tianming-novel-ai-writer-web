@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TM.Web.Application\TM.Web.Application.csproj" />
     <ProjectReference Include="..\TM.Web.Infrastructure\TM.Web.Infrastructure.csproj" />
+    <ProjectReference Include="..\TM.Web.LegacyBridge\TM.Web.LegacyBridge.csproj" />
   </ItemGroup>
 
 </Project>

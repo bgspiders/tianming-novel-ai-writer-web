@@ -17,16 +17,18 @@ public class CategoriesController : ControllerBase
     public Task<IReadOnlyList<CategoryDto>> List(
         [FromQuery] string moduleType,
         [FromQuery] string? sourceBookId,
+        [FromQuery] string? projectId,
         CancellationToken ct)
-        => _categories.ListAsync(moduleType, sourceBookId, ct);
+        => _categories.ListAsync(moduleType, sourceBookId, projectId, ct);
 
     /// <summary>按模块构建分类树。</summary>
     [HttpGet("tree")]
     public Task<IReadOnlyList<CategoryTreeNodeDto>> Tree(
         [FromQuery] string moduleType,
         [FromQuery] string? sourceBookId,
+        [FromQuery] string? projectId,
         CancellationToken ct)
-        => _categories.GetTreeAsync(moduleType, sourceBookId, ct);
+        => _categories.GetTreeAsync(moduleType, sourceBookId, projectId, ct);
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CategoryDto>> Get(string id, CancellationToken ct)
@@ -45,6 +47,13 @@ public class CategoriesController : ControllerBase
     [HttpPut("{id}")]
     public Task<CategoryDto> Update(string id, [FromBody] CategoryUpsertDto input, CancellationToken ct)
         => _categories.UpdateAsync(id, input, ct);
+
+    [HttpPost("reorder")]
+    public async Task<IActionResult> Reorder([FromBody] CategoryReorderDto input, CancellationToken ct)
+    {
+        await _categories.ReorderAsync(input, ct);
+        return NoContent();
+    }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)

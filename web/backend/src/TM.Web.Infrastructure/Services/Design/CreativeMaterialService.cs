@@ -13,8 +13,20 @@ public class CreativeMaterialService : ICreativeMaterialService
 
     public async Task<IReadOnlyList<CreativeMaterialDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
         var rows = await _db.CreativeMaterials.AsQueryable().ApplyFilter(query).ToListAsync(ct);
         return rows.Select(Map).ToList();
+    }
+
+    public async Task<PagedResult<CreativeMaterialDto>> ListPagedAsync(DesignListQuery query, CancellationToken ct = default)
+    {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        var filtered = _db.CreativeMaterials.AsQueryable().ApplyFilter(query);
+        var total = await filtered.CountAsync(ct);
+        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return new PagedResult<CreativeMaterialDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
     public async Task<CreativeMaterialDto?> GetAsync(string id, CancellationToken ct = default)
@@ -25,8 +37,9 @@ public class CreativeMaterialService : ICreativeMaterialService
 
     public async Task<CreativeMaterialDto> CreateAsync(CreativeMaterialUpsertDto input, CancellationToken ct = default)
     {
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
         var e = new CreativeMaterial();
-        Apply(e, input);
+        Apply(e, input, sourceBookId);
         _db.CreativeMaterials.Add(e);
         await _db.SaveChangesAsync(ct);
         return Map(e);
@@ -36,7 +49,8 @@ public class CreativeMaterialService : ICreativeMaterialService
     {
         var e = await _db.CreativeMaterials.FindAsync(new object?[] { id }, ct)
                 ?? throw new InvalidOperationException("创意素材不存在。");
-        Apply(e, input);
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
+        Apply(e, input, sourceBookId);
         await _db.SaveChangesAsync(ct);
         return Map(e);
     }
@@ -49,14 +63,14 @@ public class CreativeMaterialService : ICreativeMaterialService
         await _db.SaveChangesAsync(ct);
     }
 
-    private static void Apply(CreativeMaterial e, CreativeMaterialUpsertDto i)
+    private static void Apply(CreativeMaterial e, CreativeMaterialUpsertDto i, string? sourceBookId)
     {
         if (string.IsNullOrWhiteSpace(i.Name)) throw new InvalidOperationException("名称必填。");
         e.Name = i.Name.Trim();
         e.Category = i.Category ?? "";
         e.CategoryId = string.IsNullOrEmpty(i.CategoryId) ? null : i.CategoryId;
         e.IsEnabled = i.IsEnabled;
-        e.SourceBookId = string.IsNullOrEmpty(i.SourceBookId) ? null : i.SourceBookId;
+        e.SourceBookId = sourceBookId;
         e.Icon = string.IsNullOrEmpty(i.Icon) ? "💡" : i.Icon;
         e.SourceBookName = i.SourceBookName;
         e.Genre = i.Genre ?? "";

@@ -35,6 +35,7 @@ public record CharacterRuleUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     string CharacterType = "",
     string Gender = "",
     string Age = "",

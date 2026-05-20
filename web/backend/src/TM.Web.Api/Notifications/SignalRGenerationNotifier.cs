@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using TM.Web.Api.Hubs;
+using TM.Web.Application.Dtos.Chat;
 using TM.Web.Application.Services;
 
 namespace TM.Web.Api.Notifications;
@@ -7,7 +8,7 @@ namespace TM.Web.Api.Notifications;
 /// <summary>
 /// SignalR 实现的 <see cref="IGenerationNotifier"/>。
 /// 通过 IHubContext 把事件按 runId 推到对应分组。
-/// 客户端事件名约定：ReceiveToken / Status / Completed / Error。
+/// 客户端事件名约定：ReceiveToken / Status / Completed / Error / RunEvent。
 /// </summary>
 public sealed class SignalRGenerationNotifier : IGenerationNotifier
 {
@@ -29,4 +30,7 @@ public sealed class SignalRGenerationNotifier : IGenerationNotifier
 
     public Task ErrorAsync(string runId, string message, CancellationToken ct = default)
         => _hub.Clients.Group(runId).SendAsync("Error", message, ct);
+
+    public Task EventAsync(string runId, ChatRunEventDto evt, CancellationToken ct = default)
+        => _hub.Clients.Group(runId).SendAsync("RunEvent", evt, ct);
 }

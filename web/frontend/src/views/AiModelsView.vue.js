@@ -2,6 +2,27 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Edit, Delete, Plus, Promotion } from '@element-plus/icons-vue';
 import { listProviders, createProvider, updateProvider, deleteProvider, listModels, createModel, updateModel, deleteModel, listKeys, createKey, updateKey, deleteKey, testKey } from '@/api/modules/ai';
+const CAPABILITY_OPTIONS = [
+    { key: 'streaming', label: '流式输出', hint: '支持 stream options / SSE' },
+    { key: 'developerMessage', label: 'Developer 消息', hint: '支持 system/dev role' },
+    { key: 'arrayContent', label: '数组内容', hint: '支持 messages.content 为数组' },
+    { key: 'serviceTier', label: 'Service Tier', hint: '支持 service_tier 参数' },
+    { key: 'thinking', label: '思考模式', hint: '支持 reasoning / thinking 参数' },
+    { key: 'vision', label: '视觉输入', hint: '支持图像 / 多模态' },
+    { key: 'tools', label: '工具调用', hint: '支持 function calling / tools' }
+];
+function parseCapabilities(value) {
+    try {
+        const parsed = JSON.parse(value);
+        return Object.fromEntries(CAPABILITY_OPTIONS.map((opt) => [opt.key, Boolean(parsed[opt.key])]));
+    }
+    catch {
+        return Object.fromEntries(CAPABILITY_OPTIONS.map((opt) => [opt.key, false]));
+    }
+}
+function serializeCapabilities(value) {
+    return JSON.stringify(Object.fromEntries(Object.entries(value).filter(([, enabled]) => enabled)), null, 0);
+}
 const providers = ref([]);
 const selectedProviderId = ref('');
 const loadingProviders = ref(false);
@@ -134,6 +155,7 @@ const modelForm = ref({
     isEnabled: true,
     sortOrder: 0
 });
+const capabilityChecks = ref(parseCapabilities(modelForm.value.capabilities ?? '{}'));
 function openCreateModel() {
     modelDialogMode.value = 'create';
     modelEditId.value = '';
@@ -149,6 +171,7 @@ function openCreateModel() {
         isEnabled: true,
         sortOrder: models.value.length
     };
+    capabilityChecks.value = parseCapabilities(modelForm.value.capabilities ?? '{}');
     modelDialogVisible.value = true;
 }
 function openEditModel(m) {
@@ -166,12 +189,14 @@ function openEditModel(m) {
         isEnabled: m.isEnabled,
         sortOrder: m.sortOrder
     };
+    capabilityChecks.value = parseCapabilities(modelForm.value.capabilities ?? '{}');
     modelDialogVisible.value = true;
 }
 async function saveModel() {
     if (!selectedProviderId.value)
         return;
     try {
+        modelForm.value.capabilities = serializeCapabilities(capabilityChecks.value);
         if (modelDialogMode.value === 'create') {
             await createModel(selectedProviderId.value, modelForm.value);
             ElMessage.success('模型已创建');
@@ -188,6 +213,9 @@ async function saveModel() {
         ElMessage.error(err.message ?? '保存失败');
     }
 }
+watch(capabilityChecks, (value) => {
+    modelForm.value.capabilities = serializeCapabilities(value);
+}, { deep: true });
 async function removeModel(m) {
     try {
         await ElMessageBox.confirm(`删除模型 "${m.name}"？`, '确认', { type: 'warning' });
@@ -366,6 +394,7 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['provider-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['provider-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['provider-meta']} */ ;
+/** @type {__VLS_StyleScopedClasses['capability-item']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -1475,21 +1504,31 @@ const __VLS_314 = __VLS_313({
     label: "能力 JSON",
 }, ...__VLS_functionalComponentArgsRest(__VLS_313));
 __VLS_315.slots.default;
-const __VLS_316 = {}.ElInput;
-/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
-// @ts-ignore
-const __VLS_317 = __VLS_asFunctionalComponent(__VLS_316, new __VLS_316({
-    modelValue: (__VLS_ctx.modelForm.capabilities),
-    type: "textarea",
-    rows: (2),
-    placeholder: '{"vision":true,"tools":true,"streaming":true}',
-}));
-const __VLS_318 = __VLS_317({
-    modelValue: (__VLS_ctx.modelForm.capabilities),
-    type: "textarea",
-    rows: (2),
-    placeholder: '{"vision":true,"tools":true,"streaming":true}',
-}, ...__VLS_functionalComponentArgsRest(__VLS_317));
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "capability-grid" },
+});
+for (const [option] of __VLS_getVForSourceType((__VLS_ctx.CAPABILITY_OPTIONS))) {
+    const __VLS_316 = {}.ElCheckbox;
+    /** @type {[typeof __VLS_components.ElCheckbox, typeof __VLS_components.elCheckbox, typeof __VLS_components.ElCheckbox, typeof __VLS_components.elCheckbox, ]} */ ;
+    // @ts-ignore
+    const __VLS_317 = __VLS_asFunctionalComponent(__VLS_316, new __VLS_316({
+        key: (option.key),
+        modelValue: (__VLS_ctx.capabilityChecks[option.key]),
+    }));
+    const __VLS_318 = __VLS_317({
+        key: (option.key),
+        modelValue: (__VLS_ctx.capabilityChecks[option.key]),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_317));
+    __VLS_319.slots.default;
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "capability-item" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (option.label);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
+    (option.hint);
+    var __VLS_319;
+}
 var __VLS_315;
 const __VLS_320 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
@@ -1971,6 +2010,8 @@ var __VLS_419;
 /** @type {__VLS_StyleScopedClasses['tab-toolbar']} */ ;
 /** @type {__VLS_StyleScopedClasses['masked']} */ ;
 /** @type {__VLS_StyleScopedClasses['muted']} */ ;
+/** @type {__VLS_StyleScopedClasses['capability-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['capability-item']} */ ;
 var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
@@ -1979,6 +2020,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             Delete: Delete,
             Plus: Plus,
             Promotion: Promotion,
+            CAPABILITY_OPTIONS: CAPABILITY_OPTIONS,
             providers: providers,
             selectedProviderId: selectedProviderId,
             loadingProviders: loadingProviders,
@@ -1996,6 +2038,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             modelDialogVisible: modelDialogVisible,
             modelDialogMode: modelDialogMode,
             modelForm: modelForm,
+            capabilityChecks: capabilityChecks,
             openCreateModel: openCreateModel,
             openEditModel: openEditModel,
             saveModel: saveModel,

@@ -2,53 +2,70 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, Delete, Refresh, FolderAdd, Search } from '@element-plus/icons-vue'
-
+import { Delete, Edit, FolderAdd, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { useWorkContextStore } from '@/stores/workContext'
 import {
   DESIGN_MODULES,
+  type BookAnalysisCrawlPreview,
+  type DesignBase,
+  type DesignListParams,
   type DesignModuleKey,
-  worldRulesApi,
+  bookAnalysesApi,
+  chapterBlueprintsApi,
+  chapterPlansApi,
   characterRulesApi,
+  creativeMaterialsApi,
   factionRulesApi,
   locationRulesApi,
-  plotRulesApi,
-  creativeMaterialsApi,
-  bookAnalysesApi,
-  type BookAnalysisCrawlPreview,
   outlinesApi,
+  plotRulesApi,
   volumeDesignsApi,
-  chapterPlansApi,
-  chapterBlueprintsApi
+  worldRulesApi
 } from '@/api/modules/design'
 import {
-  getCategoryTree,
   createCategory,
-  updateCategory,
   deleteCategory,
+  getCategoryTree,
+  reorderCategories,
+  updateCategory,
   type CategoryTreeNode,
   type CategoryUpsert
 } from '@/api/modules/categories'
-import {
-  listSourceBooks,
-  createSourceBook,
-  type SourceBook
-} from '@/api/modules/sourceBooks'
-
+import { createSourceBook, listSourceBooks, type SourceBook } from '@/api/modules/sourceBooks'
 import DesignFormField from '@/components/design/DesignFormField.vue'
-import { MODULE_SCHEMAS, buildEmptyForm } from '@/components/design/moduleSchemas'
+import {
+  MODULE_SCHEMAS,
+  buildEmptyForm,
+  type FieldDef,
+  type PickerSource
+} from '@/components/design/moduleSchemas'
+
+type PickerOption = { label: string; value: string | number }
+type PickerRow = Record<string, unknown>
+type DesignRecord = Record<string, unknown>
+
+interface DesignApi {
+  list: (p?: DesignListParams) => Promise<unknown[]>
+  listPaged: (p: DesignListParams) => Promise<{ items: unknown[]; total: number; page: number; pageSize: number }>
+  get: (id: string) => Promise<unknown>
+  create: (input: unknown) => Promise<unknown>
+  update: (id: string, input: unknown) => Promise<unknown>
+  remove: (id: string) => Promise<void>
+}
 
 const route = useRoute()
 const router = useRouter()
+const workContext = useWorkContextStore()
 
 const moduleKey = computed<DesignModuleKey>(() => {
-  const key = route.params.module as string
-  return (DESIGN_MODULES.find((item) => item.key === key)?.key ?? 'world_rules') as DesignModuleKey
+  const raw = route.params.module as string
+  return (DESIGN_MODULES.find((item) => item.key === raw)?.key ?? 'world_rules') as DesignModuleKey
 })
 
 const moduleMeta = computed(() => DESIGN_MODULES.find((item) => item.key === moduleKey.value)!)
 const schema = computed(() => MODULE_SCHEMAS[moduleKey.value])
 
-const apiMap = {
+const apiMap: Record<DesignModuleKey, DesignApi> = {
   world_rules: worldRulesApi,
   character_rules: characterRulesApi,
   faction_rules: factionRulesApi,
@@ -60,57 +77,137 @@ const apiMap = {
   volume_designs: volumeDesignsApi,
   chapter_plans: chapterPlansApi,
   chapter_blueprints: chapterBlueprintsApi
-} as const
+}
 
 const activeApi = computed(() => apiMap[moduleKey.value])
+
+const pickerRows = ref<Record<PickerSource, PickerRow[]>>({
+  characters: [],
+  factions: [],
+  locations: [],
+  volumes: []
+})
+
+function getPickerValue(row: PickerRow, field: FieldDef): string | number {
+  switch (field.pickerValue) {
+    case 'id':
+      return String(row.id ?? '')
+    case 'volumeNumber':
+      return Number(row.volumeNumber ?? 0)
+    case 'title':
+      return String(row.title ?? row.volumeTitle ?? row.name ?? '')
+    case 'name':
+    default:
+      return String(row.name ?? row.title ?? '')
+  }
+}
+
+function getPickerLabel(row: PickerRow, source: PickerSource): string {
+  if (source === 'volumes') {
+    return `Vol ${row.volumeNumber ?? ''} | ${row.title ?? ''}`
+  }
+  return String(row.name ?? row.title ?? row.id ?? '')
+}
+
+async function refreshPickers() {
+  const scopedSourceBookId = moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null
+  const projectId = workContext.selectedProjectId || null
+  const [characters, factions, locations] = await Promise.all([
+    characterRulesApi.list({ sourceBookId: scopedSourceBookId, projectId, isEnabled: true }),
+    factionRulesApi.list({ sourceBookId: scopedSourceBookId, projectId, isEnabled: true }),
+    locationRulesApi.list({ sourceBookId: scopedSourceBookId, projectId, isEnabled: true })
+  ])
+
+  pickerRows.value = {
+    characters: characters as PickerRow[],
+    factions: factions as PickerRow[],
+    locations: locations as PickerRow[],
+    volumes: workContext.volumes as unknown as PickerRow[]
+  }
+}
+
+function optionsFor(field: FieldDef): PickerOption[] {
+  if (!field.pickerSource) return []
+  return pickerRows.value[field.pickerSource]
+    .map((row) => ({
+      label: getPickerLabel(row, field.pickerSource!),
+      value: getPickerValue(row, field)
+    }))
+    .filter((item) => item.value !== '')
+}
+
+function hasPickerOption(options: PickerOption[], value: unknown): boolean {
+  return options.some((option) => option.value === value)
+}
+
+function invalidReferenceMessage(field: FieldDef, currentValue: unknown): string {
+  if (!field.pickerSource || currentValue === null || currentValue === undefined || currentValue === '') return ''
+  const options = optionsFor(field)
+
+  if (Array.isArray(currentValue)) {
+    const missing = currentValue.filter((value) => !hasPickerOption(options, value))
+    return missing.length ? `Missing references: ${missing.join(', ')}` : ''
+  }
+
+  return hasPickerOption(options, currentValue)
+    ? ''
+    : `Current value "${String(currentValue)}" does not exist in the available options.`
+}
+
+function clearInvalidReferences(field: FieldDef) {
+  if (!field.pickerSource) return
+
+  const currentValue = editorForm.value[field.key]
+  const options = optionsFor(field)
+
+  if (Array.isArray(currentValue)) {
+    const validValues = currentValue.filter((value) => hasPickerOption(options, value))
+    const removedCount = currentValue.length - validValues.length
+    editorForm.value[field.key] = validValues
+    if (removedCount > 0) ElMessage.success(`Removed ${removedCount} invalid references.`)
+    return
+  }
+
+  if (currentValue !== null && currentValue !== undefined && currentValue !== '' && !hasPickerOption(options, currentValue)) {
+    editorForm.value[field.key] = field.type === 'select' ? null : ''
+    ElMessage.success('Invalid reference cleared.')
+  }
+}
+
+async function rematchReferences(field: FieldDef) {
+  if (!field.pickerSource) return
+  try {
+    await refreshPickers()
+    const message = invalidReferenceMessage(field, editorForm.value[field.key])
+    if (message) {
+      ElMessage.warning('References refreshed, but some values are still invalid.')
+    } else {
+      ElMessage.success('References refreshed.')
+    }
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to refresh references.')
+  }
+}
 
 const sourceBooks = ref<SourceBook[]>([])
 const selectedSourceBookId = ref('')
 const newSourceBookVisible = ref(false)
 const newSourceBookName = ref('')
 
-const categoryTree = ref<CategoryTreeNode[]>([])
-const loadingCategories = ref(false)
-const selectedCategoryId = ref<string | null>(null)
-const categoryDialogVisible = ref(false)
-const categoryDialogMode = ref<'create' | 'edit'>('create')
-const categoryEditId = ref('')
-const categoryForm = ref<CategoryUpsert>({
-  moduleType: '',
-  name: '',
-  parentId: null,
-  sortOrder: 0,
-  isEnabled: true,
-  sourceBookId: null
-})
-
-const items = ref<Record<string, unknown>[]>([])
-const loadingItems = ref(false)
-const keyword = ref('')
-
-const editorVisible = ref(false)
-const editorMode = ref<'create' | 'edit'>('create')
-const editorId = ref('')
-const editorForm = ref<Record<string, unknown>>({})
-const editorTab = ref('')
-const saving = ref(false)
-
-const bookAnalysisImportVisible = ref(false)
-const importingBookAnalysis = ref(false)
-const bookAnalysisImportUrl = ref('')
-const bookAnalysisImportPreview = ref<BookAnalysisCrawlPreview | null>(null)
-
 async function refreshSourceBooks() {
   try {
     sourceBooks.value = await listSourceBooks()
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to load source books')
+    if (!selectedSourceBookId.value && workContext.selectedProject?.currentSourceBookId) {
+      selectedSourceBookId.value = workContext.selectedProject.currentSourceBookId
+    }
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to load source books.')
   }
 }
 
 async function quickCreateSourceBook() {
   if (!newSourceBookName.value.trim()) {
-    ElMessage.warning('Enter source book name')
+    ElMessage.warning('Source book name is required.')
     return
   }
 
@@ -120,25 +217,68 @@ async function quickCreateSourceBook() {
     selectedSourceBookId.value = sourceBook.id
     newSourceBookVisible.value = false
     newSourceBookName.value = ''
-    ElMessage.success('Source book created')
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to create source book')
+    ElMessage.success('Source book created.')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to create source book.')
   }
 }
+
+async function bindSourceBookToProject() {
+  if (!workContext.selectedProjectId) {
+    ElMessage.warning('Select a project first.')
+    return
+  }
+
+  try {
+    await workContext.updateSelectedProjectSourceBook(selectedSourceBookId.value || null)
+    ElMessage.success('Project default source book updated.')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to bind source book.')
+  }
+}
+
+const categoryTree = ref<CategoryTreeNode[]>([])
+const loadingCategories = ref(false)
+const selectedCategoryId = ref<string | null>(null)
 
 async function refreshCategories() {
   loadingCategories.value = true
   try {
     categoryTree.value = await getCategoryTree(
       moduleKey.value,
-      moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null
+      moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null,
+      workContext.selectedProjectId || null
     )
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to load categories')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to load categories.')
   } finally {
     loadingCategories.value = false
   }
 }
+
+const categoryDialogVisible = ref(false)
+const categoryDialogMode = ref<'create' | 'edit'>('create')
+const categoryEditId = ref('')
+const categoryForm = ref<CategoryUpsert>({
+  moduleType: '',
+  name: '',
+  parentId: null,
+  sortOrder: 0,
+  isEnabled: true,
+  sourceBookId: null,
+  projectId: null
+})
+
+function flattenCategories(nodes: CategoryTreeNode[], depth = 0): PickerOption[] {
+  return nodes.flatMap((node) => [
+    { label: `${'  '.repeat(depth)}${node.name}`, value: node.id },
+    ...flattenCategories(node.children ?? [], depth + 1)
+  ])
+}
+
+const categoryParentOptions = computed(() =>
+  flattenCategories(categoryTree.value).filter((option) => option.value !== categoryEditId.value)
+)
 
 function openCreateCategory(parent?: CategoryTreeNode) {
   categoryDialogMode.value = 'create'
@@ -149,7 +289,8 @@ function openCreateCategory(parent?: CategoryTreeNode) {
     parentId: parent?.id ?? null,
     sortOrder: 0,
     isEnabled: true,
-    sourceBookId: moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null
+    sourceBookId: moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null,
+    projectId: workContext.selectedProjectId || null
   }
   categoryDialogVisible.value = true
 }
@@ -163,7 +304,8 @@ function openEditCategory(node: CategoryTreeNode) {
     parentId: node.parentId,
     sortOrder: node.sortOrder,
     isEnabled: node.isEnabled,
-    sourceBookId: node.sourceBookId
+    sourceBookId: node.sourceBookId,
+    projectId: workContext.selectedProjectId || null
   }
   categoryDialogVisible.value = true
 }
@@ -172,22 +314,21 @@ async function saveCategory() {
   try {
     if (categoryDialogMode.value === 'create') {
       await createCategory(categoryForm.value)
-      ElMessage.success('Category created')
+      ElMessage.success('Category created.')
     } else {
       await updateCategory(categoryEditId.value, categoryForm.value)
-      ElMessage.success('Category updated')
+      ElMessage.success('Category updated.')
     }
-
     categoryDialogVisible.value = false
     await refreshCategories()
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to save category')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to save category.')
   }
 }
 
 async function removeCategory(node: CategoryTreeNode) {
   if (node.isBuiltIn) {
-    ElMessage.warning('Built-in category cannot be deleted')
+    ElMessage.warning('Built-in categories cannot be deleted.')
     return
   }
 
@@ -200,78 +341,145 @@ async function removeCategory(node: CategoryTreeNode) {
   try {
     await deleteCategory(node.id)
     if (selectedCategoryId.value === node.id) selectedCategoryId.value = null
-    ElMessage.success('Category deleted')
+    ElMessage.success('Category deleted.')
     await refreshCategories()
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to delete category')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to delete category.')
+  }
+}
+
+function flattenCategoryOrder(
+  nodes: CategoryTreeNode[],
+  parentId: string | null = null
+): { id: string; parentId: string | null; sortOrder: number }[] {
+  return nodes.flatMap((node, index) => [
+    { id: node.id, parentId, sortOrder: index * 10 },
+    ...flattenCategoryOrder(node.children ?? [], node.id)
+  ])
+}
+
+async function saveCategoryOrder() {
+  try {
+    await reorderCategories({
+      moduleType: moduleKey.value,
+      sourceBookId: moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null,
+      projectId: workContext.selectedProjectId || null,
+      items: flattenCategoryOrder(categoryTree.value)
+    })
+    await refreshCategories()
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to save category order.')
+    await refreshCategories()
+  }
+}
+
+const items = ref<DesignRecord[]>([])
+const loadingItems = ref(false)
+const keyword = ref('')
+const isEnabledFilter = ref<'all' | 'enabled' | 'disabled'>('all')
+const includeUncategorized = ref(false)
+const updatedRange = ref<[string, string] | []>([])
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+
+function buildListParams(): DesignListParams {
+  return {
+    categoryId: includeUncategorized.value ? null : selectedCategoryId.value,
+    sourceBookId: moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null,
+    keyword: keyword.value || null,
+    isEnabled: isEnabledFilter.value === 'all' ? null : isEnabledFilter.value === 'enabled',
+    updatedFrom: updatedRange.value[0] ?? null,
+    updatedTo: updatedRange.value[1] ?? null,
+    includeUncategorized: includeUncategorized.value,
+    projectId: workContext.selectedProjectId || null,
+    page: page.value,
+    pageSize: pageSize.value
   }
 }
 
 async function refreshItems() {
   loadingItems.value = true
   try {
-    items.value = (await activeApi.value.list({
-      categoryId: selectedCategoryId.value,
-      sourceBookId: moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null,
-      keyword: keyword.value || null
-    })) as unknown as Record<string, unknown>[]
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to load list')
+    const result = await activeApi.value.listPaged(buildListParams())
+    items.value = result.items as DesignRecord[]
+    total.value = result.total
+    page.value = result.page
+    pageSize.value = result.pageSize
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to load records.')
   } finally {
     loadingItems.value = false
   }
 }
+
+async function refreshWorkspaceData() {
+  await Promise.all([
+    refreshCategories(),
+    refreshItems(),
+    refreshPickers()
+  ])
+}
+
+const editorVisible = ref(false)
+const editorMode = ref<'create' | 'edit'>('create')
+const editorId = ref('')
+const editorForm = ref<DesignRecord>({})
+const editorTab = ref('')
+const saving = ref(false)
 
 function openCreate() {
   editorMode.value = 'create'
   editorId.value = ''
   editorForm.value = buildEmptyForm(moduleKey.value)
   editorForm.value.categoryId = selectedCategoryId.value
-  editorForm.value.sourceBookId = moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null
+  editorForm.value.sourceBookId = moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null
+  editorForm.value.projectId = workContext.selectedProjectId || null
   editorTab.value = schema.value.tabs[0]?.key ?? ''
   editorVisible.value = true
 }
 
-async function openEdit(row: Record<string, unknown>) {
+async function openEdit(row: DesignRecord) {
   editorMode.value = 'edit'
-  editorId.value = row.id as string
+  editorId.value = String(row.id)
   try {
-    const detail = (await activeApi.value.get(row.id as string)) as unknown as Record<string, unknown>
-    editorForm.value = { ...buildEmptyForm(moduleKey.value), ...detail }
+    const detail = await activeApi.value.get(String(row.id))
+    editorForm.value = { ...buildEmptyForm(moduleKey.value), ...(detail as DesignRecord) }
+    editorForm.value.projectId = workContext.selectedProjectId || null
     editorTab.value = schema.value.tabs[0]?.key ?? ''
     editorVisible.value = true
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to load detail')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to load record detail.')
   }
 }
 
 async function saveEditor() {
   if (!editorForm.value.name) {
-    ElMessage.warning('Name is required')
+    ElMessage.warning('Name is required.')
     return
   }
 
   saving.value = true
   try {
     if (editorMode.value === 'create') {
-      await activeApi.value.create(editorForm.value as never)
-      ElMessage.success('Created')
+      await activeApi.value.create(editorForm.value)
+      ElMessage.success('Record created.')
     } else {
-      await activeApi.value.update(editorId.value, editorForm.value as never)
-      ElMessage.success('Updated')
+      await activeApi.value.update(editorId.value, editorForm.value)
+      ElMessage.success('Record updated.')
     }
-
     editorVisible.value = false
     await refreshItems()
     await refreshCategories()
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to save')
+    await refreshPickers()
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to save record.')
   } finally {
     saving.value = false
   }
 }
 
-async function removeItem(row: Record<string, unknown>) {
+async function removeItem(row: DesignRecord) {
   try {
     await ElMessageBox.confirm(`Delete "${row.name}"?`, 'Confirm', { type: 'warning' })
   } catch {
@@ -279,14 +487,29 @@ async function removeItem(row: Record<string, unknown>) {
   }
 
   try {
-    await activeApi.value.remove(row.id as string)
-    ElMessage.success('Deleted')
+    await activeApi.value.remove(String(row.id))
+    ElMessage.success('Record deleted.')
     await refreshItems()
     await refreshCategories()
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to delete')
+    await refreshPickers()
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to delete record.')
   }
 }
+
+function formatCellValue(row: DesignRecord, col: { key: string }) {
+  const value = row[col.key]
+  if (value === null || value === undefined) return '--'
+  if (Array.isArray(value)) return value.join(', ')
+  if (typeof value === 'object') return JSON.stringify(value)
+  const text = String(value)
+  return text.length > 60 ? `${text.slice(0, 60)}...` : text
+}
+
+const bookAnalysisImportVisible = ref(false)
+const importingBookAnalysis = ref(false)
+const bookAnalysisImportUrl = ref('')
+const bookAnalysisImportPreview = ref<BookAnalysisCrawlPreview | null>(null)
 
 function openBookAnalysisImport() {
   bookAnalysisImportUrl.value = ''
@@ -296,7 +519,7 @@ function openBookAnalysisImport() {
 
 async function previewBookAnalysisImport() {
   if (!bookAnalysisImportUrl.value.trim()) {
-    ElMessage.warning('Enter page URL')
+    ElMessage.warning('A source URL is required.')
     return
   }
 
@@ -307,17 +530,19 @@ async function previewBookAnalysisImport() {
       maxChapters: 12,
       includeContent: true
     })
-    ElMessage.success('Preview ready')
-  } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Failed to crawl preview')
+    ElMessage.success('Preview loaded.')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? 'Failed to crawl preview.')
   } finally {
     importingBookAnalysis.value = false
   }
 }
 
-function toBookAnalysisDraft(preview: BookAnalysisCrawlPreview) {
+function toBookAnalysisDraft(preview: BookAnalysisCrawlPreview): DesignRecord {
   return {
     ...buildEmptyForm('book_analyses'),
+    categoryId: selectedCategoryId.value,
+    projectId: workContext.selectedProjectId || null,
     name: preview.suggestedName || preview.title || 'Web Book Analysis',
     icon: 'BOOK',
     author: preview.author || '',
@@ -350,75 +575,80 @@ function toBookAnalysisDraft(preview: BookAnalysisCrawlPreview) {
 }
 
 function applyImportedBookAnalysis(mode: 'current' | 'new') {
-  const preview = bookAnalysisImportPreview.value
-  if (!preview) {
-    ElMessage.warning('Run preview first')
-    return
-  }
+  if (!bookAnalysisImportPreview.value) return
 
-  const draft = toBookAnalysisDraft(preview)
+  const draft = toBookAnalysisDraft(bookAnalysisImportPreview.value)
 
-  if (mode === 'new') {
+  if (mode === 'current' && editorVisible.value && moduleKey.value === 'book_analyses') {
+    editorForm.value = { ...editorForm.value, ...draft }
+  } else {
     editorMode.value = 'create'
     editorId.value = ''
-    editorForm.value = buildEmptyForm('book_analyses')
-    editorForm.value.categoryId = selectedCategoryId.value
-    editorForm.value.sourceBookId = null
-  } else if (!editorVisible.value || moduleKey.value !== 'book_analyses') {
-    ElMessage.warning('No open book analysis form to fill')
-    return
+    editorForm.value = draft
+    editorTab.value = MODULE_SCHEMAS.book_analyses.tabs[0]?.key ?? ''
+    editorVisible.value = true
   }
 
-  const currentName =
-    mode === 'current' && typeof editorForm.value.name === 'string'
-      ? editorForm.value.name.trim()
-      : ''
-
-  editorForm.value = {
-    ...buildEmptyForm('book_analyses'),
-    ...editorForm.value,
-    ...draft,
-    name: currentName || draft.name,
-    categoryId: editorForm.value.categoryId ?? selectedCategoryId.value,
-    sourceBookId: editorForm.value.sourceBookId ?? null
-  }
-
-  editorTab.value = MODULE_SCHEMAS.book_analyses.tabs[0]?.key ?? ''
-  editorVisible.value = true
   bookAnalysisImportVisible.value = false
-  ElMessage.success(mode === 'new' ? 'Applied to new form' : 'Applied to current form')
-}
-
-function formatCellValue(row: Record<string, unknown>, col: { key: string }) {
-  const value = row[col.key]
-  if (value === null || value === undefined || value === '') return '-'
-  if (Array.isArray(value)) return value.join(', ')
-  const text = String(value)
-  return text.length > 60 ? `${text.slice(0, 60)}...` : text
+  ElMessage.success('Preview applied to the form.')
 }
 
 function switchModule(key: DesignModuleKey) {
-  router.push({ name: 'design-module', params: { module: key } })
+  if (route.path.startsWith('/generate/')) {
+    router.push(`/generate/${key}`)
+    return
+  }
+  router.push(`/design/${key}`)
 }
 
 watch(moduleKey, async () => {
   selectedCategoryId.value = null
-  await refreshCategories()
-  await refreshItems()
+  page.value = 1
+  await refreshWorkspaceData()
 })
 
 watch(selectedSourceBookId, async () => {
   selectedCategoryId.value = null
-  await refreshCategories()
-  await refreshItems()
+  page.value = 1
+  await refreshWorkspaceData()
 })
 
-watch(selectedCategoryId, refreshItems)
+watch(selectedCategoryId, () => {
+  includeUncategorized.value = false
+  page.value = 1
+  void refreshItems()
+})
+
+watch([isEnabledFilter, includeUncategorized, updatedRange], () => {
+  page.value = 1
+  void refreshItems()
+})
+
+watch(
+  () => workContext.selectedProjectId,
+  async () => {
+    selectedSourceBookId.value = workContext.selectedProject?.currentSourceBookId ?? ''
+    page.value = 1
+    await refreshWorkspaceData()
+  }
+)
+
+watch(() => workContext.selectedVolumeId, () => {
+  void refreshPickers()
+})
+
+watch(
+  () => workContext.volumes,
+  () => {
+    void refreshPickers()
+  },
+  { deep: true }
+)
 
 onMounted(async () => {
+  await workContext.init()
   await refreshSourceBooks()
-  await refreshCategories()
-  await refreshItems()
+  await refreshWorkspaceData()
 })
 </script>
 
@@ -430,7 +660,9 @@ onMounted(async () => {
           <button
             v-for="moduleItem in DESIGN_MODULES"
             :key="moduleItem.key"
-            :class="['module-tab', { active: moduleItem.key === moduleKey }]"
+            class="module-tab"
+            :class="{ active: moduleItem.key === moduleKey }"
+            type="button"
             @click="switchModule(moduleItem.key)"
           >
             <span class="icon">{{ moduleItem.icon }}</span>
@@ -440,11 +672,14 @@ onMounted(async () => {
 
         <div v-if="moduleMeta.hasSourceBookScope" class="sourcebook-area">
           <span class="label">Source Book</span>
-          <el-select v-model="selectedSourceBookId" clearable size="small" style="width: 200px">
+          <el-select v-model="selectedSourceBookId" clearable size="small" style="width: 220px">
             <el-option label="All" value="" />
             <el-option v-for="book in sourceBooks" :key="book.id" :label="book.name" :value="book.id" />
           </el-select>
-          <el-button size="small" :icon="Plus" @click="newSourceBookVisible = true">New Source</el-button>
+          <el-button size="small" :icon="Plus" @click="newSourceBookVisible = true">New</el-button>
+          <el-button size="small" :disabled="!workContext.selectedProjectId" @click="bindSourceBookToProject">
+            Set As Project Default
+          </el-button>
         </div>
       </div>
     </el-card>
@@ -462,17 +697,19 @@ onMounted(async () => {
         </template>
 
         <div v-loading="loadingCategories" class="tree-body">
-          <div :class="['cat-item all', { active: !selectedCategoryId }]" @click="selectedCategoryId = null">
+          <div :class="['cat-item', 'all', { active: !selectedCategoryId }]" @click="selectedCategoryId = null">
             All / Uncategorized
           </div>
 
           <el-tree
             :data="categoryTree"
             node-key="id"
+            draggable
             :default-expand-all="true"
             :expand-on-click-node="false"
             :highlight-current="true"
             empty-text="No categories"
+            @node-drop="saveCategoryOrder"
           >
             <template #default="{ data }">
               <div :class="['cat-node', { active: selectedCategoryId === data.id }]" @click.stop="selectedCategoryId = data.id">
@@ -482,7 +719,14 @@ onMounted(async () => {
                 <span class="cat-actions">
                   <el-button text size="small" :icon="Plus" @click.stop="openCreateCategory(data)" />
                   <el-button text size="small" :icon="Edit" @click.stop="openEditCategory(data)" />
-                  <el-button v-if="!data.isBuiltIn" text size="small" :icon="Delete" type="danger" @click.stop="removeCategory(data)" />
+                  <el-button
+                    v-if="!data.isBuiltIn"
+                    text
+                    size="small"
+                    :icon="Delete"
+                    type="danger"
+                    @click.stop="removeCategory(data)"
+                  />
                 </span>
               </div>
             </template>
@@ -505,8 +749,23 @@ onMounted(async () => {
                 size="small"
                 style="width: 200px"
                 :prefix-icon="Search"
-                @change="refreshItems"
+                @change="page = 1; refreshItems()"
               />
+              <el-select v-model="isEnabledFilter" size="small" style="width: 110px">
+                <el-option label="All" value="all" />
+                <el-option label="Enabled" value="enabled" />
+                <el-option label="Disabled" value="disabled" />
+              </el-select>
+              <el-date-picker
+                v-model="updatedRange"
+                type="datetimerange"
+                start-placeholder="Updated From"
+                end-placeholder="Updated To"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                size="small"
+                style="width: 320px"
+              />
+              <el-checkbox v-model="includeUncategorized" size="small">Only Uncategorized</el-checkbox>
               <el-button size="small" :icon="Refresh" @click="refreshItems" />
               <el-button type="primary" size="small" :icon="Plus" @click="openCreate">New</el-button>
             </div>
@@ -548,16 +807,37 @@ onMounted(async () => {
             <el-empty :description="`No records in ${moduleMeta.label}`" />
           </template>
         </el-table>
+
+        <div class="pager-row">
+          <span class="muted">Total {{ total }}</span>
+          <el-pagination
+            v-model:current-page="page"
+            v-model:page-size="pageSize"
+            layout="sizes, prev, pager, next"
+            :total="total"
+            :page-sizes="[10, 20, 50, 100]"
+            small
+            background
+            @current-change="refreshItems"
+            @size-change="page = 1; refreshItems()"
+          />
+        </div>
       </el-card>
     </div>
 
-    <el-dialog v-model="categoryDialogVisible" :title="categoryDialogMode === 'create' ? 'New Category' : 'Edit Category'" width="460px">
+    <el-dialog
+      v-model="categoryDialogVisible"
+      :title="categoryDialogMode === 'create' ? 'New Category' : 'Edit Category'"
+      width="460px"
+    >
       <el-form :model="categoryForm" label-width="100px" label-position="right">
         <el-form-item label="Name" required>
           <el-input v-model="categoryForm.name" />
         </el-form-item>
         <el-form-item label="Parent">
-          <el-input v-model="categoryForm.parentId" placeholder="Empty for root category" />
+          <el-select v-model="categoryForm.parentId" clearable filterable style="width: 100%" placeholder="Root category">
+            <el-option v-for="option in categoryParentOptions" :key="option.value" :label="option.label" :value="option.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="Sort">
           <el-input-number v-model="categoryForm.sortOrder" :min="0" />
@@ -584,6 +864,10 @@ onMounted(async () => {
           :key="field.key"
           v-model="editorForm[field.key]"
           :field="field"
+          :picker-options="optionsFor(field)"
+          :invalid-message="invalidReferenceMessage(field, editorForm[field.key])"
+          @clear-invalid-references="clearInvalidReferences(field)"
+          @rematch-references="rematchReferences(field)"
         />
 
         <el-form-item label="Category ID">
@@ -598,16 +882,20 @@ onMounted(async () => {
 
         <el-tabs v-model="editorTab" class="editor-tabs">
           <el-tab-pane
-            v-for="tab in schema.tabs"
-            :key="tab.key"
-            :name="tab.key"
-            :label="tab.label"
+            v-for="tabItem in schema.tabs"
+            :key="tabItem.key"
+            :name="tabItem.key"
+            :label="tabItem.label"
           >
             <DesignFormField
-              v-for="field in tab.fields"
+              v-for="field in tabItem.fields"
               :key="field.key"
               v-model="editorForm[field.key]"
               :field="field"
+              :picker-options="optionsFor(field)"
+              :invalid-message="invalidReferenceMessage(field, editorForm[field.key])"
+              @clear-invalid-references="clearInvalidReferences(field)"
+              @rematch-references="rematchReferences(field)"
             />
           </el-tab-pane>
         </el-tabs>
@@ -824,6 +1112,8 @@ onMounted(async () => {
   display: flex;
   gap: 6px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .tree-body {
@@ -887,6 +1177,14 @@ onMounted(async () => {
   margin-top: 16px;
 }
 
+.pager-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 12px;
+}
+
 .import-panel {
   display: flex;
   flex-direction: column;
@@ -924,10 +1222,6 @@ onMounted(async () => {
 .preview-value {
   font-size: 13px;
   word-break: break-all;
-}
-
-.import-warning {
-  margin-top: -4px;
 }
 
 .warning-list {

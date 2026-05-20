@@ -53,7 +53,61 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'generate',
-        redirect: '/design/outlines'
+        name: 'generation-workbench',
+        component: () => import('@/views/generate/GenerationWorkbenchView.vue'),
+        meta: { title: 'Generation Workbench' }
+      },
+      {
+        path: 'generate/chapters',
+        name: 'chapter-generation',
+        component: () => import('@/views/generate/ChapterGenerationView.vue'),
+        meta: { title: 'Chapter Generation' }
+      },
+      {
+        path: 'generate/gate',
+        name: 'generation-gate',
+        component: () => import('@/views/generate/GenerationGateView.vue'),
+        meta: { title: 'Generation Gate' }
+      },
+      {
+        path: 'generate/volume-designs',
+        redirect: '/generate/volume_designs'
+      },
+      {
+        path: 'generate/volumes',
+        redirect: '/generate/volume_designs'
+      },
+      {
+        path: 'generate/chapter-plans',
+        redirect: '/generate/chapter_plans'
+      },
+      {
+        path: 'generate/chapter-blueprints',
+        redirect: '/generate/chapter_blueprints'
+      },
+      {
+        path: 'generate/:module(outlines|volume_designs|chapter_plans|chapter_blueprints)',
+        name: 'generation-planning-module',
+        component: () => import('@/views/design/DesignView.vue'),
+        meta: { title: 'Generation Planning' }
+      },
+      {
+        path: 'editor',
+        name: 'editor',
+        component: () => import('@/views/editor/EditorView.vue'),
+        meta: { title: 'Editor Workspace' }
+      },
+      {
+        path: 'validate',
+        name: 'validation-workbench',
+        component: () => import('@/views/validate/ValidationView.vue'),
+        meta: { title: 'Validation Workbench' }
+      },
+      {
+        path: 'ai-assistant',
+        name: 'ai-assistant',
+        component: () => import('@/views/AiAssistantView.vue'),
+        meta: { title: 'AI Assistant' }
       }
     ]
   },

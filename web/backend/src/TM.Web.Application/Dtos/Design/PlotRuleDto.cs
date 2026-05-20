@@ -35,6 +35,7 @@ public record PlotRuleUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     string TargetVolume = "",
     string AssignedVolume = "",
     string OneLineSummary = "",

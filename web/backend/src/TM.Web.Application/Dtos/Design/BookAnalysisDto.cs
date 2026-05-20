@@ -43,6 +43,7 @@ public record BookAnalysisUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     string Icon = "📖",
     string Author = "",
     string Genre = "",

@@ -9,6 +9,7 @@ public class ValidationReport : EntityBase
 {
     public string ProjectId { get; set; } = string.Empty;
     public string ChapterId { get; set; } = string.Empty;
+    public string RunId { get; set; } = string.Empty;
     public DateTime ValidatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>整体结果：passed / warning / failed。</summary>

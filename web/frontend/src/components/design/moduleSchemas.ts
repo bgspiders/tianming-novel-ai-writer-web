@@ -1,6 +1,7 @@
 import type { DesignModuleKey } from '@/api/modules/design'
 
 export type FieldType = 'text' | 'textarea' | 'select' | 'number' | 'switch' | 'tags' | 'date'
+export type PickerSource = 'characters' | 'factions' | 'locations' | 'volumes'
 
 export interface FieldDef {
   key: string
@@ -11,6 +12,8 @@ export interface FieldDef {
   default?: unknown
   placeholder?: string
   hint?: string
+  pickerSource?: PickerSource
+  pickerValue?: 'id' | 'name' | 'title' | 'volumeNumber'
 }
 
 export interface TabDef {
@@ -32,7 +35,7 @@ const commonBase: FieldDef[] = [
     key: 'category',
     label: 'Category Text',
     type: 'text',
-    hint: 'Free text category. Prefer left-side CategoryId binding when available.'
+    hint: 'Optional free-text category in addition to the category tree binding.'
   },
   { key: 'isEnabled', label: 'Enabled', type: 'switch', default: true }
 ]
@@ -108,7 +111,14 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
         key: 'relation',
         label: 'Relation',
         fields: [
-          { key: 'targetCharacterName', label: 'Target Character', type: 'text' },
+          {
+            key: 'targetCharacterName',
+            label: 'Target Character',
+            type: 'select',
+            pickerSource: 'characters',
+            pickerValue: 'name',
+            placeholder: 'Select or type a character'
+          },
           { key: 'relationshipType', label: 'Relationship Type', type: 'text' },
           { key: 'emotionDynamic', label: 'Emotion Dynamic', type: 'textarea', rows: 3 }
         ]
@@ -207,9 +217,11 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
           { key: 'dangers', label: 'Dangers', type: 'tags' },
           {
             key: 'factionId',
-            label: 'Faction ID',
-            type: 'text',
-            hint: 'Links to FactionRule.Id.'
+            label: 'Faction',
+            type: 'select',
+            pickerSource: 'factions',
+            pickerValue: 'id',
+            placeholder: 'Select a faction'
           }
         ]
       }
@@ -228,8 +240,22 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
         key: 'overview',
         label: 'Overview',
         fields: [
-          { key: 'targetVolume', label: 'Target Volume', type: 'text' },
-          { key: 'assignedVolume', label: 'Assigned Volume', type: 'text' },
+          {
+            key: 'targetVolume',
+            label: 'Target Volume',
+            type: 'select',
+            pickerSource: 'volumes',
+            pickerValue: 'title',
+            placeholder: 'Select or type a volume'
+          },
+          {
+            key: 'assignedVolume',
+            label: 'Assigned Volume',
+            type: 'select',
+            pickerSource: 'volumes',
+            pickerValue: 'title',
+            placeholder: 'Select or type a volume'
+          },
           { key: 'oneLineSummary', label: 'One Line Summary', type: 'textarea', rows: 2 },
           { key: 'eventType', label: 'Event Type', type: 'text' },
           { key: 'storyPhase', label: 'Story Phase', type: 'text' },
@@ -474,11 +500,11 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
       },
       {
         key: 'refs',
-        label: 'Refs',
+        label: 'References',
         fields: [
-          { key: 'referencedCharacterNames', label: 'Character Names', type: 'tags' },
-          { key: 'referencedFactionNames', label: 'Faction Names', type: 'tags' },
-          { key: 'referencedLocationNames', label: 'Location Names', type: 'tags' },
+          { key: 'referencedCharacterNames', label: 'Character Names', type: 'tags', pickerSource: 'characters', pickerValue: 'name' },
+          { key: 'referencedFactionNames', label: 'Faction Names', type: 'tags', pickerSource: 'factions', pickerValue: 'name' },
+          { key: 'referencedLocationNames', label: 'Location Names', type: 'tags', pickerSource: 'locations', pickerValue: 'name' },
           { key: 'dependencyModuleVersions', label: 'Dependency Module Versions (JSON)', type: 'textarea', rows: 4 }
         ]
       }
@@ -500,7 +526,14 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
         fields: [
           { key: 'chapterTitle', label: 'Chapter Title', type: 'text' },
           { key: 'chapterNumber', label: 'Chapter Number', type: 'number' },
-          { key: 'volume', label: 'Volume', type: 'text' },
+          {
+            key: 'volume',
+            label: 'Volume',
+            type: 'select',
+            pickerSource: 'volumes',
+            pickerValue: 'title',
+            placeholder: 'Select or type a volume'
+          },
           { key: 'estimatedWordCount', label: 'Estimated Word Count', type: 'text' },
           { key: 'chapterTheme', label: 'Chapter Theme', type: 'textarea', rows: 2 },
           { key: 'readerExperienceGoal', label: 'Reader Experience Goal', type: 'textarea', rows: 2 },
@@ -528,11 +561,11 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
       },
       {
         key: 'refs',
-        label: 'Refs',
+        label: 'References',
         fields: [
-          { key: 'referencedCharacterNames', label: 'Character Names', type: 'tags' },
-          { key: 'referencedFactionNames', label: 'Faction Names', type: 'tags' },
-          { key: 'referencedLocationNames', label: 'Location Names', type: 'tags' },
+          { key: 'referencedCharacterNames', label: 'Character Names', type: 'tags', pickerSource: 'characters', pickerValue: 'name' },
+          { key: 'referencedFactionNames', label: 'Faction Names', type: 'tags', pickerSource: 'factions', pickerValue: 'name' },
+          { key: 'referencedLocationNames', label: 'Location Names', type: 'tags', pickerSource: 'locations', pickerValue: 'name' },
           { key: 'dependencyModuleVersions', label: 'Dependency Module Versions (JSON)', type: 'textarea', rows: 4 }
         ]
       }
@@ -564,7 +597,14 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
         fields: [
           { key: 'sceneNumber', label: 'Scene Number', type: 'number' },
           { key: 'sceneTitle', label: 'Scene Title', type: 'text' },
-          { key: 'povCharacter', label: 'POV Character', type: 'text' },
+          {
+            key: 'povCharacter',
+            label: 'POV Character',
+            type: 'select',
+            pickerSource: 'characters',
+            pickerValue: 'name',
+            placeholder: 'Select or type a character'
+          },
           { key: 'estimatedWordCount', label: 'Estimated Word Count', type: 'text' },
           { key: 'opening', label: 'Opening', type: 'textarea', rows: 2 },
           { key: 'development', label: 'Development', type: 'textarea', rows: 2 },

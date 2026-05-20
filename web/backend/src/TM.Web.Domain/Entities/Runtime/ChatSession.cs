@@ -31,7 +31,9 @@ public class ChatMessage : EntityBase
 
     public string Role { get; set; } = "user";
     public string Content { get; set; } = string.Empty;
+    public string? Summary { get; set; }
     public string? ThinkingContent { get; set; }
+    public string? AnalysisBlocksJson { get; set; }
 
     /// <summary>tool_calls / tool_results 的 JSON 序列化（如有）。</summary>
     public string? ToolPayload { get; set; }

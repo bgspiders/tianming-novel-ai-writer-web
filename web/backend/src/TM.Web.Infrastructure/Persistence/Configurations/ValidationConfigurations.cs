@@ -13,7 +13,9 @@ public class ValidationReportConfiguration : IEntityTypeConfiguration<Validation
         b.Property(x => x.Id).HasMaxLength(64);
         b.Property(x => x.ProjectId).IsRequired().HasMaxLength(64);
         b.Property(x => x.ChapterId).IsRequired().HasMaxLength(64);
+        b.Property(x => x.RunId).IsRequired().HasMaxLength(64);
         b.Property(x => x.Result).HasMaxLength(32);
+        b.HasIndex(x => new { x.ProjectId, x.RunId });
         b.HasIndex(x => new { x.ProjectId, x.ChapterId, x.ValidatedAt });
     }
 }
@@ -44,6 +46,7 @@ public class ValidationSummaryConfiguration : IEntityTypeConfiguration<Validatio
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).HasMaxLength(64);
         b.Property(x => x.ProjectId).IsRequired().HasMaxLength(64);
+        b.Property(x => x.LastRunId).IsRequired().HasMaxLength(64);
         b.Property(x => x.OverallResult).HasMaxLength(32);
         b.HasIndex(x => new { x.ProjectId, x.TargetVolumeNumber }).IsUnique();
     }

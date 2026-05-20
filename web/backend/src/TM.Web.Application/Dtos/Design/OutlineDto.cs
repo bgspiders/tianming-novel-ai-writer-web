@@ -27,6 +27,7 @@ public record OutlineUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     Dictionary<string, int>? DependencyModuleVersions = null,
     int TotalChapterCount = 0,
     string EstimatedWordCount = "",

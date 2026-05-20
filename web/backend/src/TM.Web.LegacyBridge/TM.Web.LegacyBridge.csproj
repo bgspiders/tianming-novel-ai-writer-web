@@ -1,8 +1,8 @@
 <!--
     TM.Web.LegacyBridge
 
-    阶段 0/1：兼容层 stub（GlobalToast/TM.App.Log 替身），未源码包含 Services。
-    阶段 1.5 后半段：按模块通过 <Compile Include="..\..\..\..\..\Services\**\*.cs"> 拉入。
+    阶段 1：兼容层 stub（GlobalToast/TM.App.Log 替身）+ ProjectData 安全子树源码包含。
+    全量 Services/** 仍会牵出 WPF / NAudio / SemanticKernel / 桌面集成依赖，暂不在阶段 1 放开。
     详见 README.md。
 -->
 <Project Sdk="Microsoft.NET.Sdk">
@@ -16,6 +16,56 @@
   <ItemGroup>
     <ProjectReference Include="..\TM.Web.Domain\TM.Web.Domain.csproj" />
     <ProjectReference Include="..\TM.Web.Application\TM.Web.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\..\Framework\Common\Models\**\*.cs"
+             Link="Framework\Common\Models\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\..\..\Framework\Common\Helpers\EntityNameNormalizeHelper.cs"
+             Link="Framework\Common\Helpers\EntityNameNormalizeHelper.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Helpers\EntityNameResolver.cs"
+             Link="Framework\Common\Helpers\EntityNameResolver.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Helpers\ChapterAllocationHelper.cs"
+             Link="Framework\Common\Helpers\ChapterAllocationHelper.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Helpers\ChapterParserHelper.cs"
+             Link="Framework\Common\Helpers\ChapterParserHelper.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Helpers\SimplePinyinHelper.cs"
+             Link="Framework\Common\Helpers\SimplePinyinHelper.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Helpers\Id\ShortIdGenerator.cs"
+             Link="Framework\Common\Helpers\Id\ShortIdGenerator.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Helpers\Json\JsonHelper.cs"
+             Link="Framework\Common\Helpers\Json\JsonHelper.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Helpers\Storage\StoragePathHelper.cs"
+             Link="Framework\Common\Helpers\Storage\StoragePathHelper.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Services\ServiceLocator.cs"
+             Link="Framework\Common\Services\ServiceLocator.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Services\Factories\Interfaces\IStoragePathHelper.cs"
+             Link="Framework\Common\Services\Factories\Interfaces\IStoragePathHelper.cs" />
+    <Compile Include="..\..\..\..\Framework\Common\Services\Factories\Implementations\StoragePathHelperService.cs"
+             Link="Framework\Common\Services\Factories\Implementations\StoragePathHelperService.cs" />
+    <Compile Include="..\..\..\..\Services\Framework\AI\SemanticKernel\GenerationProgressHub.cs"
+             Link="Services\Framework\AI\SemanticKernel\GenerationProgressHub.cs" />
+    <Compile Include="..\..\..\..\Services\Modules\ProjectData\**\*.cs"
+             Link="Services\Modules\ProjectData\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Generation\ContentPolisher.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Generation\ContentGenerationCallback.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Generation\GeneratedContentService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Indexing\DataIndexService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\ChangeDetection\ChangeDetectionService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Context\ContextService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Context\FocusContextService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Packaging\ContextIdsCompletenessChecker.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Packaging\ModuleEnabledService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Packaging\PackageHistoryService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Packaging\PublishService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Helpers\NavigationConfigParser.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Guides\GuideContextService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Tracking\CharacterStateService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Tracking\FactSnapshotExtractor.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Validation\ConsistencyReconciler.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Validation\UnifiedValidationService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Validation\ValidationReportService.cs" />
+    <Compile Remove="..\..\..\..\Services\Modules\ProjectData\Implementations\Validation\ValidationSummaryService.cs" />
   </ItemGroup>
 
 </Project>

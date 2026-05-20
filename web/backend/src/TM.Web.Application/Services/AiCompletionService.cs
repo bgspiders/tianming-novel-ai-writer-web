@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -73,6 +74,7 @@ public sealed class AiCompletionService : IAiCompletionService
                 Temperature = request.Temperature ?? 0.7,
                 MaxTokens = request.MaxTokens ?? 1024
             };
+            var content = new StringBuilder();
 
             await _notifier.StatusAsync(request.RunId, "streaming", ct);
 
@@ -81,6 +83,7 @@ public sealed class AiCompletionService : IAiCompletionService
             {
                 if (!string.IsNullOrEmpty(chunk.Content))
                 {
+                    content.Append(chunk.Content);
                     result.ChunkCount++;
                     result.CharCount += chunk.Content.Length;
                     await _notifier.TokenAsync(request.RunId, chunk.Content, ct);
@@ -95,6 +98,7 @@ public sealed class AiCompletionService : IAiCompletionService
             }
 
             result.FinishReason = finishReason ?? "stop";
+            result.Content = content.ToString();
             await _notifier.CompletedAsync(request.RunId, result.FinishReason, ct);
 
             _logger.LogInformation(

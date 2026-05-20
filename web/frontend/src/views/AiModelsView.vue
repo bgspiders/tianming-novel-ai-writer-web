@@ -27,6 +27,44 @@ import {
   type AiProviderUpsert
 } from '@/api/modules/ai'
 
+type CapabilityKey =
+  | 'streaming'
+  | 'developerMessage'
+  | 'arrayContent'
+  | 'serviceTier'
+  | 'thinking'
+  | 'vision'
+  | 'tools'
+
+const CAPABILITY_OPTIONS: Array<{ key: CapabilityKey; label: string; hint: string }> = [
+  { key: 'streaming', label: 'Streaming', hint: 'Supports SSE or token streaming.' },
+  { key: 'developerMessage', label: 'Developer Role', hint: 'Supports system and developer roles.' },
+  { key: 'arrayContent', label: 'Array Content', hint: 'Supports array-based message content.' },
+  { key: 'serviceTier', label: 'Service Tier', hint: 'Supports a service tier parameter.' },
+  { key: 'thinking', label: 'Thinking', hint: 'Supports reasoning or thinking controls.' },
+  { key: 'vision', label: 'Vision', hint: 'Accepts image or multimodal input.' },
+  { key: 'tools', label: 'Tools', hint: 'Supports function calling or tools.' }
+]
+
+function parseCapabilities(value: string): Record<string, boolean> {
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    return Object.fromEntries(
+      CAPABILITY_OPTIONS.map((opt) => [opt.key, Boolean(parsed[opt.key])])
+    ) as Record<string, boolean>
+  } catch {
+    return Object.fromEntries(CAPABILITY_OPTIONS.map((opt) => [opt.key, false])) as Record<string, boolean>
+  }
+}
+
+function serializeCapabilities(value: Record<string, boolean>): string {
+  return JSON.stringify(
+    Object.fromEntries(Object.entries(value).filter(([, enabled]) => enabled)),
+    null,
+    0
+  )
+}
+
 const providers = ref<AiProvider[]>([])
 const selectedProviderId = ref('')
 const loadingProviders = ref(false)
@@ -111,7 +149,7 @@ async function saveProvider() {
 
 async function removeProvider(provider: AiProvider) {
   if (provider.isBuiltIn) {
-    ElMessage.warning('Built-in providers cannot be deleted. Disable them instead.')
+    ElMessage.warning('Built-in providers cannot be deleted.')
     return
   }
 
@@ -168,6 +206,7 @@ const modelForm = ref<AiModelUpsert>({
   isEnabled: true,
   sortOrder: 0
 })
+const capabilityChecks = ref<Record<string, boolean>>(parseCapabilities(modelForm.value.capabilities ?? '{}'))
 
 function openCreateModel() {
   modelDialogMode.value = 'create'
@@ -184,6 +223,7 @@ function openCreateModel() {
     isEnabled: true,
     sortOrder: models.value.length
   }
+  capabilityChecks.value = parseCapabilities(modelForm.value.capabilities ?? '{}')
   modelDialogVisible.value = true
 }
 
@@ -202,15 +242,23 @@ function openEditModel(model: AiModel) {
     isEnabled: model.isEnabled,
     sortOrder: model.sortOrder
   }
+  capabilityChecks.value = parseCapabilities(modelForm.value.capabilities ?? '{}')
   modelDialogVisible.value = true
 }
 
+watch(
+  capabilityChecks,
+  (value) => {
+    modelForm.value.capabilities = serializeCapabilities(value)
+  },
+  { deep: true }
+)
+
 async function saveModel() {
-  if (!selectedProviderId.value) {
-    return
-  }
+  if (!selectedProviderId.value) return
 
   try {
+    modelForm.value.capabilities = serializeCapabilities(capabilityChecks.value)
     if (modelDialogMode.value === 'create') {
       await createModel(selectedProviderId.value, modelForm.value)
       ElMessage.success('Model created.')
@@ -574,7 +622,7 @@ onMounted(refreshProviders)
     <el-dialog
       v-model="modelDialogVisible"
       :title="modelDialogMode === 'create' ? 'New Model' : 'Edit Model'"
-      width="600px"
+      width="640px"
     >
       <el-form :model="modelForm" label-width="130px" label-position="right">
         <el-form-item label="Model Code" required>
@@ -592,13 +640,19 @@ onMounted(refreshProviders)
         <el-form-item label="Max Output Tokens">
           <el-input-number v-model="modelForm.maxOutputTokens" :min="1" />
         </el-form-item>
-        <el-form-item label="Capabilities JSON">
-          <el-input
-            v-model="modelForm.capabilities"
-            type="textarea"
-            :rows="2"
-            placeholder='{"vision":true,"tools":true,"streaming":true}'
-          />
+        <el-form-item label="Capabilities">
+          <div class="capability-grid">
+            <el-checkbox
+              v-for="option in CAPABILITY_OPTIONS"
+              :key="option.key"
+              v-model="capabilityChecks[option.key]"
+            >
+              <div class="capability-item">
+                <span>{{ option.label }}</span>
+                <small>{{ option.hint }}</small>
+              </div>
+            </el-checkbox>
+          </div>
         </el-form-item>
         <el-form-item label="Input Price / 1M">
           <el-input-number v-model="modelForm.inputPricePerMillion" :precision="4" :step="0.1" />
@@ -786,6 +840,23 @@ onMounted(refreshProviders)
 
 .muted,
 .masked {
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
+}
+
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.capability-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.capability-item small {
   color: var(--tm-fg-secondary);
   font-size: 12px;
 }

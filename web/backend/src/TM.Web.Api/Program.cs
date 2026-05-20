@@ -8,11 +8,16 @@ using TM.Web.Application.Services;
 using TM.Web.Infrastructure.Persistence;
 using TM.Web.Infrastructure.Security;
 using TM.Web.Infrastructure.Services.Ai;
+using TM.Web.Infrastructure.Services.Chat;
 using TM.Web.Infrastructure.Services.Core;
 using TM.Web.Infrastructure.Services.Design;
 using TM.Web.Infrastructure.Services.Editor;
+using TM.Web.Infrastructure.Services.Generation;
 using TM.Web.Infrastructure.Services.Import;
 using TM.Web.Infrastructure.Services.Recall;
+using TM.Web.Infrastructure.Services.Validation;
+using TM.Web.LegacyBridge.Compatibility;
+using TM.Web.LegacyBridge.Generation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +32,7 @@ builder.Services.AddSwaggerGen(opt =>
     {
         Title = "TM Web API",
         Version = "v1",
-        Description = "天命 Web 版后端 API。阶段 0：仅包含健康检查与 AI 流式调用 Demo。"
+        Description = "TM Web API for authoring, generation, validation, and editor workflows."
     });
 });
 
@@ -51,6 +56,7 @@ builder.Services.AddCors(opt =>
 
 builder.Services.AddSingleton<IGenerationNotifier, SignalRGenerationNotifier>();
 builder.Services.AddSingleton<IAiCompletionService, AiCompletionService>();
+builder.Services.AddSingleton<IGenerationGateService, LegacyGenerationGateService>();
 
 builder.Services.AddAppDatabase(builder.Configuration);
 
@@ -60,9 +66,14 @@ builder.Services.AddScoped<IAiModelService, AiModelService>();
 builder.Services.AddScoped<IAiApiKeyService, AiApiKeyService>();
 builder.Services.AddScoped<IDataImportService, DataImportService>();
 
-// 阶段 3 — 设计模块服务
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ISourceBookService, SourceBookService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<IVolumeService, VolumeService>();
+builder.Services.AddScoped<IChapterService, ChapterService>();
+builder.Services.AddScoped<IEditorService, EditorService>();
+builder.Services.AddScoped<GenerationStateService>();
+builder.Services.AddScoped<IChapterDraftService, ChapterDraftService>();
 builder.Services.AddScoped<IWorldRuleService, WorldRuleService>();
 builder.Services.AddScoped<ICharacterRuleService, CharacterRuleService>();
 builder.Services.AddScoped<IFactionRuleService, FactionRuleService>();
@@ -77,6 +88,8 @@ builder.Services.AddScoped<IChapterPlanService, ChapterPlanService>();
 builder.Services.AddScoped<IChapterBlueprintService, ChapterBlueprintService>();
 builder.Services.AddScoped<IChapterEditorService, ChapterEditorService>();
 builder.Services.AddScoped<IChapterRecallService, ChapterRecallService>();
+builder.Services.AddScoped<IValidationService, ValidationService>();
+builder.Services.AddScoped<IChatAssistantService, ChatAssistantService>();
 
 builder.WebHost.ConfigureKestrel((ctx, kestrel) =>
 {
@@ -93,6 +106,11 @@ builder.WebHost.ConfigureKestrel((ctx, kestrel) =>
 
 var app = builder.Build();
 
+LegacyLogBridge.Wire(app.Services);
+GenerationProgressHubAdapter.Wire(app.Services.GetRequiredService<IGenerationNotifier>());
+TM.Framework.Common.Helpers.Storage.StoragePathHelper.SetBasePath(
+    DbServiceCollectionExtensions.ResolveStorageRoot(builder.Configuration));
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -107,7 +125,6 @@ using (var scope = app.Services.CreateScope())
     await AiProviderSeeder.SeedAsync(db);
 }
 
-// --import <path> CLI 模式：跑完导入即退出，不启动 HTTP 监听
 var importPathIndex = Array.IndexOf(args, "--import");
 if (importPathIndex >= 0 && importPathIndex + 1 < args.Length)
 {
@@ -115,24 +132,24 @@ if (importPathIndex >= 0 && importPathIndex + 1 < args.Length)
     using var importScope = app.Services.CreateScope();
     var importer = importScope.ServiceProvider.GetRequiredService<IDataImportService>();
     var report = await importer.ImportFromAsync(new ImportRequest(sourcePath));
-    Console.WriteLine($"\n=== 导入报告 ===");
-    Console.WriteLine($"来源: {report.SourcePath}");
-    Console.WriteLine($"耗时: {(report.FinishedAt - report.StartedAt).TotalMilliseconds:F0}ms");
-    Console.WriteLine($"成功: {report.Success}");
-    Console.WriteLine($"表统计:");
+    Console.WriteLine("\n=== Import Report ===");
+    Console.WriteLine($"Source: {report.SourcePath}");
+    Console.WriteLine($"Elapsed: {(report.FinishedAt - report.StartedAt).TotalMilliseconds:F0}ms");
+    Console.WriteLine($"Success: {report.Success}");
+    Console.WriteLine("Tables:");
     foreach (var t in report.Tables)
     {
         Console.WriteLine($"  - {t.Table,-25} read={t.Read,-5} insert={t.Inserted,-5} update={t.Updated,-5} skip={t.Skipped,-5} ({t.SourceFile})");
     }
     if (report.Warnings.Count > 0)
     {
-        Console.WriteLine($"\n警告 ({report.Warnings.Count})：");
-        foreach (var w in report.Warnings) Console.WriteLine($"  ⚠ {w}");
+        Console.WriteLine($"\nWarnings ({report.Warnings.Count}):");
+        foreach (var w in report.Warnings) Console.WriteLine($"  - {w}");
     }
     if (report.Errors.Count > 0)
     {
-        Console.WriteLine($"\n错误 ({report.Errors.Count})：");
-        foreach (var e in report.Errors) Console.WriteLine($"  ✗ {e}");
+        Console.WriteLine($"\nErrors ({report.Errors.Count}):");
+        foreach (var e in report.Errors) Console.WriteLine($"  - {e}");
         return 1;
     }
     return 0;
