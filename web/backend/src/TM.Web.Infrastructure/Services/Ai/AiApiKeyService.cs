@@ -147,6 +147,18 @@ public class AiApiKeyService : IAiApiKeyService
         }
     }
 
+    public async Task<string?> GetPlainKeyAsync(string id, CancellationToken ct = default)
+    {
+        var entity = await _db.AiApiKeys.FindAsync(new object?[] { id }, ct);
+        if (entity == null) return null;
+        if (!entity.IsEnabled)
+            throw new InvalidOperationException("Key 已禁用。");
+
+        entity.LastUsedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return _protector.Decrypt(entity.EncryptedKey, entity.Iv);
+    }
+
     public async Task<string?> RotateNextPlainKeyAsync(string providerId, CancellationToken ct = default)
     {
         var entity = await _db.AiApiKeys

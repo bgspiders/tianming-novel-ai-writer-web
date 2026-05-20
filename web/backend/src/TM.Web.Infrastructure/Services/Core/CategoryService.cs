@@ -4,6 +4,7 @@ using TM.Web.Application.Services;
 using TM.Web.Domain.Common;
 using TM.Web.Domain.Entities.Core;
 using TM.Web.Infrastructure.Persistence;
+using TM.Web.Infrastructure.Services.Design;
 
 namespace TM.Web.Infrastructure.Services.Core;
 
@@ -13,15 +14,17 @@ public class CategoryService : ICategoryService
 
     public CategoryService(AppDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<CategoryDto>> ListAsync(string moduleType, string? sourceBookId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CategoryDto>> ListAsync(string moduleType, string? sourceBookId, string? projectId = null, CancellationToken ct = default)
     {
+        sourceBookId = await _db.ResolveWriteSourceBookIdAsync(projectId, sourceBookId, ct);
         var rows = await Query(moduleType, sourceBookId).OrderBy(c => c.SortOrder).ThenBy(c => c.Name).ToListAsync(ct);
         var counts = await CountItemsByCategoryAsync(moduleType, sourceBookId, ct);
         return rows.Select(c => ToDto(c, counts.GetValueOrDefault(c.Id))).ToList();
     }
 
-    public async Task<IReadOnlyList<CategoryTreeNodeDto>> GetTreeAsync(string moduleType, string? sourceBookId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CategoryTreeNodeDto>> GetTreeAsync(string moduleType, string? sourceBookId, string? projectId = null, CancellationToken ct = default)
     {
+        sourceBookId = await _db.ResolveWriteSourceBookIdAsync(projectId, sourceBookId, ct);
         var rows = await Query(moduleType, sourceBookId).ToListAsync(ct);
         var counts = await CountItemsByCategoryAsync(moduleType, sourceBookId, ct);
 
@@ -70,6 +73,7 @@ public class CategoryService : ICategoryService
 
     public async Task<CategoryDto> CreateAsync(CategoryUpsertDto input, CancellationToken ct = default)
     {
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
         var entity = new Category
         {
             ModuleType = input.ModuleType,
@@ -78,7 +82,7 @@ public class CategoryService : ICategoryService
             SortOrder = input.SortOrder,
             IsEnabled = input.IsEnabled,
             IsBuiltIn = false,
-            SourceBookId = string.IsNullOrEmpty(input.SourceBookId) ? null : input.SourceBookId,
+            SourceBookId = sourceBookId,
         };
         _db.Categories.Add(entity);
         await _db.SaveChangesAsync(ct);
@@ -93,6 +97,10 @@ public class CategoryService : ICategoryService
         if (!string.IsNullOrEmpty(input.ParentId) && input.ParentId == id)
             throw new InvalidOperationException("不能将自身设为父分类。");
 
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
+        if (!IsInSourceScope(entity.SourceBookId, sourceBookId))
+            throw new InvalidOperationException("分类不属于当前项目默认源书，不能跨 scope 编辑。");
+
         entity.Name = input.Name;
         entity.ParentId = string.IsNullOrEmpty(input.ParentId) ? null : input.ParentId;
         entity.SortOrder = input.SortOrder;
@@ -102,6 +110,31 @@ public class CategoryService : ICategoryService
         await _db.SaveChangesAsync(ct);
         var count = await CountItemsAsync(entity.ModuleType, entity.Id, entity.SourceBookId, ct);
         return ToDto(entity, count);
+    }
+
+    public async Task ReorderAsync(CategoryReorderDto input, CancellationToken ct = default)
+    {
+        if (input.Items.Count == 0) return;
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
+
+        var ids = input.Items.Select(x => x.Id).Distinct().ToList();
+        var entities = await _db.Categories
+            .Where(c => ids.Contains(c.Id) && c.ModuleType == input.ModuleType)
+            .ToDictionaryAsync(c => c.Id, ct);
+
+        foreach (var item in input.Items)
+        {
+            if (!entities.TryGetValue(item.Id, out var entity)) continue;
+            if (!IsInSourceScope(entity.SourceBookId, sourceBookId))
+                throw new InvalidOperationException("分类排序包含非当前项目默认源书的分类。");
+            if (!string.IsNullOrEmpty(item.ParentId) && item.ParentId == item.Id)
+                throw new InvalidOperationException("不能将自身设为父分类。");
+
+            entity.ParentId = string.IsNullOrEmpty(item.ParentId) ? null : item.ParentId;
+            entity.SortOrder = item.SortOrder;
+        }
+
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
@@ -156,6 +189,15 @@ public class CategoryService : ICategoryService
             q = q.Where(c => c.SourceBookId == sourceBookId || c.SourceBookId == null);
         }
         return q;
+    }
+
+    private static bool IsInSourceScope(string? entitySourceBookId, string? scopeSourceBookId)
+    {
+        if (string.IsNullOrEmpty(scopeSourceBookId))
+            return string.IsNullOrEmpty(entitySourceBookId);
+
+        return string.IsNullOrEmpty(entitySourceBookId)
+               || string.Equals(entitySourceBookId, scopeSourceBookId, StringComparison.Ordinal);
     }
 
     private async Task<Dictionary<string, int>> CountItemsByCategoryAsync(string moduleType, string? sourceBookId, CancellationToken ct)

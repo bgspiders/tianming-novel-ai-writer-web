@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete, Refresh, FolderAdd, Search } from '@element-plus/icons-vue'
+import { useWorkContextStore } from '@/stores/workContext'
 
 import {
   DESIGN_MODULES,
@@ -23,6 +24,7 @@ import {
   getCategoryTree,
   createCategory,
   updateCategory,
+  reorderCategories,
   deleteCategory,
   type CategoryTreeNode,
   type CategoryUpsert
@@ -34,10 +36,11 @@ import {
 } from '@/api/modules/sourceBooks'
 
 import DesignFormField from '@/components/design/DesignFormField.vue'
-import { MODULE_SCHEMAS, buildEmptyForm, type FieldDef } from '@/components/design/moduleSchemas'
+import { MODULE_SCHEMAS, buildEmptyForm, type FieldDef, type PickerSource } from '@/components/design/moduleSchemas'
 
 const route = useRoute()
 const router = useRouter()
+const workContext = useWorkContextStore()
 
 // --- 路由模块 ---
 const moduleKey = computed<DesignModuleKey>(() => {
@@ -65,6 +68,110 @@ const apiMap = {
 } as const
 const activeApi = computed(() => apiMap[moduleKey.value])
 
+type PickerOption = { label: string; value: string | number }
+type PickerRow = Record<string, unknown>
+
+const pickerRows = ref<Record<PickerSource, PickerRow[]>>({
+  characters: [],
+  factions: [],
+  locations: [],
+  volumes: []
+})
+
+function getPickerValue(row: Record<string, unknown>, field: FieldDef): string | number {
+  switch (field.pickerValue) {
+    case 'id': return row.id as string
+    case 'volumeNumber': return row.volumeNumber as number
+    case 'title': return (row.title ?? row.volumeTitle ?? row.name ?? '') as string
+    case 'name':
+    default: return (row.name ?? row.title ?? '') as string
+  }
+}
+
+function getPickerLabel(row: Record<string, unknown>, source: PickerSource): string {
+  if (source === 'volumes') {
+    return `第 ${row.volumeNumber} 卷 · ${row.title}`
+  }
+  return String(row.name ?? row.title ?? row.id ?? '')
+}
+
+async function refreshPickers() {
+  const scoped = moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null
+  const projectId = workContext.selectedProjectId || null
+  const [characters, factions, locations] = await Promise.all([
+    characterRulesApi.list({ sourceBookId: scoped, projectId, isEnabled: true }),
+    factionRulesApi.list({ sourceBookId: scoped, projectId, isEnabled: true }),
+    locationRulesApi.list({ sourceBookId: scoped, projectId, isEnabled: true })
+  ])
+
+  pickerRows.value = {
+    characters: characters as unknown as PickerRow[],
+    factions: factions as unknown as PickerRow[],
+    locations: locations as unknown as PickerRow[],
+    volumes: workContext.volumes as unknown as PickerRow[]
+  }
+}
+
+function optionsFor(field: FieldDef): PickerOption[] {
+  if (!field.pickerSource) return []
+  return pickerRows.value[field.pickerSource]
+    .map((row) => ({
+      label: getPickerLabel(row, field.pickerSource!),
+      value: getPickerValue(row, field)
+    }))
+    .filter((o) => o.value !== '')
+}
+
+function invalidReferenceMessage(field: FieldDef, currentValue: unknown): string {
+  if (!field.pickerSource || currentValue === null || currentValue === undefined || currentValue === '') return ''
+  const options = optionsFor(field)
+  if (Array.isArray(currentValue)) {
+    const missing = currentValue.filter((v) => !options.some((o) => o.value === v))
+    return missing.length ? `当前有 ${missing.length} 个引用不在候选项中: ${missing.join('、')}` : ''
+  }
+  return options.some((o) => o.value === currentValue)
+    ? ''
+    : `当前值 "${String(currentValue)}" 不在候选项中,请确认是否已删除或切换了源书。`
+}
+
+function hasPickerOption(options: PickerOption[], value: unknown): boolean {
+  return options.some((o) => o.value === value)
+}
+
+function clearInvalidReferences(field: FieldDef) {
+  if (!field.pickerSource) return
+  const currentValue = editorForm.value[field.key]
+  const options = optionsFor(field)
+  if (Array.isArray(currentValue)) {
+    const validValues = currentValue.filter((v) => hasPickerOption(options, v))
+    const removedCount = currentValue.length - validValues.length
+    editorForm.value[field.key] = validValues
+    if (removedCount > 0) {
+      ElMessage.success(`已清理 ${removedCount} 个失效引用`)
+    }
+    return
+  }
+  if (currentValue !== null && currentValue !== undefined && currentValue !== '' && !hasPickerOption(options, currentValue)) {
+    editorForm.value[field.key] = field.type === 'select' ? null : ''
+    ElMessage.success('已清理失效引用')
+  }
+}
+
+async function rematchReferences(field: FieldDef) {
+  if (!field.pickerSource) return
+  try {
+    await refreshPickers()
+    const message = invalidReferenceMessage(field, editorForm.value[field.key])
+    if (message) {
+      ElMessage.warning('已重新匹配候选项,仍有引用失效')
+    } else {
+      ElMessage.success('已重新匹配引用')
+    }
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? '重新匹配失败')
+  }
+}
+
 // --- SourceBook 切换 ---
 const sourceBooks = ref<SourceBook[]>([])
 const selectedSourceBookId = ref<string>('')
@@ -72,6 +179,9 @@ const selectedSourceBookId = ref<string>('')
 async function refreshSourceBooks() {
   try {
     sourceBooks.value = await listSourceBooks()
+    if (!selectedSourceBookId.value && workContext.selectedProject?.currentSourceBookId) {
+      selectedSourceBookId.value = workContext.selectedProject.currentSourceBookId
+    }
   } catch (err) {
     ElMessage.error((err as Error).message ?? '加载源书失败')
   }
@@ -96,6 +206,19 @@ async function quickCreateSourceBook() {
   }
 }
 
+async function bindSourceBookToProject() {
+  if (!workContext.selectedProjectId) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
+  try {
+    await workContext.updateSelectedProjectSourceBook(selectedSourceBookId.value || null)
+    ElMessage.success('已设为当前项目默认源书')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? '绑定失败')
+  }
+}
+
 // --- Category 树 ---
 const categoryTree = ref<CategoryTreeNode[]>([])
 const loadingCategories = ref(false)
@@ -107,7 +230,8 @@ async function refreshCategories() {
   try {
     categoryTree.value = await getCategoryTree(
       moduleKey.value,
-      moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null
+      moduleMeta.value.hasSourceBookScope ? selectedSourceBookId.value || null : null,
+      workContext.selectedProjectId || null
     )
   } catch (err) {
     ElMessage.error((err as Error).message ?? '加载分类失败')
@@ -125,8 +249,20 @@ const categoryForm = ref<CategoryUpsert>({
   parentId: null,
   sortOrder: 0,
   isEnabled: true,
-  sourceBookId: null
+  sourceBookId: null,
+  projectId: null
 })
+
+function flattenCategories(nodes: CategoryTreeNode[], depth = 0): PickerOption[] {
+  return nodes.flatMap((node) => [
+    { label: `${'　'.repeat(depth)}${node.name}`, value: node.id },
+    ...flattenCategories(node.children ?? [], depth + 1)
+  ])
+}
+
+const categoryParentOptions = computed(() =>
+  flattenCategories(categoryTree.value).filter((o) => o.value !== categoryEditId.value)
+)
 
 function openCreateCategory(parent?: CategoryTreeNode) {
   categoryDialogMode.value = 'create'
@@ -137,7 +273,8 @@ function openCreateCategory(parent?: CategoryTreeNode) {
     parentId: parent?.id ?? null,
     sortOrder: 0,
     isEnabled: true,
-    sourceBookId: moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null
+    sourceBookId: moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null,
+    projectId: workContext.selectedProjectId || null
   }
   categoryDialogVisible.value = true
 }
@@ -151,7 +288,8 @@ function openEditCategory(node: CategoryTreeNode) {
     parentId: node.parentId,
     sortOrder: node.sortOrder,
     isEnabled: node.isEnabled,
-    sourceBookId: node.sourceBookId
+    sourceBookId: node.sourceBookId,
+    projectId: workContext.selectedProjectId || null
   }
   categoryDialogVisible.value = true
 }
@@ -190,24 +328,78 @@ async function removeCategory(node: CategoryTreeNode) {
   }
 }
 
+function flattenCategoryOrder(
+  nodes: CategoryTreeNode[],
+  parentId: string | null = null
+): { id: string; parentId: string | null; sortOrder: number }[] {
+  return nodes.flatMap((node, index) => [
+    { id: node.id, parentId, sortOrder: index * 10 },
+    ...flattenCategoryOrder(node.children ?? [], node.id)
+  ])
+}
+
+async function saveCategoryOrder() {
+  try {
+    await reorderCategories({
+      moduleType: moduleKey.value,
+      sourceBookId: moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null,
+      projectId: workContext.selectedProjectId || null,
+      items: flattenCategoryOrder(categoryTree.value)
+    })
+    await refreshCategories()
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? '分类排序保存失败')
+    await refreshCategories()
+  }
+}
+
 // --- 数据列表 ---
 const items = ref<Record<string, unknown>[]>([])
 const loadingItems = ref(false)
 const keyword = ref('')
+const isEnabledFilter = ref<'all' | 'enabled' | 'disabled'>('all')
+const includeUncategorized = ref(false)
+const updatedRange = ref<[string, string] | []>([])
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+
+function buildListParams() {
+  return {
+    categoryId: includeUncategorized.value ? null : selectedCategoryId.value,
+    sourceBookId: moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null,
+    keyword: keyword.value || null,
+    isEnabled: isEnabledFilter.value === 'all' ? null : isEnabledFilter.value === 'enabled',
+    updatedFrom: updatedRange.value[0] ?? null,
+    updatedTo: updatedRange.value[1] ?? null,
+    includeUncategorized: includeUncategorized.value,
+    projectId: workContext.selectedProjectId || null,
+    page: page.value,
+    pageSize: pageSize.value
+  }
+}
 
 async function refreshItems() {
   loadingItems.value = true
   try {
-    items.value = (await activeApi.value.list({
-      categoryId: selectedCategoryId.value,
-      sourceBookId: moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null,
-      keyword: keyword.value || null
-    })) as unknown as Record<string, unknown>[]
+    const result = await activeApi.value.listPaged(buildListParams())
+    items.value = result.items as unknown as Record<string, unknown>[]
+    total.value = result.total
+    page.value = result.page
+    pageSize.value = result.pageSize
   } catch (err) {
     ElMessage.error((err as Error).message ?? '加载列表失败')
   } finally {
     loadingItems.value = false
   }
+}
+
+async function refreshWorkspaceData() {
+  await Promise.all([
+    refreshCategories(),
+    refreshItems(),
+    refreshPickers()
+  ])
 }
 
 // --- 编辑器 ---
@@ -224,6 +416,7 @@ function openCreate() {
   editorForm.value = buildEmptyForm(moduleKey.value)
   editorForm.value.categoryId = selectedCategoryId.value
   editorForm.value.sourceBookId = moduleMeta.value.hasSourceBookScope ? (selectedSourceBookId.value || null) : null
+  editorForm.value.projectId = workContext.selectedProjectId || null
   editorTab.value = schema.value.tabs[0]?.key ?? ''
   editorVisible.value = true
 }
@@ -234,6 +427,7 @@ async function openEdit(row: Record<string, unknown>) {
   try {
     const detail = (await activeApi.value.get(row.id as string)) as unknown as Record<string, unknown>
     editorForm.value = { ...buildEmptyForm(moduleKey.value), ...detail }
+    editorForm.value.projectId = workContext.selectedProjectId || null
     editorTab.value = schema.value.tabs[0]?.key ?? ''
     editorVisible.value = true
   } catch (err) {
@@ -301,22 +495,41 @@ function switchModule(key: DesignModuleKey) {
 
 watch(moduleKey, async () => {
   selectedCategoryId.value = null
-  await refreshCategories()
-  await refreshItems()
+  page.value = 1
+  await refreshWorkspaceData()
 })
 
 watch(selectedSourceBookId, async () => {
   selectedCategoryId.value = null
-  await refreshCategories()
-  await refreshItems()
+  page.value = 1
+  await refreshWorkspaceData()
 })
 
-watch(selectedCategoryId, refreshItems)
+watch(selectedCategoryId, () => {
+  includeUncategorized.value = false
+  page.value = 1
+  refreshItems()
+})
+
+watch([isEnabledFilter, includeUncategorized, updatedRange], () => {
+  page.value = 1
+  refreshItems()
+})
+
+watch(() => workContext.selectedProjectId, async () => {
+  selectedSourceBookId.value = workContext.selectedProject?.currentSourceBookId ?? ''
+  page.value = 1
+  await refreshWorkspaceData()
+})
+
+watch(() => workContext.selectedVolumeId, refreshPickers)
+
+watch(() => workContext.volumes, refreshPickers, { deep: true })
 
 onMounted(async () => {
+  await workContext.init()
   await refreshSourceBooks()
-  await refreshCategories()
-  await refreshItems()
+  await refreshWorkspaceData()
 })
 </script>
 
@@ -355,6 +568,13 @@ onMounted(async () => {
             />
           </el-select>
           <el-button size="small" :icon="Plus" @click="newSourceBookVisible = true">新建源书</el-button>
+          <el-button
+            size="small"
+            :disabled="!workContext.selectedProjectId"
+            @click="bindSourceBookToProject"
+          >
+            设为项目默认
+          </el-button>
         </div>
       </div>
     </el-card>
@@ -384,10 +604,12 @@ onMounted(async () => {
             ref="treeRef"
             :data="categoryTree"
             node-key="id"
+            draggable
             :default-expand-all="true"
             :expand-on-click-node="false"
             :highlight-current="true"
             empty-text="暂无分类"
+            @node-drop="saveCategoryOrder"
           >
             <template #default="{ node, data }">
               <div
@@ -421,8 +643,23 @@ onMounted(async () => {
                 size="small"
                 style="width: 200px"
                 :prefix-icon="Search"
-                @change="refreshItems"
+                @change="page = 1; refreshItems()"
               />
+              <el-select v-model="isEnabledFilter" size="small" style="width: 100px">
+                <el-option label="全部状态" value="all" />
+                <el-option label="启用" value="enabled" />
+                <el-option label="禁用" value="disabled" />
+              </el-select>
+              <el-date-picker
+                v-model="updatedRange"
+                type="datetimerange"
+                start-placeholder="更新起"
+                end-placeholder="更新止"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                size="small"
+                style="width: 310px"
+              />
+              <el-checkbox v-model="includeUncategorized" size="small">仅未分类</el-checkbox>
               <el-button size="small" :icon="Refresh" @click="refreshItems" />
               <el-button type="primary" size="small" :icon="Plus" @click="openCreate">新建</el-button>
             </div>
@@ -464,6 +701,21 @@ onMounted(async () => {
             <el-empty :description="`暂无数据,点 「新建」 添加 ${moduleMeta.label}`" />
           </template>
         </el-table>
+
+        <div class="pager-row">
+          <span class="muted">共 {{ total }} 条</span>
+          <el-pagination
+            v-model:current-page="page"
+            v-model:page-size="pageSize"
+            layout="sizes, prev, pager, next"
+            :total="total"
+            :page-sizes="[10, 20, 50, 100]"
+            small
+            background
+            @current-change="refreshItems"
+            @size-change="page = 1; refreshItems()"
+          />
+        </div>
       </el-card>
     </div>
 
@@ -474,7 +726,15 @@ onMounted(async () => {
           <el-input v-model="categoryForm.name" />
         </el-form-item>
         <el-form-item label="父分类">
-          <el-input v-model="categoryForm.parentId" placeholder="留空为根分类(暂无 picker)" />
+          <el-tree-select
+            v-model="categoryForm.parentId"
+            :data="categoryParentOptions"
+            check-strictly
+            clearable
+            filterable
+            placeholder="留空为根分类"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="categoryForm.sortOrder" :min="0" />
@@ -502,7 +762,11 @@ onMounted(async () => {
           v-for="f in schema.commonFields"
           :key="f.key"
           :field="f"
+          :picker-options="optionsFor(f)"
+          :invalid-message="invalidReferenceMessage(f, editorForm[f.key])"
           v-model="editorForm[f.key]"
+          @clear-invalid-references="clearInvalidReferences(f)"
+          @rematch-references="rematchReferences(f)"
         />
 
         <!-- 分类 / 源书 ID(只读显示) -->
@@ -527,7 +791,11 @@ onMounted(async () => {
               v-for="f in t.fields"
               :key="f.key"
               :field="f"
+              :picker-options="optionsFor(f)"
+              :invalid-message="invalidReferenceMessage(f, editorForm[f.key])"
               v-model="editorForm[f.key]"
+              @clear-invalid-references="clearInvalidReferences(f)"
+              @rematch-references="rematchReferences(f)"
             />
           </el-tab-pane>
         </el-tabs>
@@ -636,6 +904,8 @@ onMounted(async () => {
   display: flex;
   gap: 6px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .tree-body {
   font-size: 13px;
@@ -686,5 +956,12 @@ onMounted(async () => {
 }
 .editor-tabs {
   margin-top: 16px;
+}
+.pager-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 12px;
 }
 </style>

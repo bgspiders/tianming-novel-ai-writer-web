@@ -54,6 +54,7 @@ public class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMessage>
         b.Property(x => x.Id).HasMaxLength(64);
         b.Property(x => x.ChatSessionId).IsRequired().HasMaxLength(64);
         b.Property(x => x.Role).IsRequired().HasMaxLength(32);
+        b.Property(x => x.Summary).HasMaxLength(512);
         b.HasIndex(x => new { x.ChatSessionId, x.CreatedAt });
         b.HasOne(x => x.ChatSession)
             .WithMany(s => s.Messages)

@@ -29,4 +29,16 @@ public record CategoryUpsertDto(
     string? ParentId,
     int SortOrder = 0,
     bool IsEnabled = true,
-    string? SourceBookId = null);
+    string? SourceBookId = null,
+    string? ProjectId = null);
+
+public record CategoryReorderItemDto(
+    string Id,
+    string? ParentId,
+    int SortOrder);
+
+public record CategoryReorderDto(
+    string ModuleType,
+    string? SourceBookId,
+    string? ProjectId,
+    IReadOnlyList<CategoryReorderItemDto> Items);

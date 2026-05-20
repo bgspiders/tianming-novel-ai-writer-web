@@ -26,6 +26,7 @@ public record WorldRuleUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     string OneLineSummary = "",
     string PowerSystem = "",
     string Cosmology = "",

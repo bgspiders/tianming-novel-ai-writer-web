@@ -8,9 +8,15 @@ using TM.Web.Application.Services;
 using TM.Web.Infrastructure.Persistence;
 using TM.Web.Infrastructure.Security;
 using TM.Web.Infrastructure.Services.Ai;
+using TM.Web.Infrastructure.Services.Chat;
 using TM.Web.Infrastructure.Services.Core;
 using TM.Web.Infrastructure.Services.Design;
+using TM.Web.Infrastructure.Services.Editor;
+using TM.Web.Infrastructure.Services.Generation;
 using TM.Web.Infrastructure.Services.Import;
+using TM.Web.Infrastructure.Services.Validation;
+using TM.Web.LegacyBridge.Compatibility;
+using TM.Web.LegacyBridge.Generation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +54,7 @@ builder.Services.AddCors(opt =>
 
 builder.Services.AddSingleton<IGenerationNotifier, SignalRGenerationNotifier>();
 builder.Services.AddSingleton<IAiCompletionService, AiCompletionService>();
+builder.Services.AddSingleton<IGenerationGateService, LegacyGenerationGateService>();
 
 builder.Services.AddAppDatabase(builder.Configuration);
 
@@ -60,6 +67,12 @@ builder.Services.AddScoped<IDataImportService, DataImportService>();
 // 阶段 3 — 设计模块服务
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ISourceBookService, SourceBookService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<IVolumeService, VolumeService>();
+builder.Services.AddScoped<IChapterService, ChapterService>();
+builder.Services.AddScoped<IEditorService, EditorService>();
+builder.Services.AddScoped<GenerationStateService>();
+builder.Services.AddScoped<IChapterDraftService, ChapterDraftService>();
 builder.Services.AddScoped<IWorldRuleService, WorldRuleService>();
 builder.Services.AddScoped<ICharacterRuleService, CharacterRuleService>();
 builder.Services.AddScoped<IFactionRuleService, FactionRuleService>();
@@ -71,6 +84,8 @@ builder.Services.AddScoped<IOutlineService, OutlineService>();
 builder.Services.AddScoped<IVolumeDesignService, VolumeDesignService>();
 builder.Services.AddScoped<IChapterPlanService, ChapterPlanService>();
 builder.Services.AddScoped<IChapterBlueprintService, ChapterBlueprintService>();
+builder.Services.AddScoped<IValidationService, ValidationService>();
+builder.Services.AddScoped<IChatAssistantService, ChatAssistantService>();
 
 builder.WebHost.ConfigureKestrel((ctx, kestrel) =>
 {
@@ -86,6 +101,11 @@ builder.WebHost.ConfigureKestrel((ctx, kestrel) =>
 });
 
 var app = builder.Build();
+
+LegacyLogBridge.Wire(app.Services);
+GenerationProgressHubAdapter.Wire(app.Services.GetRequiredService<IGenerationNotifier>());
+TM.Framework.Common.Helpers.Storage.StoragePathHelper.SetBasePath(
+    DbServiceCollectionExtensions.ResolveStorageRoot(builder.Configuration));
 
 using (var scope = app.Services.CreateScope())
 {

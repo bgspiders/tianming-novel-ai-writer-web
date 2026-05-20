@@ -27,6 +27,46 @@ import {
   type AiApiKeyTestResult
 } from '@/api/modules/ai'
 
+type CapabilityKey =
+  | 'streaming'
+  | 'developerMessage'
+  | 'arrayContent'
+  | 'serviceTier'
+  | 'thinking'
+  | 'vision'
+  | 'tools'
+
+const CAPABILITY_OPTIONS: Array<{ key: CapabilityKey; label: string; hint: string }> = [
+  { key: 'streaming', label: '流式输出', hint: '支持 stream options / SSE' },
+  { key: 'developerMessage', label: 'Developer 消息', hint: '支持 system/dev role' },
+  { key: 'arrayContent', label: '数组内容', hint: '支持 messages.content 为数组' },
+  { key: 'serviceTier', label: 'Service Tier', hint: '支持 service_tier 参数' },
+  { key: 'thinking', label: '思考模式', hint: '支持 reasoning / thinking 参数' },
+  { key: 'vision', label: '视觉输入', hint: '支持图像 / 多模态' },
+  { key: 'tools', label: '工具调用', hint: '支持 function calling / tools' }
+]
+
+function parseCapabilities(value: string): Record<string, boolean> {
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    return Object.fromEntries(
+      CAPABILITY_OPTIONS.map((opt) => [opt.key, Boolean(parsed[opt.key])])
+    ) as Record<string, boolean>
+  } catch {
+    return Object.fromEntries(CAPABILITY_OPTIONS.map((opt) => [opt.key, false])) as Record<string, boolean>
+  }
+}
+
+function serializeCapabilities(value: Record<string, boolean>): string {
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(value).filter(([, enabled]) => enabled)
+    ),
+    null,
+    0
+  )
+}
+
 const providers = ref<AiProvider[]>([])
 const selectedProviderId = ref<string>('')
 const loadingProviders = ref(false)
@@ -163,6 +203,7 @@ const modelForm = ref<AiModelUpsert>({
   isEnabled: true,
   sortOrder: 0
 })
+const capabilityChecks = ref<Record<string, boolean>>(parseCapabilities(modelForm.value.capabilities ?? '{}'))
 
 function openCreateModel() {
   modelDialogMode.value = 'create'
@@ -179,6 +220,7 @@ function openCreateModel() {
     isEnabled: true,
     sortOrder: models.value.length
   }
+  capabilityChecks.value = parseCapabilities(modelForm.value.capabilities ?? '{}')
   modelDialogVisible.value = true
 }
 
@@ -197,12 +239,14 @@ function openEditModel(m: AiModel) {
     isEnabled: m.isEnabled,
     sortOrder: m.sortOrder
   }
+  capabilityChecks.value = parseCapabilities(modelForm.value.capabilities ?? '{}')
   modelDialogVisible.value = true
 }
 
 async function saveModel() {
   if (!selectedProviderId.value) return
   try {
+    modelForm.value.capabilities = serializeCapabilities(capabilityChecks.value)
     if (modelDialogMode.value === 'create') {
       await createModel(selectedProviderId.value, modelForm.value)
       ElMessage.success('模型已创建')
@@ -217,6 +261,14 @@ async function saveModel() {
     ElMessage.error((err as Error).message ?? '保存失败')
   }
 }
+
+watch(
+  capabilityChecks,
+  (value) => {
+    modelForm.value.capabilities = serializeCapabilities(value)
+  },
+  { deep: true }
+)
 
 async function removeModel(m: AiModel) {
   try {
@@ -556,8 +608,18 @@ onMounted(refreshProviders)
           <el-input-number v-model="modelForm.maxOutputTokens" :min="1" />
         </el-form-item>
         <el-form-item label="能力 JSON">
-          <el-input v-model="modelForm.capabilities" type="textarea" :rows="2"
-            placeholder='{"vision":true,"tools":true,"streaming":true}' />
+          <div class="capability-grid">
+            <el-checkbox
+              v-for="option in CAPABILITY_OPTIONS"
+              :key="option.key"
+              v-model="capabilityChecks[option.key]"
+            >
+              <div class="capability-item">
+                <span>{{ option.label }}</span>
+                <small>{{ option.hint }}</small>
+              </div>
+            </el-checkbox>
+          </div>
         </el-form-item>
         <el-form-item label="输入价 / 1M">
           <el-input-number v-model="modelForm.inputPricePerMillion" :precision="4" :step="0.1" />
@@ -711,6 +773,20 @@ onMounted(refreshProviders)
   color: var(--tm-fg-secondary);
 }
 .muted {
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
+}
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+.capability-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.capability-item small {
   color: var(--tm-fg-secondary);
   font-size: 12px;
 }

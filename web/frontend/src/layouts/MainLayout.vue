@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useThemeStore } from '@/stores/theme'
-import { Sunny, Moon, Monitor, Promotion, Cpu, Setting, MagicStick, Edit } from '@element-plus/icons-vue'
+import { useWorkContextStore } from '@/stores/workContext'
+import { Sunny, Moon, Monitor, Promotion, Cpu, Setting, MagicStick, Edit, Plus, Notebook, CircleCheck, ChatDotRound, Document } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const themeStore = useThemeStore()
+const workContext = useWorkContextStore()
 
 const activeMenu = computed(() => route.path)
 
@@ -32,6 +35,80 @@ const themeLabel = computed(() => {
   if (themeStore.mode === 'dark') return '深色'
   return '浅色'
 })
+
+const projectDialogVisible = ref(false)
+const volumeDialogVisible = ref(false)
+const creatingProject = ref(false)
+const creatingVolume = ref(false)
+
+const projectForm = reactive({
+  name: '',
+  description: ''
+})
+
+const volumeForm = reactive({
+  volumeNumber: 1,
+  title: '',
+  theme: ''
+})
+
+function openProjectDialog() {
+  projectForm.name = ''
+  projectForm.description = ''
+  projectDialogVisible.value = true
+}
+
+function openVolumeDialog() {
+  if (!workContext.selectedProjectId) {
+    ElMessage.warning('请先创建或选择项目')
+    return
+  }
+  volumeForm.volumeNumber = (workContext.volumes.at(-1)?.volumeNumber ?? 0) + 1
+  volumeForm.title = ''
+  volumeForm.theme = ''
+  volumeDialogVisible.value = true
+}
+
+async function submitProject() {
+  if (!projectForm.name.trim()) {
+    ElMessage.warning('项目名称必填')
+    return
+  }
+  creatingProject.value = true
+  try {
+    await workContext.addProject({
+      name: projectForm.name.trim(),
+      description: projectForm.description.trim() || null
+    })
+    projectDialogVisible.value = false
+    ElMessage.success('项目已创建')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? '创建项目失败')
+  } finally {
+    creatingProject.value = false
+  }
+}
+
+async function submitVolume() {
+  if (!volumeForm.title.trim()) {
+    ElMessage.warning('卷标题必填')
+    return
+  }
+  creatingVolume.value = true
+  try {
+    await workContext.addVolume({
+      volumeNumber: volumeForm.volumeNumber,
+      title: volumeForm.title.trim(),
+      theme: volumeForm.theme.trim() || null
+    })
+    volumeDialogVisible.value = false
+    ElMessage.success('分卷已创建')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? '创建分卷失败')
+  } finally {
+    creatingVolume.value = false
+  }
+}
 </script>
 
 <template>
@@ -81,6 +158,31 @@ const themeLabel = computed(() => {
           <el-menu-item index="/design/chapter_plans">📝 章节规划</el-menu-item>
           <el-menu-item index="/design/chapter_blueprints">🎬 章节蓝图</el-menu-item>
         </el-sub-menu>
+        <el-sub-menu index="generate">
+          <template #title>
+            <el-icon><Notebook /></el-icon>
+            <span>生成模块</span>
+          </template>
+          <el-menu-item index="/generate">🏗️ 生成工作台</el-menu-item>
+          <el-menu-item index="/generate/outlines">🧭 大纲</el-menu-item>
+          <el-menu-item index="/generate/volume_designs">📚 分卷</el-menu-item>
+          <el-menu-item index="/generate/chapter_plans">📝 章节规划</el-menu-item>
+          <el-menu-item index="/generate/chapter_blueprints">🎬 章节蓝图</el-menu-item>
+          <el-menu-item index="/generate/chapters">✍️ 章节生成</el-menu-item>
+          <el-menu-item index="/generate/gate">🚦 生成门禁</el-menu-item>
+        </el-sub-menu>
+        <el-menu-item index="/editor">
+          <el-icon><Document /></el-icon>
+          <span>章节编辑器</span>
+        </el-menu-item>
+        <el-menu-item index="/validate">
+          <el-icon><CircleCheck /></el-icon>
+          <span>校验工作台</span>
+        </el-menu-item>
+        <el-menu-item index="/ai-assistant">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>AI 助手</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -88,6 +190,46 @@ const themeLabel = computed(() => {
       <el-header height="52px" class="layout-header">
         <div class="header-title">{{ ($route.meta.title as string) || '天命 Web' }}</div>
         <div class="header-right">
+          <div class="work-context">
+            <span class="context-label">Project</span>
+            <el-select
+              v-model="workContext.selectedProjectId"
+              :loading="workContext.loadingProjects"
+              placeholder="未选择"
+              size="small"
+              filterable
+              style="width: 190px"
+            >
+              <el-option
+                v-for="p in workContext.projects"
+                :key="p.id"
+                :label="p.name"
+                :value="p.id"
+              />
+            </el-select>
+            <el-button text size="small" :icon="Plus" @click="openProjectDialog" />
+
+            <span class="context-label">Volume</span>
+            <el-select
+              v-model="workContext.selectedVolumeId"
+              :disabled="!workContext.selectedProjectId"
+              :loading="workContext.loadingVolumes"
+              placeholder="未选择"
+              size="small"
+              filterable
+              clearable
+              style="width: 170px"
+            >
+              <el-option
+                v-for="v in workContext.volumes"
+                :key="v.id"
+                :label="`第 ${v.volumeNumber} 卷 · ${v.title}`"
+                :value="v.id"
+              />
+            </el-select>
+            <el-button text size="small" :icon="Plus" @click="openVolumeDialog" />
+          </div>
+
           <el-button text size="small" @click="cycleTheme">
             <el-icon class="mr-4"><component :is="themeIcon" /></el-icon>
             <span>{{ themeLabel }}</span>
@@ -100,6 +242,39 @@ const themeLabel = computed(() => {
       </el-main>
     </el-container>
   </el-container>
+
+  <el-dialog v-model="projectDialogVisible" title="新建项目" width="420px">
+    <el-form :model="projectForm" label-width="80px">
+      <el-form-item label="名称" required>
+        <el-input v-model="projectForm.name" @keyup.enter="submitProject" />
+      </el-form-item>
+      <el-form-item label="描述">
+        <el-input v-model="projectForm.description" type="textarea" :rows="3" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="projectDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="creatingProject" @click="submitProject">创建</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="volumeDialogVisible" title="新建分卷" width="420px">
+    <el-form :model="volumeForm" label-width="80px">
+      <el-form-item label="卷序号" required>
+        <el-input-number v-model="volumeForm.volumeNumber" :min="1" controls-position="right" />
+      </el-form-item>
+      <el-form-item label="标题" required>
+        <el-input v-model="volumeForm.title" @keyup.enter="submitVolume" />
+      </el-form-item>
+      <el-form-item label="主题">
+        <el-input v-model="volumeForm.theme" type="textarea" :rows="3" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="volumeDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="creatingVolume" @click="submitVolume">创建</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -144,6 +319,20 @@ const themeLabel = computed(() => {
   font-size: 14px;
   color: var(--tm-fg-primary);
   font-weight: 500;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.work-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.context-label {
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
 }
 .layout-main {
   background: var(--tm-bg);

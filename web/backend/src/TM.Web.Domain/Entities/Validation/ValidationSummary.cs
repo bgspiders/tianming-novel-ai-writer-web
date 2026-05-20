@@ -13,6 +13,9 @@ public class ValidationSummary : EntityBase
     /// <summary>目标卷号；0 表示项目全书级。</summary>
     public int TargetVolumeNumber { get; set; }
 
+    /// <summary>最近一次校验批次 ID。</summary>
+    public string LastRunId { get; set; } = string.Empty;
+
     public string OverallResult { get; set; } = "passed";
 
     public string ModuleResults { get; set; } = "{}";

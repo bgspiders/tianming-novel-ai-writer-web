@@ -1,5 +1,7 @@
 namespace TM.Web.Application.Services;
 
+using TM.Web.Application.Dtos.Chat;
+
 /// <summary>
 /// 流式生成进度推送抽象。
 /// 由 Api 层用 SignalR 实现，Application/LegacyBridge 通过此接口对外发出 token/事件，
@@ -14,4 +16,6 @@ public interface IGenerationNotifier
     Task CompletedAsync(string runId, string? finishReason, CancellationToken ct = default);
 
     Task ErrorAsync(string runId, string message, CancellationToken ct = default);
+
+    Task EventAsync(string runId, ChatRunEventDto evt, CancellationToken ct = default);
 }

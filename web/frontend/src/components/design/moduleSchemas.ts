@@ -1,6 +1,7 @@
 import type { DesignModuleKey } from '@/api/modules/design'
 
 export type FieldType = 'text' | 'textarea' | 'select' | 'number' | 'switch' | 'tags' | 'date'
+export type PickerSource = 'characters' | 'factions' | 'locations' | 'volumes'
 
 export interface FieldDef {
   key: string
@@ -16,6 +17,10 @@ export interface FieldDef {
   placeholder?: string
   /** 提示文字 */
   hint?: string
+  /** 从设计数据或全局上下文加载候选项 */
+  pickerSource?: PickerSource
+  /** picker 写入 id;默认写入 name/title */
+  pickerValue?: 'id' | 'name' | 'title' | 'volumeNumber'
 }
 
 export interface TabDef {
@@ -99,7 +104,7 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
       },
       {
         key: 'relation', label: '关系', fields: [
-          { key: 'targetCharacterName', label: '关联角色', type: 'text' },
+          { key: 'targetCharacterName', label: '关联角色', type: 'select', pickerSource: 'characters', pickerValue: 'name', placeholder: '选择或输入角色名' },
           { key: 'relationshipType', label: '关系类型', type: 'text' },
           { key: 'emotionDynamic', label: '情感动力', type: 'textarea', rows: 3 }
         ]
@@ -180,7 +185,7 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
         key: 'story', label: '故事关联', fields: [
           { key: 'historicalSignificance', label: '历史意义', type: 'textarea', rows: 3 },
           { key: 'dangers', label: '危险', type: 'tags' },
-          { key: 'factionId', label: '所属势力 ID', type: 'text', hint: '关联到 FactionRule.Id;暂无 picker,可先复制粘贴' }
+          { key: 'factionId', label: '所属势力', type: 'select', pickerSource: 'factions', pickerValue: 'id', placeholder: '选择势力' }
         ]
       }
     ],
@@ -196,8 +201,8 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
     tabs: [
       {
         key: 'overview', label: '事件概览', fields: [
-          { key: 'targetVolume', label: '目标卷', type: 'text' },
-          { key: 'assignedVolume', label: '指派卷', type: 'text' },
+          { key: 'targetVolume', label: '目标卷', type: 'select', pickerSource: 'volumes', pickerValue: 'title', placeholder: '选择或输入卷名' },
+          { key: 'assignedVolume', label: '指派卷', type: 'select', pickerSource: 'volumes', pickerValue: 'title', placeholder: '选择或输入卷名' },
           { key: 'oneLineSummary', label: '一句话概要', type: 'textarea', rows: 2 },
           { key: 'eventType', label: '事件类型', type: 'text' },
           { key: 'storyPhase', label: '故事阶段', type: 'text' },
@@ -410,9 +415,9 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
       },
       {
         key: 'refs', label: '出场实体', fields: [
-          { key: 'referencedCharacterNames', label: '角色名', type: 'tags' },
-          { key: 'referencedFactionNames', label: '势力名', type: 'tags' },
-          { key: 'referencedLocationNames', label: '地点名', type: 'tags' },
+          { key: 'referencedCharacterNames', label: '角色名', type: 'tags', pickerSource: 'characters', pickerValue: 'name' },
+          { key: 'referencedFactionNames', label: '势力名', type: 'tags', pickerSource: 'factions', pickerValue: 'name' },
+          { key: 'referencedLocationNames', label: '地点名', type: 'tags', pickerSource: 'locations', pickerValue: 'name' },
           { key: 'dependencyModuleVersions', label: '依赖模块版本(JSON)', type: 'textarea', rows: 4 }
         ]
       }
@@ -432,7 +437,7 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
         key: 'goal', label: '章节目标', fields: [
           { key: 'chapterTitle', label: '章节标题', type: 'text' },
           { key: 'chapterNumber', label: '章节号', type: 'number' },
-          { key: 'volume', label: '所属卷', type: 'text' },
+          { key: 'volume', label: '所属卷', type: 'select', pickerSource: 'volumes', pickerValue: 'title', placeholder: '选择或输入卷名' },
           { key: 'estimatedWordCount', label: '预计字数', type: 'text' },
           { key: 'chapterTheme', label: '章节主题', type: 'textarea', rows: 2 },
           { key: 'readerExperienceGoal', label: '读者体验目标', type: 'textarea', rows: 2 },
@@ -456,9 +461,9 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
       },
       {
         key: 'refs', label: '出场实体', fields: [
-          { key: 'referencedCharacterNames', label: '角色名', type: 'tags' },
-          { key: 'referencedFactionNames', label: '势力名', type: 'tags' },
-          { key: 'referencedLocationNames', label: '地点名', type: 'tags' },
+          { key: 'referencedCharacterNames', label: '角色名', type: 'tags', pickerSource: 'characters', pickerValue: 'name' },
+          { key: 'referencedFactionNames', label: '势力名', type: 'tags', pickerSource: 'factions', pickerValue: 'name' },
+          { key: 'referencedLocationNames', label: '地点名', type: 'tags', pickerSource: 'locations', pickerValue: 'name' },
           { key: 'dependencyModuleVersions', label: '依赖模块版本(JSON)', type: 'textarea', rows: 4 }
         ]
       }
@@ -486,7 +491,7 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
         key: 'scene', label: '场景列表', fields: [
           { key: 'sceneNumber', label: '场景序号', type: 'number' },
           { key: 'sceneTitle', label: '场景标题', type: 'text' },
-          { key: 'povCharacter', label: 'POV 角色', type: 'text' },
+          { key: 'povCharacter', label: 'POV 角色', type: 'select', pickerSource: 'characters', pickerValue: 'name', placeholder: '选择或输入角色名' },
           { key: 'estimatedWordCount', label: '预计字数', type: 'text' },
           { key: 'opening', label: '开场', type: 'textarea', rows: 2 },
           { key: 'development', label: '发展', type: 'textarea', rows: 2 },

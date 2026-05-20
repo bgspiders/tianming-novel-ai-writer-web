@@ -13,8 +13,20 @@ public class LocationRuleService : ILocationRuleService
 
     public async Task<IReadOnlyList<LocationRuleDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
         var rows = await _db.LocationRules.AsQueryable().ApplyFilter(query).ToListAsync(ct);
         return rows.Select(Map).ToList();
+    }
+
+    public async Task<PagedResult<LocationRuleDto>> ListPagedAsync(DesignListQuery query, CancellationToken ct = default)
+    {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        var filtered = _db.LocationRules.AsQueryable().ApplyFilter(query);
+        var total = await filtered.CountAsync(ct);
+        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return new PagedResult<LocationRuleDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
     public async Task<LocationRuleDto?> GetAsync(string id, CancellationToken ct = default)
@@ -26,8 +38,9 @@ public class LocationRuleService : ILocationRuleService
     public async Task<LocationRuleDto> CreateAsync(LocationRuleUpsertDto input, CancellationToken ct = default)
     {
         await ValidateFactionAsync(input.FactionId, ct);
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
         var e = new LocationRule();
-        Apply(e, input);
+        Apply(e, input, sourceBookId);
         _db.LocationRules.Add(e);
         await _db.SaveChangesAsync(ct);
         return Map(e);
@@ -38,7 +51,8 @@ public class LocationRuleService : ILocationRuleService
         var e = await _db.LocationRules.FindAsync(new object?[] { id }, ct)
                 ?? throw new InvalidOperationException("地点规则不存在。");
         await ValidateFactionAsync(input.FactionId, ct);
-        Apply(e, input);
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
+        Apply(e, input, sourceBookId);
         await _db.SaveChangesAsync(ct);
         return Map(e);
     }
@@ -58,14 +72,14 @@ public class LocationRuleService : ILocationRuleService
         if (!exists) throw new InvalidOperationException($"势力 {factionId} 不存在。");
     }
 
-    private static void Apply(LocationRule e, LocationRuleUpsertDto i)
+    private static void Apply(LocationRule e, LocationRuleUpsertDto i, string? sourceBookId)
     {
         if (string.IsNullOrWhiteSpace(i.Name)) throw new InvalidOperationException("名称必填。");
         e.Name = i.Name.Trim();
         e.Category = i.Category ?? "";
         e.CategoryId = string.IsNullOrEmpty(i.CategoryId) ? null : i.CategoryId;
         e.IsEnabled = i.IsEnabled;
-        e.SourceBookId = string.IsNullOrEmpty(i.SourceBookId) ? null : i.SourceBookId;
+        e.SourceBookId = sourceBookId;
         e.LocationType = i.LocationType ?? "";
         e.Description = i.Description ?? "";
         e.Scale = i.Scale ?? "";

@@ -1,0 +1,81 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TM.Web.Application.Dtos.Generate;
+using TM.Web.Application.Services;
+using TM.Web.Domain.Entities.Runtime;
+using TM.Web.Infrastructure.Persistence;
+
+namespace TM.Web.Api.Controllers;
+
+[ApiController]
+[Route("api/generation")]
+public class GenerationController : ControllerBase
+{
+    private readonly IChapterDraftService _drafts;
+    private readonly AppDbContext _db;
+
+    public GenerationController(IChapterDraftService drafts, AppDbContext db)
+    {
+        _drafts = drafts;
+        _db = db;
+    }
+
+    [HttpPost("chapter-draft")]
+    public Task<ChapterDraftResult> GenerateChapterDraft([FromBody] ChapterDraftRequest request, CancellationToken ct)
+        => _drafts.GenerateDraftAsync(request, ct);
+
+    [HttpGet("records")]
+    public async Task<IReadOnlyList<GenerationRecordDto>> ListRecords(
+        [FromQuery] string projectId,
+        [FromQuery] string? chapterId,
+        [FromQuery] int take = 50,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectId)) return Array.Empty<GenerationRecordDto>();
+        take = Math.Clamp(take, 1, 200);
+
+        var q = _db.GenerationRecords.AsNoTracking().Where(r => r.ProjectId == projectId);
+        if (!string.IsNullOrWhiteSpace(chapterId)) q = q.Where(r => r.ChapterId == chapterId);
+
+        var rows = await q.OrderByDescending(r => r.StartedAt).Take(take).ToListAsync(ct);
+        return rows.Select(ToDto).ToList();
+    }
+
+    [HttpGet("statistics")]
+    public async Task<ActionResult<GenerationStatisticsDto>> GetStatistics([FromQuery] string projectId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(projectId)) return BadRequest("项目 ID 不能为空。");
+        var stats = await _db.GenerationStatistics.AsNoTracking().FirstOrDefaultAsync(s => s.ProjectId == projectId, ct);
+        return Ok(stats == null
+            ? new GenerationStatisticsDto(string.Empty, projectId, 0, 0, 0, 0, 0, 0, 0, DateTime.UtcNow)
+            : ToDto(stats));
+    }
+
+    private static GenerationRecordDto ToDto(GenerationRecord r)
+        => new(
+            r.Id,
+            r.ProjectId,
+            r.ChapterId,
+            r.Success,
+            r.TotalAttempts,
+            r.RewriteCount,
+            r.FailureStages,
+            r.Attempts,
+            r.StartedAt,
+            r.FinishedAt,
+            r.CreatedAt,
+            r.UpdatedAt);
+
+    private static GenerationStatisticsDto ToDto(GenerationStatistics s)
+        => new(
+            s.Id,
+            s.ProjectId,
+            s.TotalGenerations,
+            s.FirstPassCount,
+            s.RewriteCount,
+            s.FailureCount,
+            s.TotalInputTokens,
+            s.TotalOutputTokens,
+            s.TotalCostMicros,
+            s.LastUpdatedAt);
+}

@@ -5,14 +5,15 @@ namespace TM.Web.Application.Services;
 public interface ICategoryService
 {
     /// <summary>列出指定模块下的所有分类(平铺)。</summary>
-    Task<IReadOnlyList<CategoryDto>> ListAsync(string moduleType, string? sourceBookId, CancellationToken ct = default);
+    Task<IReadOnlyList<CategoryDto>> ListAsync(string moduleType, string? sourceBookId, string? projectId = null, CancellationToken ct = default);
 
     /// <summary>按 (ModuleType, ParentId) 构建分类树。</summary>
-    Task<IReadOnlyList<CategoryTreeNodeDto>> GetTreeAsync(string moduleType, string? sourceBookId, CancellationToken ct = default);
+    Task<IReadOnlyList<CategoryTreeNodeDto>> GetTreeAsync(string moduleType, string? sourceBookId, string? projectId = null, CancellationToken ct = default);
 
     Task<CategoryDto?> GetAsync(string id, CancellationToken ct = default);
     Task<CategoryDto> CreateAsync(CategoryUpsertDto input, CancellationToken ct = default);
     Task<CategoryDto> UpdateAsync(string id, CategoryUpsertDto input, CancellationToken ct = default);
+    Task ReorderAsync(CategoryReorderDto input, CancellationToken ct = default);
     Task DeleteAsync(string id, CancellationToken ct = default);
 }
 

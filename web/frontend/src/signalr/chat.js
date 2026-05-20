@@ -6,6 +6,7 @@ class ChatHubClient {
     statusHandlers = new Set();
     completedHandlers = new Set();
     errorHandlers = new Set();
+    runEventHandlers = new Set();
     buildConnection() {
         const conn = new HubConnectionBuilder()
             .withUrl('/hubs/chat')
@@ -23,6 +24,9 @@ class ChatHubClient {
         });
         conn.on('Error', (msg) => {
             this.errorHandlers.forEach((h) => h(msg));
+        });
+        conn.on('RunEvent', (event) => {
+            this.runEventHandlers.forEach((h) => h(event));
         });
         return conn;
     }
@@ -64,5 +68,7 @@ class ChatHubClient {
     offCompleted(handler) { this.completedHandlers.delete(handler); }
     onError(handler) { this.errorHandlers.add(handler); }
     offError(handler) { this.errorHandlers.delete(handler); }
+    onRunEvent(handler) { this.runEventHandlers.add(handler); }
+    offRunEvent(handler) { this.runEventHandlers.delete(handler); }
 }
 export const chatHub = new ChatHubClient();

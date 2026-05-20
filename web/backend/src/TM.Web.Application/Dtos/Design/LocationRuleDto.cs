@@ -26,6 +26,7 @@ public record LocationRuleUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     string LocationType = "",
     string Description = "",
     string Scale = "",

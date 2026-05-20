@@ -62,7 +62,7 @@ export const MODULE_SCHEMAS = {
             },
             {
                 key: 'relation', label: '关系', fields: [
-                    { key: 'targetCharacterName', label: '关联角色', type: 'text' },
+                    { key: 'targetCharacterName', label: '关联角色', type: 'select', pickerSource: 'characters', pickerValue: 'name', placeholder: '选择或输入角色名' },
                     { key: 'relationshipType', label: '关系类型', type: 'text' },
                     { key: 'emotionDynamic', label: '情感动力', type: 'textarea', rows: 3 }
                 ]
@@ -141,7 +141,7 @@ export const MODULE_SCHEMAS = {
                 key: 'story', label: '故事关联', fields: [
                     { key: 'historicalSignificance', label: '历史意义', type: 'textarea', rows: 3 },
                     { key: 'dangers', label: '危险', type: 'tags' },
-                    { key: 'factionId', label: '所属势力 ID', type: 'text', hint: '关联到 FactionRule.Id;暂无 picker,可先复制粘贴' }
+                    { key: 'factionId', label: '所属势力', type: 'select', pickerSource: 'factions', pickerValue: 'id', placeholder: '选择势力' }
                 ]
             }
         ],
@@ -156,8 +156,8 @@ export const MODULE_SCHEMAS = {
         tabs: [
             {
                 key: 'overview', label: '事件概览', fields: [
-                    { key: 'targetVolume', label: '目标卷', type: 'text' },
-                    { key: 'assignedVolume', label: '指派卷', type: 'text' },
+                    { key: 'targetVolume', label: '目标卷', type: 'select', pickerSource: 'volumes', pickerValue: 'title', placeholder: '选择或输入卷名' },
+                    { key: 'assignedVolume', label: '指派卷', type: 'select', pickerSource: 'volumes', pickerValue: 'title', placeholder: '选择或输入卷名' },
                     { key: 'oneLineSummary', label: '一句话概要', type: 'textarea', rows: 2 },
                     { key: 'eventType', label: '事件类型', type: 'text' },
                     { key: 'storyPhase', label: '故事阶段', type: 'text' },
@@ -297,6 +297,171 @@ export const MODULE_SCHEMAS = {
             { key: 'icon', label: '', width: 50 },
             { key: 'author', label: '作者', width: 120 },
             { key: 'chapterCount', label: '章节', width: 80 }
+        ]
+    },
+    outlines: {
+        module: 'outlines',
+        commonFields: commonBase,
+        tabs: [
+            {
+                key: 'positioning', label: '全书定位', fields: [
+                    { key: 'totalChapterCount', label: '总章节数', type: 'number' },
+                    { key: 'estimatedWordCount', label: '预计字数', type: 'text' },
+                    { key: 'oneLineOutline', label: '一句话大纲', type: 'textarea', rows: 2 },
+                    { key: 'emotionalTone', label: '情感基调', type: 'textarea', rows: 2 },
+                    { key: 'philosophicalMotif', label: '哲学母题', type: 'textarea', rows: 2 }
+                ]
+            },
+            {
+                key: 'theme', label: '主题内核', fields: [
+                    { key: 'theme', label: '主题', type: 'textarea', rows: 3 },
+                    { key: 'coreConflict', label: '核心冲突', type: 'textarea', rows: 3 },
+                    { key: 'endingState', label: '结局状态', type: 'textarea', rows: 3 }
+                ]
+            },
+            {
+                key: 'structure', label: '结构规划', fields: [
+                    { key: 'volumeDivision', label: '分卷规划', type: 'textarea', rows: 4 },
+                    { key: 'outlineOverview', label: '大纲总览', type: 'textarea', rows: 5 },
+                    { key: 'dependencyModuleVersions', label: '依赖模块版本(JSON)', type: 'textarea', rows: 4, hint: '格式示例: {"world_rules":1}' }
+                ]
+            }
+        ],
+        listColumns: [
+            { key: 'totalChapterCount', label: '章节数', width: 90 },
+            { key: 'oneLineOutline', label: '一句话大纲', width: 280 }
+        ]
+    },
+    volume_designs: {
+        module: 'volume_designs',
+        commonFields: commonBase,
+        tabs: [
+            {
+                key: 'positioning', label: '卷定位', fields: [
+                    { key: 'volumeNumber', label: '卷序号', type: 'number' },
+                    { key: 'volumeTitle', label: '卷标题', type: 'text' },
+                    { key: 'volumeTheme', label: '卷主题', type: 'textarea', rows: 2 },
+                    { key: 'stageGoal', label: '阶段目标', type: 'textarea', rows: 3 },
+                    { key: 'estimatedWordCount', label: '预计字数', type: 'text' },
+                    { key: 'targetChapterCount', label: '目标章节数', type: 'number' },
+                    { key: 'startChapter', label: '起始章节', type: 'number' },
+                    { key: 'endChapter', label: '结束章节', type: 'number' }
+                ]
+            },
+            {
+                key: 'conflict', label: '冲突', fields: [
+                    { key: 'mainConflict', label: '主冲突', type: 'textarea', rows: 3 },
+                    { key: 'pressureSource', label: '压力来源', type: 'textarea', rows: 3 },
+                    { key: 'keyEvents', label: '关键事件', type: 'textarea', rows: 3 },
+                    { key: 'openingState', label: '开局状态', type: 'textarea', rows: 2 },
+                    { key: 'endingState', label: '结尾状态', type: 'textarea', rows: 2 }
+                ]
+            },
+            {
+                key: 'allocation', label: '章节分配', fields: [
+                    { key: 'chapterAllocationOverview', label: '章节分配概览', type: 'textarea', rows: 4 },
+                    { key: 'plotAllocation', label: '情节分配', type: 'textarea', rows: 4 },
+                    { key: 'chapterGenerationHints', label: '生成提示', type: 'textarea', rows: 4 }
+                ]
+            },
+            {
+                key: 'refs', label: '出场实体', fields: [
+                    { key: 'referencedCharacterNames', label: '角色名', type: 'tags', pickerSource: 'characters', pickerValue: 'name' },
+                    { key: 'referencedFactionNames', label: '势力名', type: 'tags', pickerSource: 'factions', pickerValue: 'name' },
+                    { key: 'referencedLocationNames', label: '地点名', type: 'tags', pickerSource: 'locations', pickerValue: 'name' },
+                    { key: 'dependencyModuleVersions', label: '依赖模块版本(JSON)', type: 'textarea', rows: 4 }
+                ]
+            }
+        ],
+        listColumns: [
+            { key: 'volumeNumber', label: '卷', width: 70 },
+            { key: 'volumeTitle', label: '卷标题', width: 180 },
+            { key: 'targetChapterCount', label: '目标章节', width: 100 }
+        ]
+    },
+    chapter_plans: {
+        module: 'chapter_plans',
+        commonFields: commonBase,
+        tabs: [
+            {
+                key: 'goal', label: '章节目标', fields: [
+                    { key: 'chapterTitle', label: '章节标题', type: 'text' },
+                    { key: 'chapterNumber', label: '章节号', type: 'number' },
+                    { key: 'volume', label: '所属卷', type: 'select', pickerSource: 'volumes', pickerValue: 'title', placeholder: '选择或输入卷名' },
+                    { key: 'estimatedWordCount', label: '预计字数', type: 'text' },
+                    { key: 'chapterTheme', label: '章节主题', type: 'textarea', rows: 2 },
+                    { key: 'readerExperienceGoal', label: '读者体验目标', type: 'textarea', rows: 2 },
+                    { key: 'mainGoal', label: '主要目标', type: 'textarea', rows: 2 }
+                ]
+            },
+            {
+                key: 'turning', label: '冲突与转折', fields: [
+                    { key: 'resistanceSource', label: '阻力来源', type: 'textarea', rows: 3 },
+                    { key: 'keyTurn', label: '关键转折', type: 'textarea', rows: 3 },
+                    { key: 'hook', label: '章节钩子', type: 'textarea', rows: 2 }
+                ]
+            },
+            {
+                key: 'deliverables', label: '交付物', fields: [
+                    { key: 'worldInfoDrop', label: '世界信息投放', type: 'textarea', rows: 2 },
+                    { key: 'characterArcProgress', label: '角色弧推进', type: 'textarea', rows: 2 },
+                    { key: 'mainPlotProgress', label: '主线推进', type: 'textarea', rows: 2 },
+                    { key: 'foreshadowing', label: '伏笔', type: 'textarea', rows: 2 }
+                ]
+            },
+            {
+                key: 'refs', label: '出场实体', fields: [
+                    { key: 'referencedCharacterNames', label: '角色名', type: 'tags', pickerSource: 'characters', pickerValue: 'name' },
+                    { key: 'referencedFactionNames', label: '势力名', type: 'tags', pickerSource: 'factions', pickerValue: 'name' },
+                    { key: 'referencedLocationNames', label: '地点名', type: 'tags', pickerSource: 'locations', pickerValue: 'name' },
+                    { key: 'dependencyModuleVersions', label: '依赖模块版本(JSON)', type: 'textarea', rows: 4 }
+                ]
+            }
+        ],
+        listColumns: [
+            { key: 'chapterNumber', label: '章节号', width: 90 },
+            { key: 'chapterTitle', label: '章节标题', width: 180 },
+            { key: 'volume', label: '卷', width: 120 }
+        ]
+    },
+    chapter_blueprints: {
+        module: 'chapter_blueprints',
+        commonFields: commonBase,
+        tabs: [
+            {
+                key: 'overview', label: '蓝图概览', fields: [
+                    { key: 'chapterId', label: '章节 ID', type: 'text' },
+                    { key: 'oneLineStructure', label: '一句话结构', type: 'textarea', rows: 2 },
+                    { key: 'pacingCurve', label: '节奏曲线', type: 'textarea', rows: 2 },
+                    { key: 'dependencyModuleVersions', label: '依赖模块版本(JSON)', type: 'textarea', rows: 4 }
+                ]
+            },
+            {
+                key: 'scene', label: '场景列表', fields: [
+                    { key: 'sceneNumber', label: '场景序号', type: 'number' },
+                    { key: 'sceneTitle', label: '场景标题', type: 'text' },
+                    { key: 'povCharacter', label: 'POV 角色', type: 'select', pickerSource: 'characters', pickerValue: 'name', placeholder: '选择或输入角色名' },
+                    { key: 'estimatedWordCount', label: '预计字数', type: 'text' },
+                    { key: 'opening', label: '开场', type: 'textarea', rows: 2 },
+                    { key: 'development', label: '发展', type: 'textarea', rows: 2 },
+                    { key: 'turning', label: '转折', type: 'textarea', rows: 2 },
+                    { key: 'ending', label: '收束', type: 'textarea', rows: 2 },
+                    { key: 'infoDrop', label: '信息投放', type: 'textarea', rows: 2 }
+                ]
+            },
+            {
+                key: 'elements', label: '要素清单', fields: [
+                    { key: 'cast', label: '出场角色', type: 'textarea', rows: 2 },
+                    { key: 'locations', label: '地点', type: 'textarea', rows: 2 },
+                    { key: 'factions', label: '势力', type: 'textarea', rows: 2 },
+                    { key: 'itemsClues', label: '道具/线索', type: 'textarea', rows: 2 }
+                ]
+            }
+        ],
+        listColumns: [
+            { key: 'sceneNumber', label: '场景', width: 70 },
+            { key: 'sceneTitle', label: '场景标题', width: 180 },
+            { key: 'povCharacter', label: 'POV', width: 120 }
         ]
     }
 };

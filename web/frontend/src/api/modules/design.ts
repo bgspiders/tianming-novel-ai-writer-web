@@ -11,6 +11,7 @@ export interface DesignBase {
   categoryId: string | null
   isEnabled: boolean
   sourceBookId: string | null
+  projectId?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -20,16 +21,41 @@ export interface DesignListParams {
   sourceBookId?: string | null
   keyword?: string | null
   isEnabled?: boolean | null
+  updatedFrom?: string | null
+  updatedTo?: string | null
+  page?: number | null
+  pageSize?: number | null
+  includeUncategorized?: boolean | null
+  projectId?: string | null
 }
 
-function buildParams(p?: DesignListParams): Record<string, string | boolean> | undefined {
+export interface PagedResult<T> {
+  items: T[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+function buildParams(p?: DesignListParams): Record<string, string | boolean | number> | undefined {
   if (!p) return undefined
-  const out: Record<string, string | boolean> = {}
+  const out: Record<string, string | boolean | number> = {}
   if (p.categoryId) out.categoryId = p.categoryId
   if (p.sourceBookId) out.sourceBookId = p.sourceBookId
   if (p.keyword) out.keyword = p.keyword
   if (p.isEnabled !== undefined && p.isEnabled !== null) out.isEnabled = p.isEnabled
+  if (p.updatedFrom) out.updatedFrom = p.updatedFrom
+  if (p.updatedTo) out.updatedTo = p.updatedTo
+  if (p.page) out.page = p.page
+  if (p.pageSize) out.pageSize = p.pageSize
+  if (p.projectId) out.projectId = p.projectId
+  if (p.includeUncategorized !== undefined && p.includeUncategorized !== null) {
+    out.includeUncategorized = p.includeUncategorized
+  }
   return Object.keys(out).length ? out : undefined
+}
+
+async function listPaged<T>(url: string, p: DesignListParams): Promise<PagedResult<T>> {
+  return (await http.get<PagedResult<T>>(url, { params: buildParams(p) })).data
 }
 
 // ============================================================================
@@ -54,6 +80,8 @@ export type WorldRuleUpsert = Omit<WorldRule, 'id' | 'createdAt' | 'updatedAt'>
 export const worldRulesApi = {
   list: async (p?: DesignListParams): Promise<WorldRule[]> =>
     (await http.get<WorldRule[]>('/api/design/world-rules', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<WorldRule>> =>
+    listPaged<WorldRule>('/api/design/world-rules', p),
   get: async (id: string): Promise<WorldRule> =>
     (await http.get<WorldRule>(`/api/design/world-rules/${id}`)).data,
   create: async (input: WorldRuleUpsert): Promise<WorldRule> =>
@@ -96,6 +124,8 @@ export type CharacterRuleUpsert = Omit<CharacterRule, 'id' | 'createdAt' | 'upda
 export const characterRulesApi = {
   list: async (p?: DesignListParams): Promise<CharacterRule[]> =>
     (await http.get<CharacterRule[]>('/api/design/character-rules', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<CharacterRule>> =>
+    listPaged<CharacterRule>('/api/design/character-rules', p),
   get: async (id: string): Promise<CharacterRule> =>
     (await http.get<CharacterRule>(`/api/design/character-rules/${id}`)).data,
   create: async (input: CharacterRuleUpsert): Promise<CharacterRule> =>
@@ -128,6 +158,8 @@ export type FactionRuleUpsert = Omit<FactionRule, 'id' | 'createdAt' | 'updatedA
 export const factionRulesApi = {
   list: async (p?: DesignListParams): Promise<FactionRule[]> =>
     (await http.get<FactionRule[]>('/api/design/faction-rules', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<FactionRule>> =>
+    listPaged<FactionRule>('/api/design/faction-rules', p),
   get: async (id: string): Promise<FactionRule> =>
     (await http.get<FactionRule>(`/api/design/faction-rules/${id}`)).data,
   create: async (input: FactionRuleUpsert): Promise<FactionRule> =>
@@ -161,6 +193,8 @@ export type LocationRuleUpsert = Omit<LocationRule, 'id' | 'createdAt' | 'update
 export const locationRulesApi = {
   list: async (p?: DesignListParams): Promise<LocationRule[]> =>
     (await http.get<LocationRule[]>('/api/design/location-rules', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<LocationRule>> =>
+    listPaged<LocationRule>('/api/design/location-rules', p),
   get: async (id: string): Promise<LocationRule> =>
     (await http.get<LocationRule>(`/api/design/location-rules/${id}`)).data,
   create: async (input: LocationRuleUpsert): Promise<LocationRule> =>
@@ -203,6 +237,8 @@ export type PlotRuleUpsert = Omit<PlotRule, 'id' | 'createdAt' | 'updatedAt'>
 export const plotRulesApi = {
   list: async (p?: DesignListParams): Promise<PlotRule[]> =>
     (await http.get<PlotRule[]>('/api/design/plot-rules', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<PlotRule>> =>
+    listPaged<PlotRule>('/api/design/plot-rules', p),
   get: async (id: string): Promise<PlotRule> =>
     (await http.get<PlotRule>(`/api/design/plot-rules/${id}`)).data,
   create: async (input: PlotRuleUpsert): Promise<PlotRule> =>
@@ -245,6 +281,8 @@ export type CreativeMaterialUpsert = Omit<CreativeMaterial, 'id' | 'createdAt' |
 export const creativeMaterialsApi = {
   list: async (p?: DesignListParams): Promise<CreativeMaterial[]> =>
     (await http.get<CreativeMaterial[]>('/api/design/creative-materials', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<CreativeMaterial>> =>
+    listPaged<CreativeMaterial>('/api/design/creative-materials', p),
   get: async (id: string): Promise<CreativeMaterial> =>
     (await http.get<CreativeMaterial>(`/api/design/creative-materials/${id}`)).data,
   create: async (input: CreativeMaterialUpsert): Promise<CreativeMaterial> =>
@@ -295,6 +333,8 @@ export type BookAnalysisUpsert = Omit<BookAnalysis, 'id' | 'createdAt' | 'update
 export const bookAnalysesApi = {
   list: async (p?: DesignListParams): Promise<BookAnalysis[]> =>
     (await http.get<BookAnalysis[]>('/api/design/book-analyses', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<BookAnalysis>> =>
+    listPaged<BookAnalysis>('/api/design/book-analyses', p),
   get: async (id: string): Promise<BookAnalysis> =>
     (await http.get<BookAnalysis>(`/api/design/book-analyses/${id}`)).data,
   create: async (input: BookAnalysisUpsert): Promise<BookAnalysis> =>
@@ -329,6 +369,8 @@ export type OutlineUpsert = Omit<Outline, 'id' | 'createdAt' | 'updatedAt'>
 export const outlinesApi = {
   list: async (p?: DesignListParams): Promise<Outline[]> =>
     (await http.get<Outline[]>('/api/design/outlines', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<Outline>> =>
+    listPaged<Outline>('/api/design/outlines', p),
   get: async (id: string): Promise<Outline> =>
     (await http.get<Outline>(`/api/design/outlines/${id}`)).data,
   create: async (input: OutlineUpsert): Promise<Outline> =>
@@ -372,6 +414,8 @@ export type VolumeDesignUpsert = Omit<VolumeDesign, 'id' | 'createdAt' | 'update
 export const volumeDesignsApi = {
   list: async (p?: DesignListParams): Promise<VolumeDesign[]> =>
     (await http.get<VolumeDesign[]>('/api/design/volume-designs', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<VolumeDesign>> =>
+    listPaged<VolumeDesign>('/api/design/volume-designs', p),
   get: async (id: string): Promise<VolumeDesign> =>
     (await http.get<VolumeDesign>(`/api/design/volume-designs/${id}`)).data,
   create: async (input: VolumeDesignUpsert): Promise<VolumeDesign> =>
@@ -413,6 +457,8 @@ export type ChapterPlanUpsert = Omit<ChapterPlan, 'id' | 'createdAt' | 'updatedA
 export const chapterPlansApi = {
   list: async (p?: DesignListParams): Promise<ChapterPlan[]> =>
     (await http.get<ChapterPlan[]>('/api/design/chapter-plans', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<ChapterPlan>> =>
+    listPaged<ChapterPlan>('/api/design/chapter-plans', p),
   get: async (id: string): Promise<ChapterPlan> =>
     (await http.get<ChapterPlan>(`/api/design/chapter-plans/${id}`)).data,
   create: async (input: ChapterPlanUpsert): Promise<ChapterPlan> =>
@@ -453,6 +499,8 @@ export type ChapterBlueprintUpsert = Omit<ChapterBlueprint, 'id' | 'createdAt' |
 export const chapterBlueprintsApi = {
   list: async (p?: DesignListParams): Promise<ChapterBlueprint[]> =>
     (await http.get<ChapterBlueprint[]>('/api/design/chapter-blueprints', { params: buildParams(p) })).data,
+  listPaged: async (p: DesignListParams): Promise<PagedResult<ChapterBlueprint>> =>
+    listPaged<ChapterBlueprint>('/api/design/chapter-blueprints', p),
   get: async (id: string): Promise<ChapterBlueprint> =>
     (await http.get<ChapterBlueprint>(`/api/design/chapter-blueprints/${id}`)).data,
   create: async (input: ChapterBlueprintUpsert): Promise<ChapterBlueprint> =>

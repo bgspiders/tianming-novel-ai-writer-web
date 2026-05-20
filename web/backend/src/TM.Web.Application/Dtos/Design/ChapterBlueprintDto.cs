@@ -33,6 +33,7 @@ public record ChapterBlueprintUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     Dictionary<string, int>? DependencyModuleVersions = null,
     string ChapterId = "",
     string OneLineStructure = "",

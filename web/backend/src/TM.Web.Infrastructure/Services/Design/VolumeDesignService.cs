@@ -13,8 +13,20 @@ public class VolumeDesignService : IVolumeDesignService
 
     public async Task<IReadOnlyList<VolumeDesignDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
         var rows = await _db.VolumeDesigns.AsQueryable().ApplyFilter(query).ToListAsync(ct);
         return rows.Select(Map).ToList();
+    }
+
+    public async Task<PagedResult<VolumeDesignDto>> ListPagedAsync(DesignListQuery query, CancellationToken ct = default)
+    {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        var filtered = _db.VolumeDesigns.AsQueryable().ApplyFilter(query);
+        var total = await filtered.CountAsync(ct);
+        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return new PagedResult<VolumeDesignDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
     public async Task<VolumeDesignDto?> GetAsync(string id, CancellationToken ct = default)
@@ -25,8 +37,9 @@ public class VolumeDesignService : IVolumeDesignService
 
     public async Task<VolumeDesignDto> CreateAsync(VolumeDesignUpsertDto input, CancellationToken ct = default)
     {
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
         var e = new VolumeDesign();
-        Apply(e, input);
+        Apply(e, input, sourceBookId);
         _db.VolumeDesigns.Add(e);
         await _db.SaveChangesAsync(ct);
         return Map(e);
@@ -36,7 +49,8 @@ public class VolumeDesignService : IVolumeDesignService
     {
         var e = await _db.VolumeDesigns.FindAsync(new object?[] { id }, ct)
                 ?? throw new InvalidOperationException("卷设计不存在。");
-        Apply(e, input);
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
+        Apply(e, input, sourceBookId);
         await _db.SaveChangesAsync(ct);
         return Map(e);
     }
@@ -49,14 +63,14 @@ public class VolumeDesignService : IVolumeDesignService
         await _db.SaveChangesAsync(ct);
     }
 
-    private static void Apply(VolumeDesign e, VolumeDesignUpsertDto i)
+    private static void Apply(VolumeDesign e, VolumeDesignUpsertDto i, string? sourceBookId)
     {
         if (string.IsNullOrWhiteSpace(i.Name)) throw new InvalidOperationException("名称必填。");
         e.Name = i.Name.Trim();
         e.Category = i.Category ?? string.Empty;
         e.CategoryId = string.IsNullOrEmpty(i.CategoryId) ? null : i.CategoryId;
         e.IsEnabled = i.IsEnabled;
-        e.SourceBookId = string.IsNullOrEmpty(i.SourceBookId) ? null : i.SourceBookId;
+        e.SourceBookId = sourceBookId;
         e.DependencyModuleVersions = i.DependencyModuleVersions ?? new Dictionary<string, int>();
         e.VolumeNumber = i.VolumeNumber;
         e.VolumeTitle = i.VolumeTitle ?? string.Empty;

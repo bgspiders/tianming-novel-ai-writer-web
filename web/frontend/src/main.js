@@ -6,6 +6,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import App from './App.vue';
 import router from './router';
 import { useThemeStore } from './stores/theme';
+import { useWorkContextStore } from './stores/workContext';
 import './styles/reset.css';
 import './styles/main.css';
 const app = createApp(App);
@@ -18,4 +19,6 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 }
 const themeStore = useThemeStore();
 themeStore.init();
+const workContextStore = useWorkContextStore();
+workContextStore.init();
 app.mount('#app');

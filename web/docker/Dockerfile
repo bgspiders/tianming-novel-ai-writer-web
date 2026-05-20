@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ============================================================
-# 天命 Web 阶段 0 Dockerfile
+# 天命 Web Dockerfile
 # 单镜像同时承载 ASP.NET Core 后端 + Vue 前端静态文件。
 #
 # 阶段 8 接入 Playwright 爬虫后，把最终运行阶段的基础镜像换为
@@ -14,7 +14,11 @@ WORKDIR /src
 
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --no-fund --no-audit --no-progress
+    if [ -f package-lock.json ]; then \
+        npm ci --no-fund --no-audit --no-progress; \
+    else \
+        npm install --no-fund --no-audit --no-progress; \
+    fi
 
 COPY frontend/. .
 RUN npm run build
@@ -44,6 +48,10 @@ RUN dotnet publish src/TM.Web.Api/TM.Web.Api.csproj \
 # ---------- Stage 3: 运行时 ----------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 # 复制后端产物
 COPY --from=backend-build /publish .

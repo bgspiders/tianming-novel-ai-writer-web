@@ -12,13 +12,28 @@ public class LocationRulesController : ControllerBase
     public LocationRulesController(ILocationRuleService svc) => _svc = svc;
 
     [HttpGet]
-    public Task<IReadOnlyList<LocationRuleDto>> List(
+    public async Task<IActionResult> List(
         [FromQuery] string? categoryId,
         [FromQuery] string? sourceBookId,
         [FromQuery] string? keyword,
         [FromQuery] bool? isEnabled,
-        CancellationToken ct)
-        => _svc.ListAsync(new DesignListQuery(categoryId, sourceBookId, keyword, isEnabled), ct);
+        [FromQuery] DateTime? updatedFrom,
+        [FromQuery] DateTime? updatedTo,
+        [FromQuery] int? page,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] bool includeUncategorized = false,
+        [FromQuery] string? projectId = null,
+        CancellationToken ct = default)
+    {
+        var query = new DesignListQuery(
+            categoryId, sourceBookId, keyword, isEnabled,
+            updatedFrom, updatedTo, page ?? 1, pageSize, includeUncategorized, projectId);
+
+        if (page.HasValue)
+            return Ok(await _svc.ListPagedAsync(query, ct));
+
+        return Ok(await _svc.ListAsync(query, ct));
+    }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<LocationRuleDto>> Get(string id, CancellationToken ct)

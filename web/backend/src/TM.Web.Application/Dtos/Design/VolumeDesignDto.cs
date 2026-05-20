@@ -36,6 +36,7 @@ public record VolumeDesignUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     Dictionary<string, int>? DependencyModuleVersions = null,
     int VolumeNumber = 0,
     string VolumeTitle = "",

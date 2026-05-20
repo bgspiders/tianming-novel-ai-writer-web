@@ -9,6 +9,20 @@ export type TokenHandler = (token: string) => void
 export type StatusHandler = (status: string) => void
 export type CompletedHandler = (finishReason: string) => void
 export type ErrorHandler = (message: string) => void
+export type RunEventType =
+  | 'assistant.parsed'
+  | 'tool.started'
+  | 'tool.completed'
+  | 'tool.failed'
+  | 'tool.cancelled'
+  | string
+export interface RunEvent {
+  type: RunEventType
+  message: string
+  at: string
+  data?: unknown
+}
+export type RunEventHandler = (event: RunEvent) => void
 
 class ChatHubClient {
   private connection: HubConnection | null = null
@@ -18,6 +32,7 @@ class ChatHubClient {
   private statusHandlers = new Set<StatusHandler>()
   private completedHandlers = new Set<CompletedHandler>()
   private errorHandlers = new Set<ErrorHandler>()
+  private runEventHandlers = new Set<RunEventHandler>()
 
   private buildConnection(): HubConnection {
     const conn = new HubConnectionBuilder()
@@ -37,6 +52,9 @@ class ChatHubClient {
     })
     conn.on('Error', (msg: string) => {
       this.errorHandlers.forEach((h) => h(msg))
+    })
+    conn.on('RunEvent', (event: RunEvent) => {
+      this.runEventHandlers.forEach((h) => h(event))
     })
     return conn
   }
@@ -84,6 +102,9 @@ class ChatHubClient {
 
   onError(handler: ErrorHandler) { this.errorHandlers.add(handler) }
   offError(handler: ErrorHandler) { this.errorHandlers.delete(handler) }
+
+  onRunEvent(handler: RunEventHandler) { this.runEventHandlers.add(handler) }
+  offRunEvent(handler: RunEventHandler) { this.runEventHandlers.delete(handler) }
 }
 
 export const chatHub = new ChatHubClient()

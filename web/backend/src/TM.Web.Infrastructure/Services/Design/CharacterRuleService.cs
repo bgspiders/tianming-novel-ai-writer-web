@@ -13,8 +13,20 @@ public class CharacterRuleService : ICharacterRuleService
 
     public async Task<IReadOnlyList<CharacterRuleDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
         var rows = await _db.CharacterRules.AsQueryable().ApplyFilter(query).ToListAsync(ct);
         return rows.Select(Map).ToList();
+    }
+
+    public async Task<PagedResult<CharacterRuleDto>> ListPagedAsync(DesignListQuery query, CancellationToken ct = default)
+    {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        var filtered = _db.CharacterRules.AsQueryable().ApplyFilter(query);
+        var total = await filtered.CountAsync(ct);
+        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return new PagedResult<CharacterRuleDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
     public async Task<CharacterRuleDto?> GetAsync(string id, CancellationToken ct = default)
@@ -25,8 +37,9 @@ public class CharacterRuleService : ICharacterRuleService
 
     public async Task<CharacterRuleDto> CreateAsync(CharacterRuleUpsertDto input, CancellationToken ct = default)
     {
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
         var e = new CharacterRule();
-        Apply(e, input);
+        Apply(e, input, sourceBookId);
         _db.CharacterRules.Add(e);
         await _db.SaveChangesAsync(ct);
         return Map(e);
@@ -36,7 +49,8 @@ public class CharacterRuleService : ICharacterRuleService
     {
         var e = await _db.CharacterRules.FindAsync(new object?[] { id }, ct)
                 ?? throw new InvalidOperationException("角色规则不存在。");
-        Apply(e, input);
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
+        Apply(e, input, sourceBookId);
         await _db.SaveChangesAsync(ct);
         return Map(e);
     }
@@ -49,14 +63,14 @@ public class CharacterRuleService : ICharacterRuleService
         await _db.SaveChangesAsync(ct);
     }
 
-    private static void Apply(CharacterRule e, CharacterRuleUpsertDto i)
+    private static void Apply(CharacterRule e, CharacterRuleUpsertDto i, string? sourceBookId)
     {
         if (string.IsNullOrWhiteSpace(i.Name)) throw new InvalidOperationException("名称必填。");
         e.Name = i.Name.Trim();
         e.Category = i.Category ?? "";
         e.CategoryId = string.IsNullOrEmpty(i.CategoryId) ? null : i.CategoryId;
         e.IsEnabled = i.IsEnabled;
-        e.SourceBookId = string.IsNullOrEmpty(i.SourceBookId) ? null : i.SourceBookId;
+        e.SourceBookId = sourceBookId;
         e.CharacterType = i.CharacterType ?? "";
         e.Gender = i.Gender ?? "";
         e.Age = i.Age ?? "";

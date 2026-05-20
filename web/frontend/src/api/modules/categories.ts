@@ -23,18 +23,34 @@ export interface CategoryUpsert {
   sortOrder?: number
   isEnabled?: boolean
   sourceBookId?: string | null
+  projectId?: string | null
 }
 
-export async function listCategories(moduleType: string, sourceBookId?: string | null): Promise<Category[]> {
+export interface CategoryReorderItem {
+  id: string
+  parentId?: string | null
+  sortOrder: number
+}
+
+export interface CategoryReorderInput {
+  moduleType: string
+  sourceBookId?: string | null
+  projectId?: string | null
+  items: CategoryReorderItem[]
+}
+
+export async function listCategories(moduleType: string, sourceBookId?: string | null, projectId?: string | null): Promise<Category[]> {
   const params: Record<string, string> = { moduleType }
   if (sourceBookId) params.sourceBookId = sourceBookId
+  if (projectId) params.projectId = projectId
   const { data } = await http.get<Category[]>('/api/categories', { params })
   return data
 }
 
-export async function getCategoryTree(moduleType: string, sourceBookId?: string | null): Promise<CategoryTreeNode[]> {
+export async function getCategoryTree(moduleType: string, sourceBookId?: string | null, projectId?: string | null): Promise<CategoryTreeNode[]> {
   const params: Record<string, string> = { moduleType }
   if (sourceBookId) params.sourceBookId = sourceBookId
+  if (projectId) params.projectId = projectId
   const { data } = await http.get<CategoryTreeNode[]>('/api/categories/tree', { params })
   return data
 }
@@ -47,6 +63,10 @@ export async function createCategory(input: CategoryUpsert): Promise<Category> {
 export async function updateCategory(id: string, input: CategoryUpsert): Promise<Category> {
   const { data } = await http.put<Category>(`/api/categories/${id}`, input)
   return data
+}
+
+export async function reorderCategories(input: CategoryReorderInput): Promise<void> {
+  await http.post('/api/categories/reorder', input)
 }
 
 export async function deleteCategory(id: string): Promise<void> {

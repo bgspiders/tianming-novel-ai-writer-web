@@ -13,8 +13,20 @@ public class OutlineService : IOutlineService
 
     public async Task<IReadOnlyList<OutlineDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
         var rows = await _db.Outlines.AsQueryable().ApplyFilter(query).ToListAsync(ct);
         return rows.Select(Map).ToList();
+    }
+
+    public async Task<PagedResult<OutlineDto>> ListPagedAsync(DesignListQuery query, CancellationToken ct = default)
+    {
+        query = await _db.ResolveProjectScopeAsync(query, ct);
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        var filtered = _db.Outlines.AsQueryable().ApplyFilter(query);
+        var total = await filtered.CountAsync(ct);
+        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return new PagedResult<OutlineDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
     public async Task<OutlineDto?> GetAsync(string id, CancellationToken ct = default)
@@ -25,8 +37,9 @@ public class OutlineService : IOutlineService
 
     public async Task<OutlineDto> CreateAsync(OutlineUpsertDto input, CancellationToken ct = default)
     {
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
         var e = new Outline();
-        Apply(e, input);
+        Apply(e, input, sourceBookId);
         _db.Outlines.Add(e);
         await _db.SaveChangesAsync(ct);
         return Map(e);
@@ -36,7 +49,8 @@ public class OutlineService : IOutlineService
     {
         var e = await _db.Outlines.FindAsync(new object?[] { id }, ct)
                 ?? throw new InvalidOperationException("大纲不存在。");
-        Apply(e, input);
+        var sourceBookId = await _db.ResolveWriteSourceBookIdAsync(input.ProjectId, input.SourceBookId, ct);
+        Apply(e, input, sourceBookId);
         await _db.SaveChangesAsync(ct);
         return Map(e);
     }
@@ -49,14 +63,14 @@ public class OutlineService : IOutlineService
         await _db.SaveChangesAsync(ct);
     }
 
-    private static void Apply(Outline e, OutlineUpsertDto i)
+    private static void Apply(Outline e, OutlineUpsertDto i, string? sourceBookId)
     {
         if (string.IsNullOrWhiteSpace(i.Name)) throw new InvalidOperationException("名称必填。");
         e.Name = i.Name.Trim();
         e.Category = i.Category ?? string.Empty;
         e.CategoryId = string.IsNullOrEmpty(i.CategoryId) ? null : i.CategoryId;
         e.IsEnabled = i.IsEnabled;
-        e.SourceBookId = string.IsNullOrEmpty(i.SourceBookId) ? null : i.SourceBookId;
+        e.SourceBookId = sourceBookId;
         e.DependencyModuleVersions = i.DependencyModuleVersions ?? new Dictionary<string, int>();
         e.TotalChapterCount = i.TotalChapterCount;
         e.EstimatedWordCount = i.EstimatedWordCount ?? string.Empty;

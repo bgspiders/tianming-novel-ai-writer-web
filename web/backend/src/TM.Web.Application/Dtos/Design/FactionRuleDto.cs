@@ -25,6 +25,7 @@ public record FactionRuleUpsertDto(
     string? CategoryId = null,
     bool IsEnabled = true,
     string? SourceBookId = null,
+    string? ProjectId = null,
     string FactionType = "",
     string Goal = "",
     string StrengthTerritory = "",
