@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { FieldDef } from './moduleSchemas'
 import { computed } from 'vue'
+import type { FieldDef } from './moduleSchemas'
 
 const props = defineProps<{
   field: FieldDef
@@ -53,7 +53,7 @@ const value = computed({
         filterable
         allow-create
         default-first-option
-        :placeholder="field.placeholder ?? '回车添加'"
+        :placeholder="field.placeholder ?? 'Press Enter to add'"
         style="width: 100%"
       />
     </template>

@@ -9,25 +9,37 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'home',
         component: () => import('@/views/HomeView.vue'),
-        meta: { title: '首页' }
+        meta: { title: 'Home' }
       },
       {
         path: 'health',
         name: 'health',
         component: () => import('@/views/HealthView.vue'),
-        meta: { title: '健康检查' }
+        meta: { title: 'Health Check' }
       },
       {
         path: 'ai-test',
         name: 'ai-test',
         component: () => import('@/views/AiTestView.vue'),
-        meta: { title: 'AI 流式测试' }
+        meta: { title: 'AI Streaming Test' }
       },
       {
         path: 'settings/ai-models',
         name: 'ai-models',
         component: () => import('@/views/AiModelsView.vue'),
-        meta: { title: 'AI 模型管理' }
+        meta: { title: 'AI Models' }
+      },
+      {
+        path: 'settings/themes',
+        name: 'theme-studio',
+        component: () => import('@/views/settings/ThemeStudioView.vue'),
+        meta: { title: 'Theme Studio' }
+      },
+      {
+        path: 'editor/chapters',
+        name: 'chapter-editor',
+        component: () => import('@/views/editor/EditorChaptersView.vue'),
+        meta: { title: 'Chapter Editor' }
       },
       {
         path: 'design',
@@ -37,7 +49,7 @@ const routes: RouteRecordRaw[] = [
         path: 'design/:module',
         name: 'design-module',
         component: () => import('@/views/design/DesignView.vue'),
-        meta: { title: '设计模块' }
+        meta: { title: 'Design Modules' }
       },
       {
         path: 'generate',
@@ -59,7 +71,7 @@ const router = createRouter({
 
 router.afterEach((to) => {
   const title = (to.meta?.title as string | undefined) ?? ''
-  document.title = title ? `${title} · 天命 Web` : '天命 Web'
+  document.title = title ? `${title} | TM Web` : 'TM Web'
 })
 
 export default router

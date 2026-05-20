@@ -1,58 +1,58 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, Delete, Plus, Key, Promotion } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus, Promotion } from '@element-plus/icons-vue'
 import {
-  listProviders,
-  createProvider,
-  updateProvider,
-  deleteProvider,
-  listModels,
-  createModel,
-  updateModel,
-  deleteModel,
-  listKeys,
   createKey,
-  updateKey,
+  createModel,
+  createProvider,
   deleteKey,
+  deleteModel,
+  deleteProvider,
+  listKeys,
+  listModels,
+  listProviders,
   testKey,
-  type AiProvider,
-  type AiProviderUpsert,
-  type AiModel,
-  type AiModelUpsert,
+  updateKey,
+  updateModel,
+  updateProvider,
   type AiApiKey,
   type AiApiKeyCreate,
-  type AiApiKeyUpdate,
   type AiApiKeyTestInput,
-  type AiApiKeyTestResult
+  type AiApiKeyTestResult,
+  type AiApiKeyUpdate,
+  type AiModel,
+  type AiModelUpsert,
+  type AiProvider,
+  type AiProviderUpsert
 } from '@/api/modules/ai'
 
 const providers = ref<AiProvider[]>([])
-const selectedProviderId = ref<string>('')
+const selectedProviderId = ref('')
 const loadingProviders = ref(false)
 const tab = ref<'models' | 'keys'>('models')
 
 const selectedProvider = computed(() =>
-  providers.value.find((p) => p.id === selectedProviderId.value) ?? null
+  providers.value.find((provider) => provider.id === selectedProviderId.value) ?? null
 )
 
 async function refreshProviders(keepSelection = true) {
   loadingProviders.value = true
   try {
     providers.value = await listProviders()
-    if (!keepSelection || !providers.value.some((p) => p.id === selectedProviderId.value)) {
+    if (!keepSelection || !providers.value.some((provider) => provider.id === selectedProviderId.value)) {
       selectedProviderId.value = providers.value[0]?.id ?? ''
     }
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '加载 Provider 失败')
+    ElMessage.error((err as Error).message ?? 'Failed to load providers.')
   } finally {
     loadingProviders.value = false
   }
 }
 
-// --- Provider 编辑 ---
 const providerDialogVisible = ref(false)
 const providerDialogMode = ref<'create' | 'edit'>('create')
+const providerEditId = ref('')
 const providerForm = ref<AiProviderUpsert>({
   code: '',
   name: '',
@@ -62,7 +62,6 @@ const providerForm = ref<AiProviderUpsert>({
   isEnabled: true,
   sortOrder: 0
 })
-const providerEditId = ref<string>('')
 
 function openCreateProvider() {
   providerDialogMode.value = 'create'
@@ -74,22 +73,22 @@ function openCreateProvider() {
     iconUrl: '',
     notes: '',
     isEnabled: true,
-    sortOrder: (providers.value.length || 0)
+    sortOrder: providers.value.length
   }
   providerDialogVisible.value = true
 }
 
-function openEditProvider(p: AiProvider) {
+function openEditProvider(provider: AiProvider) {
   providerDialogMode.value = 'edit'
-  providerEditId.value = p.id
+  providerEditId.value = provider.id
   providerForm.value = {
-    code: p.code,
-    name: p.name,
-    defaultEndpoint: p.defaultEndpoint,
-    iconUrl: p.iconUrl,
-    notes: p.notes,
-    isEnabled: p.isEnabled,
-    sortOrder: p.sortOrder
+    code: provider.code,
+    name: provider.name,
+    defaultEndpoint: provider.defaultEndpoint,
+    iconUrl: provider.iconUrl,
+    notes: provider.notes,
+    isEnabled: provider.isEnabled,
+    sortOrder: provider.sortOrder
   }
   providerDialogVisible.value = true
 }
@@ -98,38 +97,43 @@ async function saveProvider() {
   try {
     if (providerDialogMode.value === 'create') {
       await createProvider(providerForm.value)
-      ElMessage.success('Provider 已创建')
+      ElMessage.success('Provider created.')
     } else {
       await updateProvider(providerEditId.value, providerForm.value)
-      ElMessage.success('Provider 已更新')
+      ElMessage.success('Provider updated.')
     }
     providerDialogVisible.value = false
     await refreshProviders()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '保存失败')
+    ElMessage.error((err as Error).message ?? 'Failed to save provider.')
   }
 }
 
-async function removeProvider(p: AiProvider) {
-  if (p.isBuiltIn) {
-    ElMessage.warning('内置 Provider 不可删除，可改为禁用')
+async function removeProvider(provider: AiProvider) {
+  if (provider.isBuiltIn) {
+    ElMessage.warning('Built-in providers cannot be deleted. Disable them instead.')
     return
   }
+
   try {
-    await ElMessageBox.confirm(`确定删除 "${p.name}"？关联的模型和 Key 会一并删除。`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      `Delete provider "${provider.name}"? Related models and API keys will be removed as well.`,
+      'Confirm',
+      { type: 'warning' }
+    )
   } catch {
     return
   }
+
   try {
-    await deleteProvider(p.id)
-    ElMessage.success('已删除')
+    await deleteProvider(provider.id)
+    ElMessage.success('Provider deleted.')
     await refreshProviders(false)
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '删除失败')
+    ElMessage.error((err as Error).message ?? 'Failed to delete provider.')
   }
 }
 
-// --- Models ---
 const models = ref<AiModel[]>([])
 const loadingModels = ref(false)
 
@@ -138,11 +142,12 @@ async function refreshModels() {
     models.value = []
     return
   }
+
   loadingModels.value = true
   try {
     models.value = await listModels(selectedProviderId.value)
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '加载模型失败')
+    ElMessage.error((err as Error).message ?? 'Failed to load models.')
   } finally {
     loadingModels.value = false
   }
@@ -150,7 +155,7 @@ async function refreshModels() {
 
 const modelDialogVisible = ref(false)
 const modelDialogMode = ref<'create' | 'edit'>('create')
-const modelEditId = ref<string>('')
+const modelEditId = ref('')
 const modelForm = ref<AiModelUpsert>({
   code: '',
   name: '',
@@ -182,59 +187,62 @@ function openCreateModel() {
   modelDialogVisible.value = true
 }
 
-function openEditModel(m: AiModel) {
+function openEditModel(model: AiModel) {
   modelDialogMode.value = 'edit'
-  modelEditId.value = m.id
+  modelEditId.value = model.id
   modelForm.value = {
-    code: m.code,
-    name: m.name,
-    description: m.description,
-    contextWindow: m.contextWindow,
-    maxOutputTokens: m.maxOutputTokens,
-    capabilities: m.capabilities,
-    inputPricePerMillion: m.inputPricePerMillion,
-    outputPricePerMillion: m.outputPricePerMillion,
-    isEnabled: m.isEnabled,
-    sortOrder: m.sortOrder
+    code: model.code,
+    name: model.name,
+    description: model.description,
+    contextWindow: model.contextWindow,
+    maxOutputTokens: model.maxOutputTokens,
+    capabilities: model.capabilities,
+    inputPricePerMillion: model.inputPricePerMillion,
+    outputPricePerMillion: model.outputPricePerMillion,
+    isEnabled: model.isEnabled,
+    sortOrder: model.sortOrder
   }
   modelDialogVisible.value = true
 }
 
 async function saveModel() {
-  if (!selectedProviderId.value) return
+  if (!selectedProviderId.value) {
+    return
+  }
+
   try {
     if (modelDialogMode.value === 'create') {
       await createModel(selectedProviderId.value, modelForm.value)
-      ElMessage.success('模型已创建')
+      ElMessage.success('Model created.')
     } else {
       await updateModel(selectedProviderId.value, modelEditId.value, modelForm.value)
-      ElMessage.success('模型已更新')
+      ElMessage.success('Model updated.')
     }
     modelDialogVisible.value = false
     await refreshModels()
     await refreshProviders()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '保存失败')
+    ElMessage.error((err as Error).message ?? 'Failed to save model.')
   }
 }
 
-async function removeModel(m: AiModel) {
+async function removeModel(model: AiModel) {
   try {
-    await ElMessageBox.confirm(`删除模型 "${m.name}"？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(`Delete model "${model.name}"?`, 'Confirm', { type: 'warning' })
   } catch {
     return
   }
+
   try {
-    await deleteModel(selectedProviderId.value, m.id)
-    ElMessage.success('已删除')
+    await deleteModel(selectedProviderId.value, model.id)
+    ElMessage.success('Model deleted.')
     await refreshModels()
     await refreshProviders()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '删除失败')
+    ElMessage.error((err as Error).message ?? 'Failed to delete model.')
   }
 }
 
-// --- Keys ---
 const keys = ref<AiApiKey[]>([])
 const loadingKeys = ref(false)
 
@@ -243,11 +251,12 @@ async function refreshKeys() {
     keys.value = []
     return
   }
+
   loadingKeys.value = true
   try {
     keys.value = await listKeys(selectedProviderId.value)
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '加载 Key 失败')
+    ElMessage.error((err as Error).message ?? 'Failed to load API keys.')
   } finally {
     loadingKeys.value = false
   }
@@ -255,7 +264,7 @@ async function refreshKeys() {
 
 const keyDialogVisible = ref(false)
 const keyDialogMode = ref<'create' | 'edit'>('create')
-const keyEditId = ref<string>('')
+const keyEditId = ref('')
 const keyForm = ref<AiApiKeyCreate & AiApiKeyUpdate>({
   providerId: '',
   name: '',
@@ -277,15 +286,15 @@ function openCreateKey() {
   keyDialogVisible.value = true
 }
 
-function openEditKey(k: AiApiKey) {
+function openEditKey(key: AiApiKey) {
   keyDialogMode.value = 'edit'
-  keyEditId.value = k.id
+  keyEditId.value = key.id
   keyForm.value = {
-    providerId: k.providerId,
-    name: k.name,
+    providerId: key.providerId,
+    name: key.name,
     plainKey: '',
-    isEnabled: k.isEnabled,
-    rotationOrder: k.rotationOrder
+    isEnabled: key.isEnabled,
+    rotationOrder: key.rotationOrder
   }
   keyDialogVisible.value = true
 }
@@ -294,9 +303,10 @@ async function saveKey() {
   try {
     if (keyDialogMode.value === 'create') {
       if (!keyForm.value.plainKey) {
-        ElMessage.warning('请填写 API Key')
+        ElMessage.warning('Please provide an API key value.')
         return
       }
+
       await createKey({
         providerId: keyForm.value.providerId,
         name: keyForm.value.name,
@@ -304,7 +314,7 @@ async function saveKey() {
         isEnabled: keyForm.value.isEnabled,
         rotationOrder: keyForm.value.rotationOrder
       })
-      ElMessage.success('Key 已添加（已加密落库）')
+      ElMessage.success('API key created.')
     } else {
       await updateKey(keyEditId.value, {
         name: keyForm.value.name,
@@ -312,49 +322,50 @@ async function saveKey() {
         isEnabled: keyForm.value.isEnabled,
         rotationOrder: keyForm.value.rotationOrder
       })
-      ElMessage.success('Key 已更新')
+      ElMessage.success('API key updated.')
     }
+
     keyDialogVisible.value = false
     await refreshKeys()
     await refreshProviders()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '保存失败')
+    ElMessage.error((err as Error).message ?? 'Failed to save API key.')
   }
 }
 
-async function removeKey(k: AiApiKey) {
+async function removeKey(key: AiApiKey) {
   try {
-    await ElMessageBox.confirm(`删除 Key "${k.name}"？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(`Delete API key "${key.name}"?`, 'Confirm', { type: 'warning' })
   } catch {
     return
   }
+
   try {
-    await deleteKey(k.id)
-    ElMessage.success('已删除')
+    await deleteKey(key.id)
+    ElMessage.success('API key deleted.')
     await refreshKeys()
     await refreshProviders()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '删除失败')
+    ElMessage.error((err as Error).message ?? 'Failed to delete API key.')
   }
 }
 
-// --- Key 测试 ---
 const testDialogVisible = ref(false)
-const testingKeyId = ref<string>('')
+const testingKeyId = ref('')
+const testRunning = ref(false)
 const testForm = ref<AiApiKeyTestInput>({
   endpoint: '',
   modelCode: '',
-  prompt: '用一句话介绍你自己'
+  prompt: 'Introduce yourself in one sentence.'
 })
 const testResult = ref<AiApiKeyTestResult | null>(null)
-const testRunning = ref(false)
 
-function openTest(k: AiApiKey) {
-  testingKeyId.value = k.id
+function openTest(key: AiApiKey) {
+  testingKeyId.value = key.id
   testForm.value = {
     endpoint: selectedProvider.value?.defaultEndpoint ?? '',
     modelCode: models.value[0]?.code ?? '',
-    prompt: '用一句话介绍你自己'
+    prompt: 'Introduce yourself in one sentence.'
   }
   testResult.value = null
   testDialogVisible.value = true
@@ -362,26 +373,26 @@ function openTest(k: AiApiKey) {
 
 async function runTest() {
   if (!testForm.value.endpoint || !testForm.value.modelCode) {
-    ElMessage.warning('请填写 Endpoint 与 Model Code')
+    ElMessage.warning('Please provide endpoint and model code.')
     return
   }
+
   testRunning.value = true
   testResult.value = null
   try {
     testResult.value = await testKey(testingKeyId.value, testForm.value)
     if (testResult.value.ok) {
-      ElMessage.success(`测试通过：${testResult.value.outputChars} 字 / ${testResult.value.elapsedMs}ms`)
+      ElMessage.success(`Connection test passed: ${testResult.value.outputChars ?? 0} chars / ${testResult.value.elapsedMs ?? 0}ms`)
     } else {
-      ElMessage.error(`测试失败：${testResult.value.error}`)
+      ElMessage.error(`Connection test failed: ${testResult.value.error ?? 'Unknown error'}`)
     }
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '调用失败')
+    ElMessage.error((err as Error).message ?? 'Failed to run connection test.')
   } finally {
     testRunning.value = false
   }
 }
 
-// --- 监听 provider 切换 ---
 watch(selectedProviderId, () => {
   refreshModels()
   refreshKeys()
@@ -394,211 +405,250 @@ onMounted(refreshProviders)
   <div class="ai-models">
     <el-card shadow="never">
       <div class="header">
-        <h2 class="title">AI 模型管理</h2>
+        <h2 class="title">AI Model Management</h2>
         <p class="hint">
-          管理 AI Provider、模型清单与 API Key。Key 用 AES-GCM 加密后落库（master.key 独立保管）。
+          Manage providers, models, and encrypted API keys. Keys are stored server-side and can be tested
+          against any configured endpoint and model code.
         </p>
       </div>
     </el-card>
 
     <div class="layout">
-      <!-- 左侧 Provider 列表 -->
       <el-card shadow="never" class="provider-panel">
         <template #header>
           <div class="panel-head">
-            <span>Provider</span>
-            <el-button type="primary" :icon="Plus" size="small" @click="openCreateProvider">新建</el-button>
+            <span>Providers</span>
+            <el-button type="primary" :icon="Plus" size="small" @click="openCreateProvider">New</el-button>
           </div>
         </template>
+
         <div v-loading="loadingProviders" class="provider-list">
           <div
-            v-for="p in providers"
-            :key="p.id"
-            :class="['provider-item', { active: p.id === selectedProviderId }]"
-            @click="selectedProviderId = p.id"
+            v-for="provider in providers"
+            :key="provider.id"
+            :class="['provider-item', { active: provider.id === selectedProviderId }]"
+            @click="selectedProviderId = provider.id"
           >
             <div class="provider-row">
-              <span class="provider-name">{{ p.name }}</span>
-              <el-tag v-if="p.isBuiltIn" type="info" size="small" effect="plain">内置</el-tag>
-              <el-tag v-if="!p.isEnabled" type="warning" size="small">禁用</el-tag>
+              <span class="provider-name">{{ provider.name }}</span>
+              <el-tag v-if="provider.isBuiltIn" size="small" type="info" effect="plain">Built-in</el-tag>
+              <el-tag v-if="!provider.isEnabled" size="small" type="warning">Disabled</el-tag>
             </div>
             <div class="provider-meta">
-              <span class="code">{{ p.code }}</span>
-              <span class="counts">{{ p.modelCount }} 模型 · {{ p.keyCount }} Key</span>
+              <span class="code">{{ provider.code }}</span>
+              <span class="counts">{{ provider.modelCount }} models | {{ provider.keyCount }} keys</span>
             </div>
             <div class="provider-actions">
-              <el-button size="small" :icon="Edit" link @click.stop="openEditProvider(p)">编辑</el-button>
-              <el-button size="small" :icon="Delete" link type="danger" :disabled="p.isBuiltIn" @click.stop="removeProvider(p)">删除</el-button>
+              <el-button size="small" :icon="Edit" link @click.stop="openEditProvider(provider)">Edit</el-button>
+              <el-button
+                size="small"
+                :icon="Delete"
+                link
+                type="danger"
+                :disabled="provider.isBuiltIn"
+                @click.stop="removeProvider(provider)"
+              >
+                Delete
+              </el-button>
             </div>
           </div>
-          <el-empty v-if="!loadingProviders && providers.length === 0" description="暂无 Provider" />
+
+          <el-empty v-if="!loadingProviders && providers.length === 0" description="No providers yet" />
         </div>
       </el-card>
 
-      <!-- 右侧 Models / Keys Tab -->
       <el-card shadow="never" class="detail-panel">
         <template #header>
           <div class="panel-head">
-            <span>{{ selectedProvider?.name || '请选择 Provider' }}</span>
-            <span class="default-endpoint" v-if="selectedProvider?.defaultEndpoint">{{ selectedProvider.defaultEndpoint }}</span>
+            <span>{{ selectedProvider?.name || 'Select a provider' }}</span>
+            <span v-if="selectedProvider?.defaultEndpoint" class="default-endpoint">
+              {{ selectedProvider.defaultEndpoint }}
+            </span>
           </div>
         </template>
 
         <div v-if="selectedProvider">
           <el-tabs v-model="tab">
-            <el-tab-pane label="模型清单" name="models">
+            <el-tab-pane label="Models" name="models">
               <div class="tab-toolbar">
-                <el-button type="primary" :icon="Plus" size="small" @click="openCreateModel">新建模型</el-button>
+                <el-button type="primary" :icon="Plus" size="small" @click="openCreateModel">New Model</el-button>
               </div>
+
               <el-table v-loading="loadingModels" :data="models" stripe size="small">
-                <el-table-column prop="code" label="编码" min-width="180" />
-                <el-table-column prop="name" label="名称" min-width="160" />
-                <el-table-column prop="contextWindow" label="上下文" width="100" align="right" />
-                <el-table-column prop="maxOutputTokens" label="最大输出" width="100" align="right" />
-                <el-table-column label="状态" width="80">
+                <el-table-column prop="code" label="Code" min-width="180" />
+                <el-table-column prop="name" label="Name" min-width="160" />
+                <el-table-column prop="contextWindow" label="Context" width="100" align="right" />
+                <el-table-column prop="maxOutputTokens" label="Max Output" width="110" align="right" />
+                <el-table-column label="Status" width="90">
                   <template #default="{ row }">
-                    <el-tag :type="row.isEnabled ? 'success' : 'info'" size="small">{{ row.isEnabled ? '启用' : '禁用' }}</el-tag>
+                    <el-tag :type="row.isEnabled ? 'success' : 'info'" size="small">
+                      {{ row.isEnabled ? 'Enabled' : 'Disabled' }}
+                    </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="140" align="center">
+                <el-table-column label="Actions" width="140" align="center">
                   <template #default="{ row }">
-                    <el-button size="small" :icon="Edit" link @click="openEditModel(row)">编辑</el-button>
-                    <el-button size="small" :icon="Delete" link type="danger" @click="removeModel(row)">删除</el-button>
+                    <el-button size="small" :icon="Edit" link @click="openEditModel(row)">Edit</el-button>
+                    <el-button size="small" :icon="Delete" link type="danger" @click="removeModel(row)">Delete</el-button>
                   </template>
                 </el-table-column>
               </el-table>
             </el-tab-pane>
 
-            <el-tab-pane label="API Key" name="keys">
+            <el-tab-pane label="API Keys" name="keys">
               <div class="tab-toolbar">
-                <el-button type="primary" :icon="Plus" size="small" @click="openCreateKey">添加 Key</el-button>
+                <el-button type="primary" :icon="Plus" size="small" @click="openCreateKey">Add Key</el-button>
               </div>
+
               <el-table v-loading="loadingKeys" :data="keys" stripe size="small">
-                <el-table-column prop="name" label="名称" min-width="160" />
-                <el-table-column label="尾段" width="120">
+                <el-table-column prop="name" label="Name" min-width="160" />
+                <el-table-column label="Tail" width="120">
                   <template #default="{ row }">
-                    <span class="masked">{{ row.maskedTail || '—' }}</span>
+                    <span class="masked">{{ row.maskedTail || '--' }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="rotationOrder" label="轮换序" width="80" align="right" />
-                <el-table-column label="最近使用" width="180">
+                <el-table-column prop="rotationOrder" label="Order" width="80" align="right" />
+                <el-table-column label="Last Used" width="180">
                   <template #default="{ row }">
-                    <span class="muted">{{ row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : '—' }}</span>
+                    <span class="muted">{{ row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : '--' }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="状态" width="80">
+                <el-table-column label="Status" width="90">
                   <template #default="{ row }">
-                    <el-tag :type="row.isEnabled ? 'success' : 'info'" size="small">{{ row.isEnabled ? '启用' : '禁用' }}</el-tag>
+                    <el-tag :type="row.isEnabled ? 'success' : 'info'" size="small">
+                      {{ row.isEnabled ? 'Enabled' : 'Disabled' }}
+                    </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="220" align="center">
+                <el-table-column label="Actions" width="220" align="center">
                   <template #default="{ row }">
-                    <el-button size="small" :icon="Promotion" link type="primary" @click="openTest(row)">测试</el-button>
-                    <el-button size="small" :icon="Edit" link @click="openEditKey(row)">编辑</el-button>
-                    <el-button size="small" :icon="Delete" link type="danger" @click="removeKey(row)">删除</el-button>
+                    <el-button size="small" :icon="Promotion" link type="primary" @click="openTest(row)">Test</el-button>
+                    <el-button size="small" :icon="Edit" link @click="openEditKey(row)">Edit</el-button>
+                    <el-button size="small" :icon="Delete" link type="danger" @click="removeKey(row)">Delete</el-button>
                   </template>
                 </el-table-column>
               </el-table>
             </el-tab-pane>
           </el-tabs>
         </div>
-        <el-empty v-else description="请在左侧选择 Provider" />
+
+        <el-empty v-else description="Select a provider from the left panel" />
       </el-card>
     </div>
 
-    <!-- Provider 编辑对话框 -->
-    <el-dialog v-model="providerDialogVisible" :title="providerDialogMode === 'create' ? '新建 Provider' : '编辑 Provider'" width="520px">
+    <el-dialog
+      v-model="providerDialogVisible"
+      :title="providerDialogMode === 'create' ? 'New Provider' : 'Edit Provider'"
+      width="520px"
+    >
       <el-form :model="providerForm" label-width="120px" label-position="right">
-        <el-form-item label="编码" required>
-          <el-input v-model="providerForm.code" placeholder="如 openai / anthropic" />
+        <el-form-item label="Code" required>
+          <el-input v-model="providerForm.code" placeholder="openai / anthropic" />
         </el-form-item>
-        <el-form-item label="名称" required>
+        <el-form-item label="Name" required>
           <el-input v-model="providerForm.name" />
         </el-form-item>
-        <el-form-item label="默认 Endpoint">
+        <el-form-item label="Default Endpoint">
           <el-input v-model="providerForm.defaultEndpoint" placeholder="https://api.openai.com/v1" />
         </el-form-item>
-        <el-form-item label="图标 URL">
+        <el-form-item label="Icon URL">
           <el-input v-model="providerForm.iconUrl" />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item label="Notes">
           <el-input v-model="providerForm.notes" type="textarea" :rows="2" />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item label="Enabled">
           <el-switch v-model="providerForm.isEnabled" />
         </el-form-item>
-        <el-form-item label="排序">
+        <el-form-item label="Sort Order">
           <el-input-number v-model="providerForm.sortOrder" :min="0" />
         </el-form-item>
       </el-form>
+
       <template #footer>
-        <el-button @click="providerDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveProvider">保存</el-button>
+        <el-button @click="providerDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" @click="saveProvider">Save</el-button>
       </template>
     </el-dialog>
 
-    <!-- Model 编辑对话框 -->
-    <el-dialog v-model="modelDialogVisible" :title="modelDialogMode === 'create' ? '新建模型' : '编辑模型'" width="600px">
+    <el-dialog
+      v-model="modelDialogVisible"
+      :title="modelDialogMode === 'create' ? 'New Model' : 'Edit Model'"
+      width="600px"
+    >
       <el-form :model="modelForm" label-width="130px" label-position="right">
-        <el-form-item label="模型 Code" required>
-          <el-input v-model="modelForm.code" placeholder="如 gpt-4o-mini" />
+        <el-form-item label="Model Code" required>
+          <el-input v-model="modelForm.code" placeholder="gpt-4o-mini" />
         </el-form-item>
-        <el-form-item label="显示名" required>
+        <el-form-item label="Display Name" required>
           <el-input v-model="modelForm.name" />
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item label="Description">
           <el-input v-model="modelForm.description" type="textarea" :rows="2" />
         </el-form-item>
-        <el-form-item label="上下文窗口">
+        <el-form-item label="Context Window">
           <el-input-number v-model="modelForm.contextWindow" :min="1" />
         </el-form-item>
-        <el-form-item label="最大输出 Token">
+        <el-form-item label="Max Output Tokens">
           <el-input-number v-model="modelForm.maxOutputTokens" :min="1" />
         </el-form-item>
-        <el-form-item label="能力 JSON">
-          <el-input v-model="modelForm.capabilities" type="textarea" :rows="2"
-            placeholder='{"vision":true,"tools":true,"streaming":true}' />
+        <el-form-item label="Capabilities JSON">
+          <el-input
+            v-model="modelForm.capabilities"
+            type="textarea"
+            :rows="2"
+            placeholder='{"vision":true,"tools":true,"streaming":true}'
+          />
         </el-form-item>
-        <el-form-item label="输入价 / 1M">
+        <el-form-item label="Input Price / 1M">
           <el-input-number v-model="modelForm.inputPricePerMillion" :precision="4" :step="0.1" />
         </el-form-item>
-        <el-form-item label="输出价 / 1M">
+        <el-form-item label="Output Price / 1M">
           <el-input-number v-model="modelForm.outputPricePerMillion" :precision="4" :step="0.1" />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item label="Enabled">
           <el-switch v-model="modelForm.isEnabled" />
         </el-form-item>
       </el-form>
+
       <template #footer>
-        <el-button @click="modelDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveModel">保存</el-button>
+        <el-button @click="modelDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" @click="saveModel">Save</el-button>
       </template>
     </el-dialog>
 
-    <!-- Key 编辑对话框 -->
-    <el-dialog v-model="keyDialogVisible" :title="keyDialogMode === 'create' ? '添加 Key' : '编辑 Key'" width="520px">
+    <el-dialog
+      v-model="keyDialogVisible"
+      :title="keyDialogMode === 'create' ? 'Add API Key' : 'Edit API Key'"
+      width="520px"
+    >
       <el-form :model="keyForm" label-width="120px" label-position="right">
-        <el-form-item label="名称" required>
-          <el-input v-model="keyForm.name" placeholder="如 主账号 / 备用 1" />
+        <el-form-item label="Name" required>
+          <el-input v-model="keyForm.name" placeholder="Primary / Backup 1" />
         </el-form-item>
         <el-form-item label="API Key" :required="keyDialogMode === 'create'">
-          <el-input v-model="keyForm.plainKey" :placeholder="keyDialogMode === 'edit' ? '留空则不修改' : 'sk-...'" type="password" show-password />
+          <el-input
+            v-model="keyForm.plainKey"
+            type="password"
+            show-password
+            :placeholder="keyDialogMode === 'edit' ? 'Leave blank to keep the existing key' : 'sk-...'"
+          />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item label="Enabled">
           <el-switch v-model="keyForm.isEnabled" />
         </el-form-item>
-        <el-form-item label="轮换序">
+        <el-form-item label="Rotation Order">
           <el-input-number v-model="keyForm.rotationOrder" :min="0" />
         </el-form-item>
       </el-form>
+
       <template #footer>
-        <el-button @click="keyDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveKey">保存</el-button>
+        <el-button @click="keyDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" @click="saveKey">Save</el-button>
       </template>
     </el-dialog>
 
-    <!-- Key 测试对话框 -->
-    <el-dialog v-model="testDialogVisible" title="Key 连通测试" width="520px">
+    <el-dialog v-model="testDialogVisible" title="API Key Connection Test" width="520px">
       <el-form :model="testForm" label-width="110px" label-position="right">
         <el-form-item label="Endpoint" required>
           <el-input v-model="testForm.endpoint" placeholder="https://api.openai.com/v1" />
@@ -611,14 +661,25 @@ onMounted(refreshProviders)
         </el-form-item>
       </el-form>
 
-      <el-alert v-if="testResult?.ok" type="success" show-icon :closable="false"
-        :title="`通过 · ${testResult.outputChars} 字 · ${testResult.elapsedMs}ms`" />
-      <el-alert v-else-if="testResult && !testResult.ok" type="error" show-icon :closable="false"
-        :title="testResult.error || '失败'" :description="`耗时 ${testResult.elapsedMs}ms`" />
+      <el-alert
+        v-if="testResult?.ok"
+        type="success"
+        show-icon
+        :closable="false"
+        :title="`Passed | ${testResult.outputChars ?? 0} chars | ${testResult.elapsedMs ?? 0}ms`"
+      />
+      <el-alert
+        v-else-if="testResult && !testResult.ok"
+        type="error"
+        show-icon
+        :closable="false"
+        :title="testResult.error || 'Failed'"
+        :description="`Elapsed ${testResult.elapsedMs ?? 0}ms`"
+      />
 
       <template #footer>
-        <el-button @click="testDialogVisible = false">关闭</el-button>
-        <el-button type="primary" :loading="testRunning" @click="runTest">发起测试</el-button>
+        <el-button @click="testDialogVisible = false">Close</el-button>
+        <el-button type="primary" :loading="testRunning" @click="runTest">Run Test</el-button>
       </template>
     </el-dialog>
   </div>
@@ -626,92 +687,112 @@ onMounted(refreshProviders)
 
 <style scoped>
 .ai-models {
-  max-width: 1280px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
 }
+
 .header .title {
-  font-size: 20px;
-  font-weight: 600;
   margin: 0 0 6px;
   color: var(--tm-fg-primary);
+  font-size: 20px;
+  font-weight: 600;
 }
+
 .header .hint {
   margin: 0;
   color: var(--tm-fg-secondary);
   font-size: 13px;
 }
+
 .layout {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 16px;
 }
+
 .panel-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
 }
-.panel-head .default-endpoint {
-  font-size: 12px;
+
+.default-endpoint {
   color: var(--tm-fg-secondary);
   font-family: 'SF Mono', Menlo, monospace;
+  font-size: 12px;
 }
+
 .provider-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
+
 .provider-item {
+  padding: 10px 12px;
   border: 1px solid var(--tm-border);
   border-radius: 6px;
-  padding: 10px 12px;
   cursor: pointer;
   transition: all 0.15s;
 }
-.provider-item:hover {
+
+.provider-item:hover,
+.provider-item.active {
   background: var(--tm-bg-elevated);
 }
+
 .provider-item.active {
   border-color: var(--tm-primary);
-  background: var(--tm-bg-elevated);
 }
+
 .provider-row {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
 }
+
 .provider-name {
   flex: 1;
-  font-weight: 500;
   color: var(--tm-fg-primary);
+  font-weight: 500;
 }
+
 .provider-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: var(--tm-fg-secondary);
   margin-bottom: 4px;
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
 }
-.provider-meta .code {
+
+.provider-meta .code,
+.masked {
   font-family: 'SF Mono', Menlo, monospace;
 }
+
 .provider-actions {
   display: flex;
   gap: 4px;
   margin-top: 4px;
 }
+
 .tab-toolbar {
   margin-bottom: 8px;
 }
+
+.muted,
 .masked {
-  font-family: 'SF Mono', Menlo, monospace;
-  color: var(--tm-fg-secondary);
-}
-.muted {
   color: var(--tm-fg-secondary);
   font-size: 12px;
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

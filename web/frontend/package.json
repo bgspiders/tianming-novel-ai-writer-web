@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "天命 Web 版前端 - Vue 3 + Vite + TypeScript",
+  "description": "TM Web frontend - Vue 3 + Vite + TypeScript",
   "scripts": {
     "dev": "vite --host",
     "build": "vue-tsc -b && vite build",
@@ -18,7 +18,11 @@
     "@element-plus/icons-vue": "^2.3.1",
     "axios": "^1.7.7",
     "@microsoft/signalr": "^8.0.7",
-    "@vueuse/core": "^11.2.0"
+    "@vueuse/core": "^11.2.0",
+    "diff": "^7.0.0",
+    "diff2html": "^3.4.52",
+    "markdown-it": "^14.1.0",
+    "monaco-editor": "^0.52.2"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.0",

@@ -1,80 +1,185 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useThemeStore } from '@/stores/theme'
+
 const router = useRouter()
+const themeStore = useThemeStore()
+
+const quickActions = computed(() => [
+  { label: 'Theme Studio', path: '/settings/themes', type: 'primary' as const },
+  { label: 'Chapter Editor', path: '/editor/chapters', type: 'success' as const },
+  { label: 'Design Modules', path: '/design/world_rules', type: 'default' as const },
+  { label: 'Health Check', path: '/health', type: 'info' as const }
+])
 </script>
 
 <template>
   <div class="home">
-    <el-card shadow="never">
-      <h2 class="title">天命 Web · 阶段 0 骨架</h2>
-      <p class="lead">
-        这是从 WPF 桌面版迁移而来的 Web 版骨架。当前会话只完成端到端 AI 流式 Demo，
-        所有业务模块（设计 / 生成 / 校验 / AI 助手 / 编辑器）会在后续阶段逐步迁移。
-      </p>
+    <section class="hero tm-panel">
+      <div class="hero-copy">
+        <div class="eyebrow">TM Web Migration</div>
+        <h1>Stage 9 Theme System</h1>
+        <p>
+          The frontend now carries a full theme system instead of the earlier light and dark shell:
+          built-in palettes, system follow, time scheduling, sunrise and sunset switching,
+          holiday overrides, image color extraction, and AI-style palette generation.
+        </p>
+        <el-space wrap :size="12">
+          <el-button
+            v-for="action in quickActions"
+            :key="action.path"
+            :type="action.type"
+            @click="router.push(action.path)"
+          >
+            {{ action.label }}
+          </el-button>
+        </el-space>
+      </div>
+      <div class="hero-preview" :style="{ background: themeStore.effectiveTheme.hero }">
+        <div class="preview-chip">Current: {{ themeStore.effectiveTheme.label }}</div>
+        <div class="preview-card">
+          <div class="preview-line strong">Mode: {{ themeStore.mode }}</div>
+          <div class="preview-line">Source: {{ themeStore.currentSource }}</div>
+          <div class="preview-line">Holiday: {{ themeStore.activeHoliday || 'None' }}</div>
+          <div class="preview-line">Next: {{ themeStore.nextScheduledThemeAt || 'Not scheduled' }}</div>
+        </div>
+      </div>
+    </section>
 
-      <el-divider />
+    <section class="grid">
+      <el-card shadow="never" class="panel">
+        <template #header>
+          <div class="panel-title">Theme Capabilities</div>
+        </template>
+        <ul class="feature-list">
+          <li>Multiple built-in palettes mapped from the desktop theme set</li>
+          <li>System light and dark follow with theme remapping</li>
+          <li>Fixed-time and sunrise or sunset schedule switching</li>
+          <li>Holiday theme overrides for key dates</li>
+          <li>Image-based palette extraction using Canvas</li>
+          <li>Prompt-seeded AI-style palette generation</li>
+        </ul>
+      </el-card>
 
-      <h3>验证两个端到端切片</h3>
-      <el-space wrap :size="12" style="margin-top: 8px">
-        <el-button type="primary" @click="router.push('/health')">健康检查</el-button>
-        <el-button type="success" @click="router.push('/ai-test')">AI 流式测试</el-button>
-      </el-space>
-
-      <el-divider />
-
-      <h3>端口约定</h3>
-      <ul class="port-list">
-        <li><strong>后端</strong> ASP.NET Core 8 · <code>http://localhost:38721</code></li>
-        <li><strong>前端</strong> Vite Dev · <code>http://localhost:38720</code></li>
-        <li><strong>Swagger</strong> <code>http://localhost:38721/swagger</code></li>
-      </ul>
-
-      <el-divider />
-
-      <h3>下一步</h3>
-      <p>
-        阶段 1 起开始接入原 WPF 项目的 <code>Services/Modules/ProjectData</code> 业务代码，
-        完成 SQLite schema + 数据导入工具；详见 <code>web/docs/迁移路线图.md</code>。
-      </p>
-    </el-card>
+      <el-card shadow="never" class="panel">
+        <template #header>
+          <div class="panel-title">Runtime</div>
+        </template>
+        <ul class="feature-list">
+          <li>Backend: <code>http://localhost:38721</code></li>
+          <li>Frontend: <code>http://localhost:38720</code></li>
+          <li>Swagger: <code>http://localhost:38721/swagger</code></li>
+          <li>Theme state persists in local storage.</li>
+        </ul>
+      </el-card>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .home {
-  max-width: 900px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-.title {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--tm-fg-primary);
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 24px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  color: var(--tm-primary);
+  margin-bottom: 10px;
+}
+
+.hero-copy h1 {
   margin: 0 0 12px;
+  font-size: 34px;
 }
-.lead {
+
+.hero-copy p {
+  margin: 0 0 16px;
+  line-height: 1.8;
   color: var(--tm-fg-secondary);
-  line-height: 1.7;
-  font-size: 14px;
 }
-h3 {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--tm-fg-primary);
-  margin: 0 0 8px;
+
+.hero-preview {
+  border-radius: 20px;
+  padding: 18px;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid color-mix(in srgb, var(--tm-border) 60%, transparent);
 }
-.port-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  color: var(--tm-fg-secondary);
-  line-height: 2;
-  font-size: 13px;
-}
-.port-list code {
-  background: var(--tm-bg-elevated);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+
+.preview-chip {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tm-bg-elevated) 76%, transparent);
   font-size: 12px;
+}
+
+.preview-card {
+  border-radius: 16px;
+  padding: 16px;
+  background: color-mix(in srgb, var(--tm-bg-elevated) 84%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.preview-line {
+  color: var(--tm-fg-secondary);
+  line-height: 1.8;
+}
+
+.preview-line.strong {
+  color: var(--tm-fg-primary);
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.panel {
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--tm-bg-elevated) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tm-border) 70%, transparent);
+}
+
+.panel-title {
+  font-weight: 700;
+}
+
+.feature-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--tm-fg-secondary);
+  line-height: 1.9;
+}
+
+code {
+  background: var(--tm-bg-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+@media (max-width: 1100px) {
+  .hero,
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

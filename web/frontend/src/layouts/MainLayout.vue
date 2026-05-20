@@ -2,7 +2,17 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
-import { Sunny, Moon, Monitor, Promotion, Cpu, Setting, MagicStick, Edit } from '@element-plus/icons-vue'
+import {
+  Sunny,
+  Moon,
+  Monitor,
+  Promotion,
+  Cpu,
+  Setting,
+  MagicStick,
+  Edit,
+  Document
+} from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -10,84 +20,118 @@ const themeStore = useThemeStore()
 
 const activeMenu = computed(() => route.path)
 
-function navigate(idx: string) {
-  router.push(idx)
+function navigate(index: string) {
+  router.push(index)
 }
 
 function cycleTheme() {
-  const order = ['auto', 'light', 'dark'] as const
-  const cur = themeStore.mode
-  const next = order[(order.indexOf(cur) + 1) % order.length]
-  themeStore.setMode(next)
+  if (themeStore.mode === 'preset') {
+    themeStore.setMode('system')
+    return
+  }
+  if (themeStore.mode === 'system') {
+    themeStore.setMode('schedule')
+    return
+  }
+  themeStore.setMode('preset')
 }
 
 const themeIcon = computed(() => {
-  if (themeStore.mode === 'auto') return Monitor
-  if (themeStore.mode === 'dark') return Moon
+  if (themeStore.mode === 'system') return Monitor
+  if (themeStore.isDark) return Moon
   return Sunny
 })
 
 const themeLabel = computed(() => {
-  if (themeStore.mode === 'auto') return '跟随系统'
-  if (themeStore.mode === 'dark') return '深色'
-  return '浅色'
+  if (themeStore.mode === 'system') return 'Follow System'
+  if (themeStore.mode === 'schedule') return 'Scheduled'
+  return themeStore.themeLabel
 })
 </script>
 
 <template>
   <el-container class="layout">
-    <el-aside width="220px" class="layout-aside">
+    <el-aside width="236px" class="layout-aside">
       <div class="brand">
         <span class="brand-dot"></span>
-        <span class="brand-text">天命 Web</span>
-        <el-tag size="small" type="info" effect="plain">阶段 0</el-tag>
+        <div class="brand-copy">
+          <span class="brand-text">TM Web</span>
+          <span class="brand-sub">Stage 9 Theme System</span>
+        </div>
+        <el-tag size="small" effect="dark" type="primary">S9</el-tag>
       </div>
+
       <el-menu
         :default-active="activeMenu"
         class="layout-menu"
         background-color="transparent"
+        text-color="var(--tm-fg-secondary)"
+        active-text-color="var(--tm-primary)"
         @select="navigate"
       >
         <el-menu-item index="/">
           <el-icon><Promotion /></el-icon>
-          <span>首页</span>
+          <span>Home</span>
         </el-menu-item>
+
         <el-menu-item index="/health">
           <el-icon><Setting /></el-icon>
-          <span>健康检查</span>
+          <span>Health Check</span>
         </el-menu-item>
+
         <el-menu-item index="/ai-test">
           <el-icon><Cpu /></el-icon>
-          <span>AI 流式测试</span>
+          <span>AI Streaming</span>
         </el-menu-item>
+
         <el-menu-item index="/settings/ai-models">
           <el-icon><MagicStick /></el-icon>
-          <span>AI 模型管理</span>
+          <span>AI Models</span>
         </el-menu-item>
+
+        <el-menu-item index="/settings/themes">
+          <el-icon><Sunny /></el-icon>
+          <span>Theme Studio</span>
+        </el-menu-item>
+
+        <el-menu-item index="/editor/chapters">
+          <el-icon><Document /></el-icon>
+          <span>Chapter Editor</span>
+        </el-menu-item>
+
         <el-sub-menu index="design">
           <template #title>
             <el-icon><Edit /></el-icon>
-            <span>设计模块</span>
+            <span>Design Modules</span>
           </template>
-          <el-menu-item index="/design/world_rules">🌍 世界规则</el-menu-item>
-          <el-menu-item index="/design/character_rules">🧑 角色规则</el-menu-item>
-          <el-menu-item index="/design/faction_rules">⚔️ 势力规则</el-menu-item>
-          <el-menu-item index="/design/location_rules">🗺️ 地点规则</el-menu-item>
-          <el-menu-item index="/design/plot_rules">📜 剧情规则</el-menu-item>
-          <el-menu-item index="/design/creative_materials">💡 创意素材</el-menu-item>
-          <el-menu-item index="/design/book_analyses">📖 智能拆书</el-menu-item>
-          <el-menu-item index="/design/outlines">🧭 全书大纲</el-menu-item>
-          <el-menu-item index="/design/volume_designs">📚 卷设计</el-menu-item>
-          <el-menu-item index="/design/chapter_plans">📝 章节规划</el-menu-item>
-          <el-menu-item index="/design/chapter_blueprints">🎬 章节蓝图</el-menu-item>
+          <el-menu-item index="/design/world_rules">World Rules</el-menu-item>
+          <el-menu-item index="/design/character_rules">Character Rules</el-menu-item>
+          <el-menu-item index="/design/faction_rules">Faction Rules</el-menu-item>
+          <el-menu-item index="/design/location_rules">Location Rules</el-menu-item>
+          <el-menu-item index="/design/plot_rules">Plot Rules</el-menu-item>
+          <el-menu-item index="/design/creative_materials">Creative Materials</el-menu-item>
+          <el-menu-item index="/design/book_analyses">Book Analyses</el-menu-item>
+          <el-menu-item index="/design/outlines">Outlines</el-menu-item>
+          <el-menu-item index="/design/volume_designs">Volume Designs</el-menu-item>
+          <el-menu-item index="/design/chapter_plans">Chapter Plans</el-menu-item>
+          <el-menu-item index="/design/chapter_blueprints">Chapter Blueprints</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
 
     <el-container>
-      <el-header height="52px" class="layout-header">
-        <div class="header-title">{{ ($route.meta.title as string) || '天命 Web' }}</div>
+      <el-header height="60px" class="layout-header">
+        <div>
+          <div class="header-title">{{ ($route.meta.title as string) || 'TM Web' }}</div>
+          <div class="header-sub">
+            {{ themeStore.effectiveTheme.label }} / {{ themeStore.currentSource }}
+          </div>
+        </div>
         <div class="header-right">
+          <el-button class="theme-trigger" @click="router.push('/settings/themes')">
+            <span class="theme-pill" :style="{ background: themeStore.effectiveTheme.hero }"></span>
+            <span>Open Theme Studio</span>
+          </el-button>
           <el-button text size="small" @click="cycleTheme">
             <el-icon class="mr-4"><component :is="themeIcon" /></el-icon>
             <span>{{ themeLabel }}</span>
@@ -106,50 +150,99 @@ const themeLabel = computed(() => {
 .layout {
   height: 100vh;
 }
+
 .layout-aside {
-  background: var(--tm-bg-elevated);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tm-bg-elevated) 88%, transparent) 0%, transparent 100%),
+    var(--tm-bg-elevated);
   border-right: 1px solid var(--tm-border);
-  padding-top: 12px;
+  padding: 14px 10px 10px;
 }
+
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 18px 14px;
+  gap: 10px;
+  padding: 8px 12px 16px;
 }
+
 .brand-dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: var(--tm-primary);
+  background: linear-gradient(135deg, var(--tm-primary), var(--tm-info));
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--tm-primary) 18%, transparent);
 }
-.brand-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--tm-fg-primary);
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
   flex: 1;
 }
+
+.brand-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tm-fg-primary);
+}
+
+.brand-sub {
+  font-size: 11px;
+  color: var(--tm-fg-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .layout-menu {
   border-right: none;
 }
+
 .layout-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  background: var(--tm-bg-elevated);
+  background: color-mix(in srgb, var(--tm-bg-elevated) 90%, transparent);
   border-bottom: 1px solid var(--tm-border);
+  backdrop-filter: blur(18px);
 }
+
 .header-title {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--tm-fg-primary);
-  font-weight: 500;
+  font-weight: 700;
 }
+
+.header-sub {
+  font-size: 12px;
+  color: var(--tm-fg-secondary);
+  margin-top: 4px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-trigger {
+  border-radius: 999px;
+}
+
+.theme-pill {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tm-border) 80%, transparent);
+  margin-right: 8px;
+}
+
 .layout-main {
-  background: var(--tm-bg);
+  background: transparent;
   padding: 20px;
   overflow: auto;
 }
+
 .mr-4 {
   margin-right: 4px;
 }

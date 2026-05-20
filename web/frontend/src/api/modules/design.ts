@@ -1,9 +1,5 @@
 import http from '../http'
 
-// ============================================================================
-// 共用类型
-// ============================================================================
-
 export interface DesignBase {
   id: string
   name: string
@@ -31,10 +27,6 @@ function buildParams(p?: DesignListParams): Record<string, string | boolean> | u
   if (p.isEnabled !== undefined && p.isEnabled !== null) out.isEnabled = p.isEnabled
   return Object.keys(out).length ? out : undefined
 }
-
-// ============================================================================
-// WorldRule
-// ============================================================================
 
 export interface WorldRule extends DesignBase {
   oneLineSummary: string
@@ -64,10 +56,6 @@ export const worldRulesApi = {
     await http.delete(`/api/design/world-rules/${id}`)
   }
 }
-
-// ============================================================================
-// CharacterRule
-// ============================================================================
 
 export interface CharacterRule extends DesignBase {
   characterType: string
@@ -107,10 +95,6 @@ export const characterRulesApi = {
   }
 }
 
-// ============================================================================
-// FactionRule
-// ============================================================================
-
 export interface FactionRule extends DesignBase {
   factionType: string
   goal: string
@@ -138,10 +122,6 @@ export const factionRulesApi = {
     await http.delete(`/api/design/faction-rules/${id}`)
   }
 }
-
-// ============================================================================
-// LocationRule
-// ============================================================================
 
 export interface LocationRule extends DesignBase {
   locationType: string
@@ -171,10 +151,6 @@ export const locationRulesApi = {
     await http.delete(`/api/design/location-rules/${id}`)
   }
 }
-
-// ============================================================================
-// PlotRule
-// ============================================================================
 
 export interface PlotRule extends DesignBase {
   targetVolume: string
@@ -214,10 +190,6 @@ export const plotRulesApi = {
   }
 }
 
-// ============================================================================
-// CreativeMaterial
-// ============================================================================
-
 export interface CreativeMaterial extends DesignBase {
   icon: string
   sourceBookName: string | null
@@ -256,10 +228,6 @@ export const creativeMaterialsApi = {
   }
 }
 
-// ============================================================================
-// BookAnalysis
-// ============================================================================
-
 export interface BookAnalysis extends DesignBase {
   icon: string
   author: string
@@ -292,11 +260,56 @@ export interface BookAnalysis extends DesignBase {
 
 export type BookAnalysisUpsert = Omit<BookAnalysis, 'id' | 'createdAt' | 'updatedAt'>
 
+export interface BookAnalysisCrawlChapter {
+  index: number
+  title: string
+  url: string
+  summary: string
+  wordCount: number
+  content: string
+}
+
+export interface BookAnalysisCrawlPreview {
+  sourceUrl: string
+  sourceSite: string
+  suggestedName: string
+  title: string
+  author: string
+  genre: string
+  keywords: string
+  chapterCount: number
+  totalWordCount: number
+  crawledAt: string
+  summary: string
+  worldBuildingMethod: string
+  powerSystemDesign: string
+  environmentDescription: string
+  factionDesign: string
+  worldviewHighlights: string
+  protagonistDesign: string
+  supportingRoles: string
+  characterRelations: string
+  goldenFingerDesign: string
+  characterHighlights: string
+  plotStructure: string
+  conflictDesign: string
+  climaxArrangement: string
+  foreshadowingTechnique: string
+  plotHighlights: string
+  chapters: BookAnalysisCrawlChapter[]
+}
+
 export const bookAnalysesApi = {
   list: async (p?: DesignListParams): Promise<BookAnalysis[]> =>
     (await http.get<BookAnalysis[]>('/api/design/book-analyses', { params: buildParams(p) })).data,
   get: async (id: string): Promise<BookAnalysis> =>
     (await http.get<BookAnalysis>(`/api/design/book-analyses/${id}`)).data,
+  crawlPreview: async (input: {
+    url: string
+    maxChapters?: number
+    includeContent?: boolean
+  }): Promise<BookAnalysisCrawlPreview> =>
+    (await http.post<BookAnalysisCrawlPreview>('/api/design/book-analyses/crawl-preview', input)).data,
   create: async (input: BookAnalysisUpsert): Promise<BookAnalysis> =>
     (await http.post<BookAnalysis>('/api/design/book-analyses', input)).data,
   update: async (id: string, input: BookAnalysisUpsert): Promise<BookAnalysis> =>
@@ -305,10 +318,6 @@ export const bookAnalysesApi = {
     await http.delete(`/api/design/book-analyses/${id}`)
   }
 }
-
-// ============================================================================
-// Outline
-// ============================================================================
 
 export interface Outline extends DesignBase {
   dependencyModuleVersions: Record<string, number>
@@ -339,10 +348,6 @@ export const outlinesApi = {
     await http.delete(`/api/design/outlines/${id}`)
   }
 }
-
-// ============================================================================
-// VolumeDesign
-// ============================================================================
 
 export interface VolumeDesign extends DesignBase {
   dependencyModuleVersions: Record<string, number>
@@ -383,10 +388,6 @@ export const volumeDesignsApi = {
   }
 }
 
-// ============================================================================
-// ChapterPlan
-// ============================================================================
-
 export interface ChapterPlan extends DesignBase {
   dependencyModuleVersions: Record<string, number>
   chapterTitle: string
@@ -424,10 +425,6 @@ export const chapterPlansApi = {
   }
 }
 
-// ============================================================================
-// ChapterBlueprint
-// ============================================================================
-
 export interface ChapterBlueprint extends DesignBase {
   dependencyModuleVersions: Record<string, number>
   chapterId: string
@@ -464,10 +461,6 @@ export const chapterBlueprintsApi = {
   }
 }
 
-// ============================================================================
-// 模块元数据
-// ============================================================================
-
 export type DesignModuleKey =
   | 'world_rules'
   | 'character_rules'
@@ -489,15 +482,15 @@ export interface DesignModuleMeta {
 }
 
 export const DESIGN_MODULES: DesignModuleMeta[] = [
-  { key: 'world_rules', label: '世界规则', icon: '🌍', hasSourceBookScope: true },
-  { key: 'character_rules', label: '角色规则', icon: '🧑', hasSourceBookScope: true },
-  { key: 'faction_rules', label: '势力规则', icon: '⚔️', hasSourceBookScope: true },
-  { key: 'location_rules', label: '地点规则', icon: '🗺️', hasSourceBookScope: true },
-  { key: 'plot_rules', label: '剧情规则', icon: '📜', hasSourceBookScope: true },
-  { key: 'creative_materials', label: '创意素材', icon: '💡', hasSourceBookScope: true },
-  { key: 'book_analyses', label: '智能拆书', icon: '📖', hasSourceBookScope: false },
-  { key: 'outlines', label: '全书大纲', icon: '🧭', hasSourceBookScope: true },
-  { key: 'volume_designs', label: '卷设计', icon: '📚', hasSourceBookScope: true },
-  { key: 'chapter_plans', label: '章节规划', icon: '📝', hasSourceBookScope: true },
-  { key: 'chapter_blueprints', label: '章节蓝图', icon: '🎬', hasSourceBookScope: true }
+  { key: 'world_rules', label: 'World Rules', icon: 'WR', hasSourceBookScope: true },
+  { key: 'character_rules', label: 'Character Rules', icon: 'CR', hasSourceBookScope: true },
+  { key: 'faction_rules', label: 'Faction Rules', icon: 'FR', hasSourceBookScope: true },
+  { key: 'location_rules', label: 'Location Rules', icon: 'LR', hasSourceBookScope: true },
+  { key: 'plot_rules', label: 'Plot Rules', icon: 'PR', hasSourceBookScope: true },
+  { key: 'creative_materials', label: 'Creative Materials', icon: 'CM', hasSourceBookScope: true },
+  { key: 'book_analyses', label: 'Book Analyses', icon: 'BA', hasSourceBookScope: false },
+  { key: 'outlines', label: 'Outlines', icon: 'OL', hasSourceBookScope: true },
+  { key: 'volume_designs', label: 'Volume Designs', icon: 'VD', hasSourceBookScope: true },
+  { key: 'chapter_plans', label: 'Chapter Plans', icon: 'CP', hasSourceBookScope: true },
+  { key: 'chapter_blueprints', label: 'Chapter Blueprints', icon: 'CB', hasSourceBookScope: true }
 ]

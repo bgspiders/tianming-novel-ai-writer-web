@@ -1,14 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
 # ============================================================
-# 天命 Web 阶段 0 Dockerfile
-# 单镜像同时承载 ASP.NET Core 后端 + Vue 前端静态文件。
-#
-# 阶段 8 接入 Playwright 爬虫后，把最终运行阶段的基础镜像换为
-# mcr.microsoft.com/playwright/dotnet:v1.49.0-noble 即可（含 Chromium + glibc）。
+# TM.Web unified image
+# Final runtime uses the Playwright .NET image for stage 8
+# so Chromium and required system libraries are already present.
 # ============================================================
 
-# ---------- Stage 1: 构建前端 ----------
+# ---------- Stage 1: build frontend ----------
 FROM node:20-alpine AS frontend-build
 WORKDIR /src
 
@@ -19,11 +17,11 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY frontend/. .
 RUN npm run build
 
-# ---------- Stage 2: 构建后端 ----------
+# ---------- Stage 2: build backend ----------
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS backend-build
 WORKDIR /src
 
-# 先只复制 csproj/sln/Directory.Build.props 触发 dotnet restore 缓存层
+# Copy project files first to maximize restore cache hits.
 COPY backend/TM.Web.sln backend/Directory.Build.props ./
 COPY backend/src/TM.Web.Api/TM.Web.Api.csproj                     src/TM.Web.Api/
 COPY backend/src/TM.Web.Application/TM.Web.Application.csproj     src/TM.Web.Application/
@@ -33,7 +31,6 @@ COPY backend/src/TM.Web.LegacyBridge/TM.Web.LegacyBridge.csproj   src/TM.Web.Leg
 COPY backend/tests/TM.Web.Tests/TM.Web.Tests.csproj               tests/TM.Web.Tests/
 RUN dotnet restore src/TM.Web.Api/TM.Web.Api.csproj
 
-# 再复制其余源码
 COPY backend/ .
 RUN dotnet publish src/TM.Web.Api/TM.Web.Api.csproj \
     -c Release \
@@ -41,17 +38,13 @@ RUN dotnet publish src/TM.Web.Api/TM.Web.Api.csproj \
     --no-restore \
     /p:UseAppHost=false
 
-# ---------- Stage 3: 运行时 ----------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+# ---------- Stage 3: runtime ----------
+FROM mcr.microsoft.com/playwright/dotnet:v1.49.0-noble AS runtime
 WORKDIR /app
 
-# 复制后端产物
 COPY --from=backend-build /publish .
-
-# 复制前端 dist 到 wwwroot
 COPY --from=frontend-build /src/dist ./wwwroot
 
-# 数据卷：Storage 目录持久化所有用户数据
 VOLUME ["/app/Storage"]
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:38721 \

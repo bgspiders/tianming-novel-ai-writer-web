@@ -10,7 +10,9 @@ using TM.Web.Infrastructure.Security;
 using TM.Web.Infrastructure.Services.Ai;
 using TM.Web.Infrastructure.Services.Core;
 using TM.Web.Infrastructure.Services.Design;
+using TM.Web.Infrastructure.Services.Editor;
 using TM.Web.Infrastructure.Services.Import;
+using TM.Web.Infrastructure.Services.Recall;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +20,7 @@ const string CorsPolicyName = "tm-dev-cors";
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHttpClient();
 builder.Services.AddSwaggerGen(opt =>
 {
     opt.SwaggerDoc("v1", new()
@@ -67,10 +70,13 @@ builder.Services.AddScoped<ILocationRuleService, LocationRuleService>();
 builder.Services.AddScoped<IPlotRuleService, PlotRuleService>();
 builder.Services.AddScoped<ICreativeMaterialService, CreativeMaterialService>();
 builder.Services.AddScoped<IBookAnalysisService, BookAnalysisService>();
+builder.Services.AddScoped<IBookAnalysisCrawlerService, BookAnalysisCrawlerService>();
 builder.Services.AddScoped<IOutlineService, OutlineService>();
 builder.Services.AddScoped<IVolumeDesignService, VolumeDesignService>();
 builder.Services.AddScoped<IChapterPlanService, ChapterPlanService>();
 builder.Services.AddScoped<IChapterBlueprintService, ChapterBlueprintService>();
+builder.Services.AddScoped<IChapterEditorService, ChapterEditorService>();
+builder.Services.AddScoped<IChapterRecallService, ChapterRecallService>();
 
 builder.WebHost.ConfigureKestrel((ctx, kestrel) =>
 {
