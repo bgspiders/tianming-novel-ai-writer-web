@@ -19,15 +19,6 @@
 **/.env.local
 **/secrets.json
 **/appsettings.Production.json
-
-# Only need web/, Framework/, Services/ for Docker build
-Core/
-Docs/
-Modules/
-Scripts/
-Storage/
-.claude/
-
-web/docker/data
-web/docs
-web/README.md
+docker/data
+docs
+README.md
