@@ -77,8 +77,19 @@ function onCompleted(reason: string) {
 }
 
 function onError(message: string) {
-  error.value = message
+  error.value = normalizeGenerationError(message)
   status.value = t('aiAssistant.status.failed')
+}
+
+function normalizeGenerationError(message: string) {
+  const hasPartialOutput = output.value.trim().length > 0
+  if (message.includes('An error occurred while sending the request')) {
+    return hasPartialOutput
+      ? 'AI 上游连接在生成中途断开，已保留当前已返回正文。请降低最大 Tokens，或换用支持更长输出的模型后重试。'
+      : 'AI 上游请求发送失败。请检查 Endpoint、API Key、代理/网络，以及模型是否支持当前最大 Tokens。'
+  }
+
+  return message
 }
 
 async function refreshChapters() {
@@ -295,7 +306,7 @@ async function generateDraft() {
       : ''
     ElMessage.success(t('chapterGeneration.messages.draftGenerated'))
   } catch (err) {
-    error.value = (err as Error).message || t('chapterGeneration.messages.generationFailed')
+    error.value = normalizeGenerationError((err as Error).message || t('chapterGeneration.messages.generationFailed'))
     ElMessage.error(error.value)
   } finally {
     generating.value = false

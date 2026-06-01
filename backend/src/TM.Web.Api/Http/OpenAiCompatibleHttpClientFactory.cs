@@ -13,7 +13,10 @@ internal sealed class OpenAiCompatibleHttpClientFactory : IAiHttpClientFactory, 
 
     public OpenAiCompatibleHttpClientFactory(IOptions<OutboundHttpProxyOptions> proxyOptions)
     {
-        _client = new HttpClient(CreateHandler(proxyOptions.Value), disposeHandler: true);
+        _client = new HttpClient(CreateHandler(proxyOptions.Value), disposeHandler: true)
+        {
+            Timeout = TimeSpan.FromMinutes(10)
+        };
     }
 
     public HttpClient CreateOpenAiCompatibleClient() => _client;

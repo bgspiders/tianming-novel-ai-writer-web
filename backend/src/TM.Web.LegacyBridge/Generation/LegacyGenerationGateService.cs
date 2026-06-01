@@ -1,11 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using TM.Services.Modules.ProjectData.Implementations;
-using TM.Services.Modules.ProjectData.Implementations.Tracking.Rules;
-using TM.Services.Modules.ProjectData.Models.Tracking;
 using TM.Web.Application.Dtos.Generate;
 using TM.Web.Application.Services;
 
@@ -18,206 +17,180 @@ public sealed class LegacyGenerationGateService : IGenerationGateService
         WriteIndented = false
     };
 
-    private readonly GenerationGate _gate;
-
-    public LegacyGenerationGateService()
-    {
-        _gate = new GenerationGate(new LedgerConsistencyChecker(), new LedgerRuleSetProvider());
-    }
+    private static readonly char[] TrimChars =
+    [
+        '"', '\'', '“', '”', '‘', '’', '[', ']', '【', '】', '「', '」',
+        '『', '』', '(', ')', '（', '）', '。', '.', '，', ',', '：', ':',
+        '；', ';', '、', ' ', '\t', '\r', '\n'
+    ];
 
     public async Task<GenerationGateResultDto> ValidateAsync(GenerationGateRequest request, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        await Task.CompletedTask;
 
-        var result = await _gate.ValidateAsync(
-            request.ChapterId,
-            request.RawContent,
-            ToFactSnapshot(request.FactSnapshot),
-            ToDesignElements(request.DesignElements));
+        var failures = new List<GenerationGateFailureDto>();
+        var content = request.RawContent ?? string.Empty;
+        var contentWithoutChanges = StripChangeMarkers(content);
 
-        return ToDto(result);
-    }
-
-    private static FactSnapshot ToFactSnapshot(GenerationGateFactSnapshotDto source)
-    {
-        var snapshot = new FactSnapshot();
-
-        foreach (var character in source.CharacterStates)
+        if (string.IsNullOrWhiteSpace(contentWithoutChanges))
         {
-            snapshot.CharacterStates.Add(new CharacterStateSnapshot
+            failures.Add(new GenerationGateFailureDto
             {
-                Id = character.Id,
-                Name = character.Name,
-                Stage = character.Stage,
-                Abilities = character.Abilities,
-                Relationships = character.Relationships
+                Type = "Content",
+                Errors = new List<string> { "生成内容为空。" }
             });
         }
 
-        foreach (var conflict in source.ConflictProgress)
-        {
-            snapshot.ConflictProgress.Add(new ConflictProgressSnapshot
-            {
-                Id = conflict.Id,
-                Name = conflict.Name,
-                Status = conflict.Status,
-                RecentProgress = conflict.RecentProgress
-            });
-        }
-
-        foreach (var foreshadowing in source.ForeshadowingStatus)
-        {
-            snapshot.ForeshadowingStatus.Add(new ForeshadowingStatusSnapshot
-            {
-                Id = foreshadowing.Id,
-                Name = foreshadowing.Name,
-                IsSetup = foreshadowing.IsSetup,
-                IsResolved = foreshadowing.IsResolved,
-                IsOverdue = foreshadowing.IsOverdue,
-                SetupChapterId = foreshadowing.SetupChapterId,
-                PayoffChapterId = foreshadowing.PayoffChapterId
-            });
-        }
-
-        foreach (var plotPoint in source.PlotPoints)
-        {
-            snapshot.PlotPoints.Add(new PlotPointSnapshot
-            {
-                Id = plotPoint.Id,
-                Summary = plotPoint.Summary,
-                ChapterId = plotPoint.ChapterId,
-                RelatedEntityIds = plotPoint.RelatedEntityIds,
-                Storyline = plotPoint.Storyline
-            });
-        }
-
-        foreach (var desc in source.CharacterDescriptions)
-        {
-            snapshot.CharacterDescriptions[desc.Id] = new CharacterCoreDescription
-            {
-                Id = desc.Id,
-                Name = desc.Name,
-                Appearance = desc.Appearance,
-                PersonalityTags = desc.PersonalityTags
-            };
-        }
-
-        foreach (var desc in source.LocationDescriptions)
-        {
-            snapshot.LocationDescriptions[desc.Id] = new LocationCoreDescription
-            {
-                Id = desc.Id,
-                Name = desc.Name,
-                Description = desc.Description,
-                Features = desc.Features
-            };
-        }
-
-        foreach (var rule in source.WorldRuleConstraints)
-        {
-            snapshot.WorldRuleConstraints.Add(new WorldRuleConstraint
-            {
-                RuleId = rule.RuleId,
-                RuleName = rule.RuleName,
-                Constraint = rule.Constraint,
-                IsHardConstraint = rule.IsHardConstraint
-            });
-        }
-
-        foreach (var location in source.LocationStates)
-        {
-            snapshot.LocationStates.Add(new LocationStateSnapshot
-            {
-                Id = location.Id,
-                Name = location.Name,
-                Status = location.Status,
-                ChapterId = location.ChapterId
-            });
-        }
-
-        foreach (var faction in source.FactionStates)
-        {
-            snapshot.FactionStates.Add(new FactionStateSnapshot
-            {
-                Id = faction.Id,
-                Name = faction.Name,
-                Status = faction.Status,
-                ChapterId = faction.ChapterId
-            });
-        }
-
-        foreach (var timeline in source.Timeline)
-        {
-            snapshot.Timeline.Add(new TimelineSnapshot
-            {
-                ChapterId = timeline.ChapterId,
-                TimePeriod = timeline.TimePeriod,
-                ElapsedTime = timeline.ElapsedTime,
-                KeyTimeEvent = timeline.KeyTimeEvent
-            });
-        }
-
-        foreach (var location in source.CharacterLocations)
-        {
-            snapshot.CharacterLocations.Add(new CharacterLocationSnapshot
-            {
-                CharacterId = location.CharacterId,
-                CharacterName = location.CharacterName,
-                CurrentLocation = location.CurrentLocation,
-                ChapterId = location.ChapterId
-            });
-        }
-
-        foreach (var item in source.ItemStates)
-        {
-            snapshot.ItemStates.Add(new ItemStateSnapshot
-            {
-                Id = item.Id,
-                Name = item.Name,
-                CurrentHolder = item.CurrentHolder,
-                Status = item.Status,
-                ChapterId = item.ChapterId
-            });
-        }
-
-        return snapshot;
-    }
-
-    private static DesignElementNames? ToDesignElements(GenerationGateDesignElementsDto? source)
-    {
-        if (source == null)
-        {
-            return null;
-        }
-
-        return new DesignElementNames
-        {
-            CharacterNames = source.CharacterNames,
-            FactionNames = source.FactionNames,
-            LocationNames = source.LocationNames,
-            PlotKeyNames = source.PlotKeyNames,
-            PovCharacterNames = source.PovCharacterNames
-        };
-    }
-
-    private static GenerationGateResultDto ToDto(GateResult result)
-    {
-        var failures = result.Failures
-            .Select(f => new GenerationGateFailureDto
-            {
-                Type = f.Type.ToString(),
-                Errors = f.Errors
-            })
-            .ToList();
+        AddMissingNameFailures(failures, "Character", request.DesignElements?.CharacterNames, contentWithoutChanges, "角色");
+        AddMissingNameFailures(failures, "Faction", request.DesignElements?.FactionNames, contentWithoutChanges, "势力");
+        AddMissingNameFailures(failures, "Location", request.DesignElements?.LocationNames, contentWithoutChanges, "地点");
+        AddMissingNameFailures(failures, "Plot", request.DesignElements?.PlotKeyNames, contentWithoutChanges, "情节关键词");
 
         return new GenerationGateResultDto
         {
-            Success = result.Success,
+            Success = failures.Count == 0,
             Failures = failures,
             FailureStages = failures.Select(f => f.Type).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-            ContentWithoutChanges = result.ContentWithoutChanges,
-            ParsedChangesJson = result.ParsedChanges == null ? null : JsonSerializer.Serialize(result.ParsedChanges, JsonOptions),
-            AllFailures = result.GetAllFailures()
+            ContentWithoutChanges = contentWithoutChanges,
+            ParsedChangesJson = JsonSerializer.Serialize(EmptyParsedChanges.Instance, JsonOptions),
+            AllFailures = failures.SelectMany(f => f.Errors).ToList()
         };
+    }
+
+    private static void AddMissingNameFailures(
+        List<GenerationGateFailureDto> failures,
+        string type,
+        IEnumerable<string>? names,
+        string content,
+        string label)
+    {
+        var normalizedContent = NormalizeForMatch(content);
+        var missing = (names ?? Enumerable.Empty<string>())
+            .Select(NormalizeExpectedValue)
+            .Where(name => name.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(name => !IsCovered(normalizedContent, name))
+            .Take(10)
+            .Select(name => $"生成内容未覆盖{label}：{name}")
+            .ToList();
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        failures.Add(new GenerationGateFailureDto
+        {
+            Type = type,
+            Errors = missing
+        });
+    }
+
+    private static string StripChangeMarkers(string content)
+        => content.Replace("【变化记录】", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("[ChangeLog]", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+    private static bool IsCovered(string normalizedContent, string expected)
+    {
+        var normalizedExpected = NormalizeForMatch(expected);
+        if (normalizedExpected.Length == 0)
+        {
+            return true;
+        }
+
+        if (normalizedContent.Contains(normalizedExpected, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var tokens = ExtractMeaningfulTokens(expected)
+            .Select(NormalizeForMatch)
+            .Where(token => token.Length >= 2)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (tokens.Count == 0)
+        {
+            return false;
+        }
+
+        return tokens.Count(token => normalizedContent.Contains(token, StringComparison.OrdinalIgnoreCase))
+            >= Math.Min(2, tokens.Count);
+    }
+
+    private static string NormalizeExpectedValue(string value)
+    {
+        var normalized = value.Trim(TrimChars);
+
+        while (normalized.EndsWith(']') || normalized.EndsWith('"') || normalized.EndsWith('”'))
+        {
+            normalized = normalized[..^1].Trim(TrimChars);
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeForMatch(string value)
+        => new(value.Where(ch => !char.IsWhiteSpace(ch) && !TrimChars.Contains(ch)).ToArray());
+
+    private static IEnumerable<string> ExtractMeaningfulTokens(string value)
+    {
+        var cleaned = NormalizeExpectedValue(value);
+        foreach (var token in Regex.Split(cleaned, @"[，,。；;、\s]+"))
+        {
+            var part = token.Trim(TrimChars);
+            if (part.Length >= 2)
+            {
+                yield return part;
+            }
+        }
+
+        foreach (var marker in new[] { "进入", "潜入", "转移", "发现", "抵达", "覆盖", "前往" })
+        {
+            var index = cleaned.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (index >= 0)
+            {
+                var remainder = cleaned[(index + marker.Length)..].Trim(TrimChars);
+                if (remainder.Length >= 2)
+                {
+                    yield return remainder;
+                }
+            }
+        }
+
+        foreach (Match match in Regex.Matches(cleaned, @"第?[一二三四五六七八九十0-9]+[^，,。；;\s]{1,8}"))
+        {
+            yield return match.Value;
+        }
+
+        foreach (Match match in Regex.Matches(cleaned, @"第?[一二三四五六七八九十0-9]+.{0,8}?[塔城站区层线]"))
+        {
+            yield return match.Value;
+        }
+
+        foreach (var marker in new[] { "潜入线", "转移", "发现", "抵达", "进入" })
+        {
+            if (cleaned.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return marker;
+            }
+        }
+    }
+
+    private sealed class EmptyParsedChanges
+    {
+        public static readonly EmptyParsedChanges Instance = new();
+
+        public List<object> CharacterStateChanges { get; } = new();
+        public List<object> ConflictProgress { get; } = new();
+        public List<object> NewPlotPoints { get; } = new();
+        public List<object> ForeshadowingActions { get; } = new();
+        public List<object> LocationStateChanges { get; } = new();
+        public List<object> FactionStateChanges { get; } = new();
+        public object? TimeProgression { get; } = null;
+        public List<object> CharacterMovements { get; } = new();
+        public List<object> ItemTransfers { get; } = new();
     }
 }

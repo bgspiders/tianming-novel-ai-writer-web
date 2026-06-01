@@ -1,16 +1,14 @@
-using TM.Services.Modules.ProjectData.Models.Design.Characters;
-using TM.Services.Modules.ProjectData.Models.Guides;
-using TM.Services.Modules.ProjectData.Models.Index;
-using TM.Services.Modules.ProjectData.Models.Navigation;
-using TM.Services.Modules.ProjectData.Models.TaskContexts;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace TM.Services.Modules.ProjectData.Helpers
 {
     public static class NavigationConfigParser
     {
-        public static List<ModuleInfo> GetModulesByType(string moduleType) => new();
+        public static List<Models.Navigation.ModuleInfo> GetModulesByType(string moduleType) => new();
 
-        public static List<ModuleInfo> GetFunctionsBySubModule(string moduleType, string subModule) => new();
+        public static List<Models.Navigation.ModuleInfo> GetFunctionsBySubModule(string moduleType, string subModule) => new();
 
         public static List<(string SubModule, string DisplayName)> GetSubModules(string moduleType) => new();
 
@@ -26,20 +24,63 @@ namespace TM.Services.Modules.ProjectData.Implementations
 
         public static void RaiseCacheInvalidated() => CacheInvalidated?.Invoke(null, EventArgs.Empty);
 
-        public Task<ContentGuide?> GetContentGuideAsync() => Task.FromResult<ContentGuide?>(new ContentGuide());
+        public Task<Models.Guides.ContentGuide?> GetContentGuideAsync()
+            => Task.FromResult<Models.Guides.ContentGuide?>(new Models.Guides.ContentGuide());
 
-        public Task<(List<IndexItem> Direct, List<IndexItem> Indirect)> GetRelatedEntitiesAsync(
+        public Task<(List<Models.Index.IndexItem> Direct, List<Models.Index.IndexItem> Indirect)> GetRelatedEntitiesAsync(
             string focusId,
             string targetLayer,
             string? sourceBookId = null)
         {
-            return Task.FromResult((new List<IndexItem>(), new List<IndexItem>()));
+            return Task.FromResult((new List<Models.Index.IndexItem>(), new List<Models.Index.IndexItem>()));
         }
 
-        public Task<List<CharacterRulesData>> GetAllCharactersAsync() => Task.FromResult(new List<CharacterRulesData>());
+        public Task<List<Models.Design.Characters.CharacterRulesData>> GetAllCharactersAsync()
+            => Task.FromResult(new List<Models.Design.Characters.CharacterRulesData>());
 
-        public Task<BlueprintTaskContext> BuildBlueprintContextAsync(string chapterId) => Task.FromResult(new BlueprintTaskContext());
+        public Task<Models.TaskContexts.BlueprintTaskContext> BuildBlueprintContextAsync(string chapterId)
+            => Task.FromResult(new Models.TaskContexts.BlueprintTaskContext());
 
-        public Task<ContentTaskContext> BuildContentContextAsync(string chapterId) => Task.FromResult(new ContentTaskContext());
+        public Task<Models.TaskContexts.ContentTaskContext> BuildContentContextAsync(string chapterId)
+            => Task.FromResult(new Models.TaskContexts.ContentTaskContext());
+    }
+}
+
+namespace TM.Services.Modules.ProjectData.Models.Design.Characters
+{
+    public sealed class CharacterRulesData
+    {
+    }
+}
+
+namespace TM.Services.Modules.ProjectData.Models.Guides
+{
+    public sealed class ContentGuide
+    {
+    }
+}
+
+namespace TM.Services.Modules.ProjectData.Models.Index
+{
+    public sealed class IndexItem
+    {
+    }
+}
+
+namespace TM.Services.Modules.ProjectData.Models.Navigation
+{
+    public sealed class ModuleInfo
+    {
+    }
+}
+
+namespace TM.Services.Modules.ProjectData.Models.TaskContexts
+{
+    public sealed class BlueprintTaskContext
+    {
+    }
+
+    public sealed class ContentTaskContext
+    {
     }
 }

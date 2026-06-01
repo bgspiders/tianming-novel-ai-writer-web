@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -120,8 +121,9 @@ public sealed class AiCompletionService : IAiCompletionService
         catch (Exception ex)
         {
             _logger.LogError(ex, "AI completion failed. runId={RunId}", request.RunId);
-            await _notifier.ErrorAsync(request.RunId, ex.Message, CancellationToken.None);
-            throw;
+            var message = BuildAiFailureMessage(ex, result.CharCount, request.MaxTokens);
+            await _notifier.ErrorAsync(request.RunId, message, CancellationToken.None);
+            throw new InvalidOperationException(message, ex);
         }
         finally
         {
@@ -146,5 +148,39 @@ public sealed class AiCompletionService : IAiCompletionService
             return trimmed;
         }
         return trimmed + "/v1";
+    }
+
+    private static string BuildAiFailureMessage(Exception ex, int streamedChars, int? maxTokens)
+    {
+        var root = GetInnermostMessage(ex);
+        var tokenHint = maxTokens.HasValue ? $"当前最大 Tokens={maxTokens.Value}。" : string.Empty;
+
+        if (ex is HttpRequestException || root.Contains("sending the request", StringComparison.OrdinalIgnoreCase))
+        {
+            return streamedChars > 0
+                ? $"AI 上游连接在已返回 {streamedChars} 个字符后中断。{tokenHint}请降低最大 Tokens，或换用支持更长输出/更稳定流式响应的模型后重试。原始错误：{root}"
+                : $"AI 上游请求发送失败。请检查 Endpoint、API Key、代理/网络，以及模型是否支持当前最大 Tokens。{tokenHint}原始错误：{root}";
+        }
+
+        if (root.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+            || root.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+        {
+            return streamedChars > 0
+                ? $"AI 上游长文本生成超时，已返回 {streamedChars} 个字符。{tokenHint}请降低最大 Tokens 或分段生成。"
+                : $"AI 上游请求超时。{tokenHint}请降低最大 Tokens、检查网络，或稍后重试。";
+        }
+
+        return root;
+    }
+
+    private static string GetInnermostMessage(Exception ex)
+    {
+        var current = ex;
+        while (current.InnerException is not null)
+        {
+            current = current.InnerException;
+        }
+
+        return current.Message;
     }
 }
