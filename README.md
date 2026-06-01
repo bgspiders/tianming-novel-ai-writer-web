@@ -1,6 +1,12 @@
 # 天命 Web 版
 
-天命 Web 版是从原 WPF 桌面版迁移出的单用户浏览器应用。当前分支已经将 Web 项目提升到仓库根目录，后端、前端、Docker 与文档都以根目录作为项目入口。
+天命 Web 版是基于原项目 [zy-zmc/tianming-novel-ai-writer](https://github.com/zy-zmc/tianming-novel-ai-writer) 进行二次开发的 Web 版本，从原 WPF 桌面版迁移为单用户浏览器应用。当前分支已经将 Web 项目提升到仓库根目录，后端、前端、Docker 与文档都以根目录作为项目入口。
+
+## 项目来源
+
+- 原作者项目：[zy-zmc/tianming-novel-ai-writer](https://github.com/zy-zmc/tianming-novel-ai-writer)
+- 当前项目：在原项目基础上进行 Web 化迁移、后端服务化、前端重构、Docker 部署与生成流程增强。
+- 版权与许可证：请同时遵守原项目许可证及本仓库许可证说明。
 
 ## 技术栈
 
