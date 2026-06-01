@@ -4,6 +4,7 @@ import { ref } from 'vue'
 const FORM_KEY = 'tm.aiTest.form'
 
 export interface AiTestForm {
+  configId: string
   endpoint: string
   apiKey: string
   model: string
@@ -14,6 +15,7 @@ export interface AiTestForm {
 }
 
 const DEFAULT_FORM: AiTestForm = {
+  configId: '',
   endpoint: 'https://api.openai.com/v1',
   apiKey: '',
   model: 'gpt-4o-mini',

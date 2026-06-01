@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
 import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import type { ThemeId } from '@/theme/presets'
 
 const themeStore = useThemeStore()
+const { t } = useI18n()
 
 const aiSeed = ref('')
 const uploading = ref(false)
 const presetFilter = ref<'all' | 'light' | 'dark' | 'seasonal' | 'focus'>('all')
 
-const modeOptions: { label: string; value: ThemeMode; hint: string }[] = [
-  { label: 'Preset', value: 'preset', hint: 'Manual theme selection.' },
-  { label: 'System', value: 'system', hint: 'Follow browser light or dark scheme.' },
-  { label: 'Schedule', value: 'schedule', hint: 'Switch by time or sun events.' }
-]
+const modeOptions = computed<Array<{ label: string; value: ThemeMode; hint: string }>>(() => [
+  { label: t('themeStudio.mode.preset.label'), value: 'preset', hint: t('themeStudio.mode.preset.hint') },
+  { label: t('themeStudio.mode.system.label'), value: 'system', hint: t('themeStudio.mode.system.hint') },
+  { label: t('themeStudio.mode.schedule.label'), value: 'schedule', hint: t('themeStudio.mode.schedule.hint') }
+])
 
 const themeOptions = computed(() =>
   themeStore.availableThemes.map((item) => ({
@@ -38,20 +40,20 @@ const holidayRows = computed(() =>
 )
 
 const currentTokens = computed(() => [
-  { label: 'Primary', value: themeStore.effectiveTheme.tokens.primary },
-  { label: 'Background', value: themeStore.effectiveTheme.tokens.bg },
-  { label: 'Surface', value: themeStore.effectiveTheme.tokens.bgElevated },
-  { label: 'Text', value: themeStore.effectiveTheme.tokens.fgPrimary },
-  { label: 'Border', value: themeStore.effectiveTheme.tokens.border },
-  { label: 'Selection', value: themeStore.effectiveTheme.tokens.selection }
+  { label: t('themeStudio.token.primary'), value: themeStore.effectiveTheme.tokens.primary },
+  { label: t('themeStudio.token.background'), value: themeStore.effectiveTheme.tokens.bg },
+  { label: t('themeStudio.token.surface'), value: themeStore.effectiveTheme.tokens.bgElevated },
+  { label: t('themeStudio.token.text'), value: themeStore.effectiveTheme.tokens.fgPrimary },
+  { label: t('themeStudio.token.border'), value: themeStore.effectiveTheme.tokens.border },
+  { label: t('themeStudio.token.selection'), value: themeStore.effectiveTheme.tokens.selection }
 ])
 
 const presetStatCards = computed(() => [
-  { label: 'Total', value: themeStore.presetStats.total },
-  { label: 'Light', value: themeStore.presetStats.light },
-  { label: 'Dark', value: themeStore.presetStats.dark },
-  { label: 'Seasonal', value: themeStore.presetStats.seasonal },
-  { label: 'Focus', value: themeStore.presetStats.focus }
+  { label: t('themeStudio.presetStat.total'), value: themeStore.presetStats.total },
+  { label: t('themeStudio.presetStat.light'), value: themeStore.presetStats.light },
+  { label: t('themeStudio.presetStat.dark'), value: themeStore.presetStats.dark },
+  { label: t('themeStudio.presetStat.seasonal'), value: themeStore.presetStats.seasonal },
+  { label: t('themeStudio.presetStat.focus'), value: themeStore.presetStats.focus }
 ])
 
 function setMode(value: ThemeMode) {
@@ -74,9 +76,9 @@ async function onUploadImage(event: Event) {
   uploading.value = true
   try {
     await themeStore.generateThemeFromImage(file)
-    ElMessage.success('Generated theme from image')
+    ElMessage.success(t('themeStudio.generated.imageGenerated'))
   } catch (error) {
-    ElMessage.error((error as Error).message ?? 'Unable to generate image theme')
+    ElMessage.error((error as Error).message ?? t('themeStudio.generated.imageFailed'))
   } finally {
     uploading.value = false
     input.value = ''
@@ -85,7 +87,7 @@ async function onUploadImage(event: Event) {
 
 function generateAiTheme() {
   themeStore.generateAiTheme(aiSeed.value)
-  ElMessage.success('Generated AI-style palette')
+  ElMessage.success(t('themeStudio.generated.aiGenerated'))
 }
 </script>
 
@@ -93,34 +95,31 @@ function generateAiTheme() {
   <div class="theme-studio">
     <div class="hero tm-panel">
       <div>
-        <div class="eyebrow">Stage 9</div>
-        <h1>Theme Studio</h1>
-        <p>
-          Full theme system with preset palettes, browser follow, scheduled switching, holiday overrides,
-          image color extraction, and AI-style palette generation.
-        </p>
+        <div class="eyebrow">{{ t('themeStudio.eyebrow') }}</div>
+        <h1>{{ t('themeStudio.title') }}</h1>
+        <p>{{ t('themeStudio.description') }}</p>
       </div>
       <div class="hero-card" :style="{ background: themeStore.effectiveTheme.hero }">
         <div class="hero-card-top">
           <span class="tm-chip">{{ themeStore.themeLabel }}</span>
-          <span class="tm-chip">{{ themeStore.currentSource }}</span>
+          <span class="tm-chip">{{ t(`themeStudio.source.${themeStore.currentSource}`) }}</span>
           <span class="tm-chip">{{ themeStore.scheduleSummary.basisLabel }}</span>
         </div>
         <div class="hero-card-metrics">
           <div>
-            <span class="metric-label">Current Theme</span>
+            <span class="metric-label">{{ t('themeStudio.hero.currentTheme') }}</span>
             <strong>{{ themeStore.effectiveTheme.label }}</strong>
           </div>
           <div>
-            <span class="metric-label">Next Switch</span>
-            <strong>{{ themeStore.nextScheduledThemeAt || 'Not scheduled' }}</strong>
+            <span class="metric-label">{{ t('themeStudio.hero.nextSwitch') }}</span>
+            <strong>{{ themeStore.nextScheduledThemeAt || t('themeStudio.hero.notScheduled') }}</strong>
           </div>
           <div>
-            <span class="metric-label">Holiday</span>
-            <strong>{{ themeStore.activeHoliday || 'None' }}</strong>
+            <span class="metric-label">{{ t('themeStudio.hero.holiday') }}</span>
+            <strong>{{ themeStore.activeHoliday || t('themeStudio.hero.none') }}</strong>
           </div>
           <div>
-            <span class="metric-label">Sun Times</span>
+            <span class="metric-label">{{ t('themeStudio.hero.sunTimes') }}</span>
             <strong>{{ themeStore.todaySunTimes.sunrise }} / {{ themeStore.todaySunTimes.sunset }}</strong>
           </div>
         </div>
@@ -130,8 +129,8 @@ function generateAiTheme() {
     <div class="grid">
       <section class="panel tm-panel span-2">
         <div class="section-head">
-          <h2>Palette Stats</h2>
-          <span class="muted">Built-in preset breakdown</span>
+          <h2>{{ t('themeStudio.paletteStats.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.paletteStats.subtitle') }}</span>
         </div>
         <div class="stats-grid">
           <div v-for="item in presetStatCards" :key="item.label" class="stat-card">
@@ -143,8 +142,8 @@ function generateAiTheme() {
 
       <section class="panel tm-panel">
         <div class="section-head">
-          <h2>Mode</h2>
-          <span class="muted">Switch strategy</span>
+          <h2>{{ t('themeStudio.sections.mode.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.sections.mode.subtitle') }}</span>
         </div>
         <div class="mode-list">
           <button
@@ -161,12 +160,12 @@ function generateAiTheme() {
 
       <section class="panel tm-panel">
         <div class="section-head">
-          <h2>System Follow</h2>
-          <span class="muted">Browser preference: {{ themeStore.systemScheme }}</span>
+          <h2>{{ t('themeStudio.sections.systemFollow.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.sections.systemFollow.subtitle', { value: themeStore.systemScheme }) }}</span>
         </div>
         <div class="form-grid">
           <label>
-            <span>Light Mapping</span>
+            <span>{{ t('themeStudio.systemFollow.lightMapping') }}</span>
             <el-select
               :model-value="themeStore.systemLightThemeId"
               @update:model-value="themeStore.setSystemThemePair($event, themeStore.systemDarkThemeId)"
@@ -175,7 +174,7 @@ function generateAiTheme() {
             </el-select>
           </label>
           <label>
-            <span>Dark Mapping</span>
+            <span>{{ t('themeStudio.systemFollow.darkMapping') }}</span>
             <el-select
               :model-value="themeStore.systemDarkThemeId"
               @update:model-value="themeStore.setSystemThemePair(themeStore.systemLightThemeId, $event)"
@@ -188,16 +187,16 @@ function generateAiTheme() {
 
       <section class="panel tm-panel span-2">
         <div class="section-head">
-          <h2>Presets</h2>
-          <span class="muted">{{ presetCount }} built-in palettes mapped from the desktop theme system</span>
+          <h2>{{ t('themeStudio.sections.presets.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.sections.presets.subtitle', { count: presetCount }) }}</span>
         </div>
         <div class="filter-row">
           <el-radio-group v-model="presetFilter" size="small">
-            <el-radio-button label="all">All</el-radio-button>
-            <el-radio-button label="light">Light</el-radio-button>
-            <el-radio-button label="dark">Dark</el-radio-button>
-            <el-radio-button label="seasonal">Seasonal</el-radio-button>
-            <el-radio-button label="focus">Focus</el-radio-button>
+            <el-radio-button label="all">{{ t('themeStudio.presetFilter.all') }}</el-radio-button>
+            <el-radio-button label="light">{{ t('themeStudio.presetFilter.light') }}</el-radio-button>
+            <el-radio-button label="dark">{{ t('themeStudio.presetFilter.dark') }}</el-radio-button>
+            <el-radio-button label="seasonal">{{ t('themeStudio.presetFilter.seasonal') }}</el-radio-button>
+            <el-radio-button label="focus">{{ t('themeStudio.presetFilter.focus') }}</el-radio-button>
           </el-radio-group>
         </div>
         <div class="preset-grid">
@@ -218,23 +217,23 @@ function generateAiTheme() {
 
       <section class="panel tm-panel span-2">
         <div class="section-head">
-          <h2>Schedule</h2>
-          <span class="muted">{{ themeStore.nextScheduledThemeAt || 'No next switch yet' }}</span>
+          <h2>{{ t('themeStudio.sections.schedule.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.sections.schedule.subtitle', { value: themeStore.nextScheduledThemeAt || t('themeStudio.schedule.noNextSwitch') }) }}</span>
         </div>
         <div class="schedule-summary">
-          <div class="tm-chip">Basis: {{ themeStore.scheduleSummary.basisLabel }}</div>
-          <div class="tm-chip">Day: {{ themeStore.scheduleSummary.dayStartsAt }}</div>
-          <div class="tm-chip">Night: {{ themeStore.scheduleSummary.nightStartsAt }}</div>
+          <div class="tm-chip">{{ t('themeStudio.schedule.basis', { value: themeStore.scheduleSummary.basisLabel }) }}</div>
+          <div class="tm-chip">{{ t('themeStudio.schedule.day', { value: themeStore.scheduleSummary.dayStartsAt }) }}</div>
+          <div class="tm-chip">{{ t('themeStudio.schedule.night', { value: themeStore.scheduleSummary.nightStartsAt }) }}</div>
         </div>
         <div class="switch-line">
-          <span>Enable schedule</span>
+          <span>{{ t('themeStudio.schedule.enable') }}</span>
           <el-switch
             :model-value="themeStore.schedule.enabled"
             @update:model-value="themeStore.updateSchedule({ enabled: $event })"
           />
         </div>
         <div class="switch-line">
-          <span>Use sunrise and sunset</span>
+          <span>{{ t('themeStudio.schedule.useSunTimes') }}</span>
           <el-switch
             :model-value="themeStore.schedule.basis === 'sun'"
             @update:model-value="themeStore.updateSchedule({ basis: $event ? 'sun' : 'fixed' })"
@@ -242,7 +241,7 @@ function generateAiTheme() {
         </div>
         <div class="form-grid">
           <label>
-            <span>Day Theme</span>
+            <span>{{ t('themeStudio.schedule.dayTheme') }}</span>
             <el-select
               :model-value="themeStore.schedule.dayThemeId"
               @update:model-value="themeStore.updateSchedule({ dayThemeId: $event })"
@@ -251,7 +250,7 @@ function generateAiTheme() {
             </el-select>
           </label>
           <label>
-            <span>Night Theme</span>
+            <span>{{ t('themeStudio.schedule.nightTheme') }}</span>
             <el-select
               :model-value="themeStore.schedule.nightThemeId"
               @update:model-value="themeStore.updateSchedule({ nightThemeId: $event })"
@@ -260,7 +259,7 @@ function generateAiTheme() {
             </el-select>
           </label>
           <label>
-            <span>Sunrise Accent</span>
+            <span>{{ t('themeStudio.schedule.sunriseAccent') }}</span>
             <el-select
               :model-value="themeStore.schedule.sunriseThemeId"
               @update:model-value="themeStore.updateSchedule({ sunriseThemeId: $event })"
@@ -269,7 +268,7 @@ function generateAiTheme() {
             </el-select>
           </label>
           <label>
-            <span>Sunset Accent</span>
+            <span>{{ t('themeStudio.schedule.sunsetAccent') }}</span>
             <el-select
               :model-value="themeStore.schedule.sunsetThemeId"
               @update:model-value="themeStore.updateSchedule({ sunsetThemeId: $event })"
@@ -278,21 +277,21 @@ function generateAiTheme() {
             </el-select>
           </label>
           <label>
-            <span>Day Start</span>
+            <span>{{ t('themeStudio.schedule.dayStart') }}</span>
             <el-input
               :model-value="themeStore.schedule.dayStart"
               @update:model-value="themeStore.updateSchedule({ dayStart: $event })"
             />
           </label>
           <label>
-            <span>Night Start</span>
+            <span>{{ t('themeStudio.schedule.nightStart') }}</span>
             <el-input
               :model-value="themeStore.schedule.nightStart"
               @update:model-value="themeStore.updateSchedule({ nightStart: $event })"
             />
           </label>
           <label>
-            <span>Latitude</span>
+            <span>{{ t('themeStudio.schedule.latitude') }}</span>
             <el-input-number
               :model-value="themeStore.schedule.latitude"
               :step="0.01"
@@ -302,7 +301,7 @@ function generateAiTheme() {
             />
           </label>
           <label>
-            <span>Longitude</span>
+            <span>{{ t('themeStudio.schedule.longitude') }}</span>
             <el-input-number
               :model-value="themeStore.schedule.longitude"
               :step="0.01"
@@ -316,11 +315,11 @@ function generateAiTheme() {
 
       <section class="panel tm-panel">
         <div class="section-head">
-          <h2>Holiday Override</h2>
-          <span class="muted">Optional special-day themes</span>
+          <h2>{{ t('themeStudio.sections.holidayOverride.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.sections.holidayOverride.subtitle') }}</span>
         </div>
         <div class="switch-line">
-          <span>Enable holiday theme override</span>
+          <span>{{ t('themeStudio.holiday.enableOverride') }}</span>
           <el-switch
             :model-value="themeStore.holiday.enabled"
             @update:model-value="themeStore.updateHoliday({ enabled: $event })"
@@ -338,8 +337,8 @@ function generateAiTheme() {
 
       <section class="panel tm-panel">
         <div class="section-head">
-          <h2>Upcoming Holidays</h2>
-          <span class="muted">Loaded from the stage 9 holiday library</span>
+          <h2>{{ t('themeStudio.sections.upcomingHolidays.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.sections.upcomingHolidays.subtitle') }}</span>
         </div>
         <div class="holiday-list">
           <div v-for="item in themeStore.upcomingHolidays" :key="`${item.key}-${item.date}`" class="holiday-row">
@@ -351,20 +350,20 @@ function generateAiTheme() {
 
       <section class="panel tm-panel">
         <div class="section-head">
-          <h2>Generated Theme</h2>
-          <span class="muted">Image extraction and AI palette</span>
+          <h2>{{ t('themeStudio.sections.generatedTheme.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.sections.generatedTheme.subtitle') }}</span>
         </div>
         <div class="generated-actions">
           <label class="upload-box">
-            <span>Pick image for palette</span>
+            <span>{{ t('themeStudio.generated.pickImage') }}</span>
             <input type="file" accept="image/*" :disabled="uploading" @change="onUploadImage" />
           </label>
           <div class="ai-box">
-            <el-input v-model="aiSeed" placeholder="Seed words, genre, mood..." />
-            <el-button type="primary" @click="generateAiTheme">Generate</el-button>
+            <el-input v-model="aiSeed" :placeholder="t('themeStudio.generated.seedPlaceholder')" />
+            <el-button type="primary" @click="generateAiTheme">{{ t('themeStudio.generated.generate') }}</el-button>
           </div>
           <el-button v-if="themeStore.customTheme" text type="danger" @click="themeStore.clearCustomTheme">
-            Clear custom theme
+            {{ t('themeStudio.generated.clearCustom') }}
           </el-button>
         </div>
         <div v-if="themeStore.customTheme" class="custom-preview">
@@ -372,7 +371,7 @@ function generateAiTheme() {
           <div>
             <strong>{{ themeStore.customTheme.label }}</strong>
             <div class="muted">
-              {{ themeStore.customTheme.source }} / {{ themeStore.customTheme.dark ? 'dark' : 'light' }}
+              {{ themeStore.customTheme.source }} / {{ themeStore.customTheme.dark ? t('themeStudio.generated.dark') : t('themeStudio.generated.light') }}
             </div>
           </div>
         </div>
@@ -380,8 +379,8 @@ function generateAiTheme() {
 
       <section class="panel tm-panel span-2">
         <div class="section-head">
-          <h2>Live Tokens</h2>
-          <span class="muted">Current resolved theme palette</span>
+          <h2>{{ t('themeStudio.sections.liveTokens.title') }}</h2>
+          <span class="muted">{{ t('themeStudio.sections.liveTokens.subtitle') }}</span>
         </div>
         <div class="token-grid">
           <div v-for="token in currentTokens" :key="token.label" class="token-card">

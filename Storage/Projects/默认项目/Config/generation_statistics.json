@@ -1,0 +1,10 @@
+{
+  "TotalGenerations": 2,
+  "FirstPassCount": 2,
+  "RewritePassCount": 0,
+  "FinalFailureCount": 0,
+  "TotalInputTokens": 0,
+  "TotalOutputTokens": 0,
+  "TotalCostMicros": 0,
+  "EndTime": "2026-06-01T09:00:00+08:00"
+}

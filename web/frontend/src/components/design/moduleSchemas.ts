@@ -30,14 +30,14 @@ export interface ModuleSchema {
 }
 
 const commonBase: FieldDef[] = [
-  { key: 'name', label: 'Name', type: 'text', placeholder: 'Required' },
+  { key: 'name', label: '名称', type: 'text', placeholder: '必填' },
   {
     key: 'category',
-    label: 'Category Text',
+    label: '分类文本',
     type: 'text',
-    hint: 'Optional free-text category in addition to the category tree binding.'
+    hint: '除分类树绑定外，可额外填写自由文本分类。'
   },
-  { key: 'isEnabled', label: 'Enabled', type: 'switch', default: true }
+  { key: 'isEnabled', label: '启用', type: 'switch', default: true }
 ]
 
 export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
@@ -359,64 +359,64 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
     module: 'book_analyses',
     commonFields: [
       ...commonBase,
-      { key: 'icon', label: 'Icon', type: 'text', default: 'BOOK' }
+      { key: 'icon', label: '图标', type: 'text', default: 'BOOK' }
     ],
     tabs: [
       {
         key: 'meta',
-        label: 'Meta',
+        label: '来源信息',
         fields: [
-          { key: 'author', label: 'Author', type: 'text' },
-          { key: 'genre', label: 'Genre', type: 'text' },
-          { key: 'sourceUrl', label: 'Source URL', type: 'text' },
-          { key: 'sourceBookTitle', label: 'Source Book Title', type: 'text' },
-          { key: 'sourceAuthor', label: 'Source Author', type: 'text' },
-          { key: 'sourceGenre', label: 'Source Genre', type: 'text' },
-          { key: 'sourceKeywords', label: 'Source Keywords', type: 'text' },
-          { key: 'sourceSite', label: 'Source Site', type: 'text' },
-          { key: 'chapterCount', label: 'Chapter Count', type: 'number' },
-          { key: 'totalWordCount', label: 'Total Word Count', type: 'number' },
-          { key: 'crawledAt', label: 'Crawled At', type: 'date' }
+          { key: 'author', label: '作者', type: 'text' },
+          { key: 'genre', label: '类型', type: 'text' },
+          { key: 'sourceUrl', label: '来源 URL', type: 'text' },
+          { key: 'sourceBookTitle', label: '原书标题', type: 'text' },
+          { key: 'sourceAuthor', label: '原书作者', type: 'text' },
+          { key: 'sourceGenre', label: '原书类型', type: 'text' },
+          { key: 'sourceKeywords', label: '关键词', type: 'text' },
+          { key: 'sourceSite', label: '来源站点', type: 'text' },
+          { key: 'chapterCount', label: '章节数', type: 'number' },
+          { key: 'totalWordCount', label: '总字数', type: 'number' },
+          { key: 'crawledAt', label: '导入时间', type: 'date' }
         ]
       },
       {
         key: 'world',
-        label: 'World',
+        label: '世界观',
         fields: [
-          { key: 'worldBuildingMethod', label: 'World Building Method', type: 'textarea', rows: 3 },
-          { key: 'powerSystemDesign', label: 'Power System Design', type: 'textarea', rows: 3 },
-          { key: 'environmentDescription', label: 'Environment Description', type: 'textarea', rows: 3 },
-          { key: 'factionDesign', label: 'Faction Design', type: 'textarea', rows: 3 },
-          { key: 'worldviewHighlights', label: 'Worldview Highlights', type: 'textarea', rows: 3 }
+          { key: 'worldBuildingMethod', label: '世界构建方法', type: 'textarea', rows: 3 },
+          { key: 'powerSystemDesign', label: '力量体系设计', type: 'textarea', rows: 3 },
+          { key: 'environmentDescription', label: '环境描写', type: 'textarea', rows: 3 },
+          { key: 'factionDesign', label: '势力设计', type: 'textarea', rows: 3 },
+          { key: 'worldviewHighlights', label: '世界观亮点', type: 'textarea', rows: 3 }
         ]
       },
       {
         key: 'character',
-        label: 'Character',
+        label: '角色',
         fields: [
-          { key: 'protagonistDesign', label: 'Protagonist Design', type: 'textarea', rows: 3 },
-          { key: 'supportingRoles', label: 'Supporting Roles', type: 'textarea', rows: 3 },
-          { key: 'characterRelations', label: 'Character Relations', type: 'textarea', rows: 3 },
-          { key: 'goldenFingerDesign', label: 'Golden Finger', type: 'textarea', rows: 3 },
-          { key: 'characterHighlights', label: 'Character Highlights', type: 'textarea', rows: 3 }
+          { key: 'protagonistDesign', label: '主角设计', type: 'textarea', rows: 3 },
+          { key: 'supportingRoles', label: '配角设计', type: 'textarea', rows: 3 },
+          { key: 'characterRelations', label: '角色关系', type: 'textarea', rows: 3 },
+          { key: 'goldenFingerDesign', label: '金手指设计', type: 'textarea', rows: 3 },
+          { key: 'characterHighlights', label: '角色亮点', type: 'textarea', rows: 3 }
         ]
       },
       {
         key: 'plot',
-        label: 'Plot',
+        label: '剧情',
         fields: [
-          { key: 'plotStructure', label: 'Plot Structure', type: 'textarea', rows: 3 },
-          { key: 'conflictDesign', label: 'Conflict Design', type: 'textarea', rows: 3 },
-          { key: 'climaxArrangement', label: 'Climax Arrangement', type: 'textarea', rows: 3 },
-          { key: 'foreshadowingTechnique', label: 'Foreshadowing Technique', type: 'textarea', rows: 3 },
-          { key: 'plotHighlights', label: 'Plot Highlights', type: 'textarea', rows: 3 }
+          { key: 'plotStructure', label: '剧情结构', type: 'textarea', rows: 3 },
+          { key: 'conflictDesign', label: '冲突设计', type: 'textarea', rows: 3 },
+          { key: 'climaxArrangement', label: '高潮安排', type: 'textarea', rows: 3 },
+          { key: 'foreshadowingTechnique', label: '伏笔手法', type: 'textarea', rows: 3 },
+          { key: 'plotHighlights', label: '剧情亮点', type: 'textarea', rows: 3 }
         ]
       }
     ],
     listColumns: [
-      { key: 'icon', label: 'Icon', width: 70 },
-      { key: 'author', label: 'Author', width: 120 },
-      { key: 'chapterCount', label: 'Chapters', width: 80 }
+      { key: 'icon', label: '图标', width: 70 },
+      { key: 'author', label: '作者', width: 120 },
+      { key: 'chapterCount', label: '章节数', width: 90 }
     ]
   },
 
@@ -426,37 +426,37 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
     tabs: [
       {
         key: 'positioning',
-        label: 'Positioning',
+        label: '定位',
         fields: [
-          { key: 'totalChapterCount', label: 'Total Chapter Count', type: 'number' },
-          { key: 'estimatedWordCount', label: 'Estimated Word Count', type: 'text' },
-          { key: 'oneLineOutline', label: 'One Line Outline', type: 'textarea', rows: 2 },
-          { key: 'emotionalTone', label: 'Emotional Tone', type: 'textarea', rows: 2 },
-          { key: 'philosophicalMotif', label: 'Philosophical Motif', type: 'textarea', rows: 2 }
+          { key: 'totalChapterCount', label: '总章节数', type: 'number' },
+          { key: 'estimatedWordCount', label: '预计字数', type: 'text' },
+          { key: 'oneLineOutline', label: '一句话大纲', type: 'textarea', rows: 2 },
+          { key: 'emotionalTone', label: '情绪基调', type: 'textarea', rows: 2 },
+          { key: 'philosophicalMotif', label: '哲学母题', type: 'textarea', rows: 2 }
         ]
       },
       {
         key: 'theme',
-        label: 'Theme',
+        label: '主题',
         fields: [
-          { key: 'theme', label: 'Theme', type: 'textarea', rows: 3 },
-          { key: 'coreConflict', label: 'Core Conflict', type: 'textarea', rows: 3 },
-          { key: 'endingState', label: 'Ending State', type: 'textarea', rows: 3 }
+          { key: 'theme', label: '主题', type: 'textarea', rows: 3 },
+          { key: 'coreConflict', label: '核心冲突', type: 'textarea', rows: 3 },
+          { key: 'endingState', label: '结局状态', type: 'textarea', rows: 3 }
         ]
       },
       {
         key: 'structure',
-        label: 'Structure',
+        label: '结构',
         fields: [
-          { key: 'volumeDivision', label: 'Volume Division', type: 'textarea', rows: 4 },
-          { key: 'outlineOverview', label: 'Outline Overview', type: 'textarea', rows: 5 },
-          { key: 'dependencyModuleVersions', label: 'Dependency Module Versions (JSON)', type: 'textarea', rows: 4 }
+          { key: 'volumeDivision', label: '分卷规划', type: 'textarea', rows: 4 },
+          { key: 'outlineOverview', label: '大纲总览', type: 'textarea', rows: 5 },
+          { key: 'dependencyModuleVersions', label: '依赖模块版本（JSON）', type: 'textarea', rows: 4 }
         ]
       }
     ],
     listColumns: [
-      { key: 'totalChapterCount', label: 'Chapters', width: 90 },
-      { key: 'oneLineOutline', label: 'Outline', width: 280 }
+      { key: 'totalChapterCount', label: '章节数', width: 90 },
+      { key: 'oneLineOutline', label: '大纲摘要', width: 280 }
     ]
   },
 

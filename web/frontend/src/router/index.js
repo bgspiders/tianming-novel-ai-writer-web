@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { buildDocumentTitle } from '@/i18n';
+import { useLocaleStore } from '@/stores/locale';
 const routes = [
     {
         path: '/',
@@ -8,25 +10,43 @@ const routes = [
                 path: '',
                 name: 'home',
                 component: () => import('@/views/HomeView.vue'),
-                meta: { title: '首页' }
+                meta: { titleKey: 'routes.home' }
             },
             {
                 path: 'health',
                 name: 'health',
                 component: () => import('@/views/HealthView.vue'),
-                meta: { title: '健康检查' }
+                meta: { titleKey: 'routes.health' }
             },
             {
                 path: 'ai-test',
                 name: 'ai-test',
                 component: () => import('@/views/AiTestView.vue'),
-                meta: { title: 'AI 流式测试' }
+                meta: { titleKey: 'routes.aiTest' }
             },
             {
                 path: 'settings/ai-models',
                 name: 'ai-models',
                 component: () => import('@/views/AiModelsView.vue'),
-                meta: { title: 'AI 模型管理' }
+                meta: { titleKey: 'routes.aiModels' }
+            },
+            {
+                path: 'settings/themes',
+                name: 'theme-studio',
+                component: () => import('@/views/settings/ThemeStudioView.vue'),
+                meta: { titleKey: 'routes.themeStudio' }
+            },
+            {
+                path: 'settings/notifications',
+                name: 'notification-center',
+                component: () => import('@/views/settings/NotificationCenterView.vue'),
+                meta: { titleKey: 'routes.notificationCenter' }
+            },
+            {
+                path: 'editor/chapters',
+                name: 'chapter-editor',
+                component: () => import('@/views/editor/EditorChaptersView.vue'),
+                meta: { titleKey: 'routes.chapterEditor' }
             },
             {
                 path: 'design',
@@ -36,25 +56,25 @@ const routes = [
                 path: 'design/:module',
                 name: 'design-module',
                 component: () => import('@/views/design/DesignView.vue'),
-                meta: { title: '设计模块' }
+                meta: { titleKey: 'routes.designModules' }
             },
             {
                 path: 'generate',
                 name: 'generation-workbench',
                 component: () => import('@/views/generate/GenerationWorkbenchView.vue'),
-                meta: { title: '生成工作台' }
+                meta: { titleKey: 'routes.generationWorkbench' }
             },
             {
                 path: 'generate/chapters',
                 name: 'chapter-generation',
                 component: () => import('@/views/generate/ChapterGenerationView.vue'),
-                meta: { title: '章节生成' }
+                meta: { titleKey: 'routes.chapterGeneration' }
             },
             {
                 path: 'generate/gate',
                 name: 'generation-gate',
                 component: () => import('@/views/generate/GenerationGateView.vue'),
-                meta: { title: '生成门禁' }
+                meta: { titleKey: 'routes.generationGate' }
             },
             {
                 path: 'generate/volume-designs',
@@ -76,25 +96,25 @@ const routes = [
                 path: 'generate/:module(outlines|volume_designs|chapter_plans|chapter_blueprints)',
                 name: 'generation-planning-module',
                 component: () => import('@/views/design/DesignView.vue'),
-                meta: { title: '生成规划' }
+                meta: { titleKey: 'routes.generationPlanning' }
             },
             {
                 path: 'editor',
                 name: 'editor',
                 component: () => import('@/views/editor/EditorView.vue'),
-                meta: { title: '章节编辑器' }
+                meta: { titleKey: 'routes.editorWorkspace' }
             },
             {
                 path: 'validate',
                 name: 'validation-workbench',
                 component: () => import('@/views/validate/ValidationView.vue'),
-                meta: { title: '校验工作台' }
+                meta: { titleKey: 'routes.validationWorkbench' }
             },
             {
                 path: 'ai-assistant',
                 name: 'ai-assistant',
                 component: () => import('@/views/AiAssistantView.vue'),
-                meta: { title: 'AI 助手' }
+                meta: { titleKey: 'routes.aiAssistant' }
             }
         ]
     },
@@ -109,7 +129,8 @@ const router = createRouter({
     scrollBehavior: () => ({ top: 0 })
 });
 router.afterEach((to) => {
-    const title = to.meta?.title ?? '';
-    document.title = title ? `${title} · 天命 Web` : '天命 Web';
+    const localeStore = useLocaleStore();
+    const titleKey = to.meta?.titleKey ?? undefined;
+    document.title = buildDocumentTitle(titleKey, localeStore.locale);
 });
 export default router;

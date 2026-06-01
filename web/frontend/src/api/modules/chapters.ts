@@ -109,6 +109,7 @@ export interface ChapterDraftRequest {
   projectId: string
   volumeId: string
   chapterId: string
+  configId?: string | null
   endpoint: string
   providerId?: string | null
   apiKeyId?: string | null
@@ -119,6 +120,8 @@ export interface ChapterDraftRequest {
   temperature?: number
   maxTokens?: number
   maxRewriteAttempts?: number
+  validationReportId?: string | null
+  rerunValidationAfterSave?: boolean
   saveToChapter?: boolean
 }
 
@@ -206,6 +209,8 @@ export async function deleteChapter(id: string): Promise<void> {
 }
 
 export async function generateChapterDraft(input: ChapterDraftRequest): Promise<ChapterDraftResult> {
-  const { data } = await http.post<ChapterDraftResult>('/api/generation/chapter-draft', input)
+  const { data } = await http.post<ChapterDraftResult>('/api/generation/chapter-draft', input, {
+    timeout: 10 * 60_000
+  })
   return data
 }

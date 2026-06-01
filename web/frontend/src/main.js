@@ -5,6 +5,8 @@ import 'element-plus/dist/index.css';
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import App from './App.vue';
 import router from './router';
+import { syncDocumentLanguage } from './i18n';
+import { useLocaleStore } from './stores/locale';
 import { useThemeStore } from './stores/theme';
 import { useWorkContextStore } from './stores/workContext';
 import './styles/reset.css';
@@ -19,6 +21,9 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 }
 const themeStore = useThemeStore();
 themeStore.init();
+const localeStore = useLocaleStore();
+localeStore.init();
+syncDocumentLanguage(localeStore.locale);
 const workContextStore = useWorkContextStore();
 workContextStore.init();
 app.mount('#app');

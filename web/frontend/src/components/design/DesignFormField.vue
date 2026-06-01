@@ -52,10 +52,10 @@ function wrapMarkdown(prefix: string, suffix = prefix) {
     <template v-else-if="field.type === 'textarea'">
       <div class="markdown-tools">
         <span class="markdown-label">Markdown</span>
-        <el-button text size="small" @click="wrapMarkdown('## ', '')">Heading</el-button>
-        <el-button text size="small" @click="wrapMarkdown('**', '**')">Bold</el-button>
-        <el-button text size="small" @click="wrapMarkdown('- ', '')">List</el-button>
-        <el-switch v-model="previewMarkdown" size="small" active-text="Preview" />
+        <el-button text size="small" @click="wrapMarkdown('## ', '')">标题</el-button>
+        <el-button text size="small" @click="wrapMarkdown('**', '**')">加粗</el-button>
+        <el-button text size="small" @click="wrapMarkdown('- ', '')">列表</el-button>
+        <el-switch v-model="previewMarkdown" size="small" active-text="预览" />
       </div>
       <el-input
         v-if="!previewMarkdown"
@@ -101,7 +101,7 @@ function wrapMarkdown(prefix: string, suffix = prefix) {
         filterable
         allow-create
         default-first-option
-        :placeholder="field.placeholder ?? 'Press Enter to add'"
+        :placeholder="field.placeholder ?? '按回车添加'"
         style="width: 100%"
       >
         <el-option
@@ -125,8 +125,8 @@ function wrapMarkdown(prefix: string, suffix = prefix) {
     <div v-if="invalidMessage" class="field-warning">
       <span>{{ invalidMessage }}</span>
       <span class="field-warning-actions">
-        <el-button text size="small" type="warning" @click="emit('clearInvalidReferences')">Clear Invalid</el-button>
-        <el-button text size="small" @click="emit('rematchReferences')">Retry Match</el-button>
+        <el-button text size="small" type="warning" @click="emit('clearInvalidReferences')">清除无效项</el-button>
+        <el-button text size="small" @click="emit('rematchReferences')">重新匹配</el-button>
       </span>
     </div>
     <div v-if="field.hint" class="field-hint">{{ field.hint }}</div>

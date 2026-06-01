@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using TM.Web.Api.Hubs;
+using TM.Web.Api.Http;
 using TM.Web.Api.Middleware;
 using TM.Web.Api.Notifications;
 using TM.Web.Application.Dtos.Import;
@@ -14,6 +16,7 @@ using TM.Web.Infrastructure.Services.Design;
 using TM.Web.Infrastructure.Services.Editor;
 using TM.Web.Infrastructure.Services.Generation;
 using TM.Web.Infrastructure.Services.Import;
+using TM.Web.Infrastructure.Services.Notification;
 using TM.Web.Infrastructure.Services.Recall;
 using TM.Web.Infrastructure.Services.Validation;
 using TM.Web.LegacyBridge.Compatibility;
@@ -23,9 +26,29 @@ var builder = WebApplication.CreateBuilder(args);
 
 const string CorsPolicyName = "tm-dev-cors";
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(opt =>
+    {
+        opt.InvalidModelStateResponseFactory = context =>
+        {
+            var problem = new ValidationProblemDetails(context.ModelState)
+            {
+                Type = "https://httpstatuses.io/400",
+                Title = "请求参数验证失败",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "请检查表单中必填项、数据类型和取值范围后再提交。",
+                Instance = context.HttpContext.Request.Path
+            };
+
+            return new BadRequestObjectResult(problem)
+            {
+                ContentTypes = { "application/problem+json" }
+            };
+        };
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpClient();
+builder.Services.AddOutboundHttpProxy(builder.Configuration);
 builder.Services.AddSwaggerGen(opt =>
 {
     opt.SwaggerDoc("v1", new()
@@ -54,9 +77,12 @@ builder.Services.AddCors(opt =>
         .AllowCredentials());
 });
 
+builder.Services.AddSingleton<IAiHttpClientFactory, OpenAiCompatibleHttpClientFactory>();
 builder.Services.AddSingleton<IGenerationNotifier, SignalRGenerationNotifier>();
 builder.Services.AddSingleton<IAiCompletionService, AiCompletionService>();
 builder.Services.AddSingleton<IGenerationGateService, LegacyGenerationGateService>();
+builder.Services.AddSingleton<IBookAnalysisBackgroundJobQueue, BookAnalysisBackgroundJobQueue>();
+builder.Services.AddHostedService<BookAnalysisBackgroundWorker>();
 
 builder.Services.AddAppDatabase(builder.Configuration);
 
@@ -64,7 +90,9 @@ builder.Services.AddSingleton<IKeyProtector, AesGcmKeyProtector>();
 builder.Services.AddScoped<IAiProviderService, AiProviderService>();
 builder.Services.AddScoped<IAiModelService, AiModelService>();
 builder.Services.AddScoped<IAiApiKeyService, AiApiKeyService>();
+builder.Services.AddScoped<IAiProviderConfigService, AiProviderConfigService>();
 builder.Services.AddScoped<IDataImportService, DataImportService>();
+builder.Services.AddScoped<INotificationHistoryService, NotificationHistoryService>();
 
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ISourceBookService, SourceBookService>();
@@ -73,6 +101,7 @@ builder.Services.AddScoped<IVolumeService, VolumeService>();
 builder.Services.AddScoped<IChapterService, ChapterService>();
 builder.Services.AddScoped<IEditorService, EditorService>();
 builder.Services.AddScoped<GenerationStateService>();
+builder.Services.AddScoped<IContextPackagingService, ContextPackagingService>();
 builder.Services.AddScoped<IChapterDraftService, ChapterDraftService>();
 builder.Services.AddScoped<IWorldRuleService, WorldRuleService>();
 builder.Services.AddScoped<ICharacterRuleService, CharacterRuleService>();
@@ -114,14 +143,9 @@ TM.Framework.Common.Helpers.Storage.StoragePathHelper.SetBasePath(
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    if (db.Database.GetPendingMigrations().Any())
-    {
-        db.Database.Migrate();
-    }
-    else
-    {
-        db.Database.EnsureCreated();
-    }
+    // Do not mix EnsureCreated with migrations, or old SQLite files can drift
+    // away from the migration history and miss later columns.
+    await db.Database.MigrateAsync();
     await AiProviderSeeder.SeedAsync(db);
 }
 

@@ -20,4 +20,19 @@ public sealed class BookAnalysisCrawlerController : ControllerBase
     {
         return _crawler.CrawlPreviewAsync(request, ct);
     }
+
+    [HttpPost("ai-analyze")]
+    public Task<BookAnalysisCrawlPreviewDto> AiAnalyze([FromBody] BookAnalysisAiAnalyzeRequest request, CancellationToken ct)
+    {
+        return _crawler.AnalyzePreviewAsync(request, ct);
+    }
+
+    [HttpPost("{id}/ai-analyze-jobs")]
+    public Task<BookAnalysisBackgroundAnalyzeAcceptedDto> QueueBackgroundAnalyze(
+        string id,
+        [FromBody] BookAnalysisBackgroundAnalyzeRequest request,
+        CancellationToken ct)
+    {
+        return _crawler.QueueBackgroundAnalyzeAsync(id, request, ct);
+    }
 }

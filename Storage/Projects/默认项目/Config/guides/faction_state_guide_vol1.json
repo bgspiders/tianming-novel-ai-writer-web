@@ -1,0 +1,36 @@
+{
+  "Module": "FactionStateGuide",
+  "SourceBookId": "sb_neon_tide",
+  "Factions": {
+    "fac_tide_corp": {
+      "Name": "潮汐财团",
+      "CurrentStatus": "active",
+      "StateHistory": [
+        {
+          "Chapter": "vol1_ch1",
+          "Status": "active",
+          "Event": "远程封锁旧泵站并试图回收异常核心。",
+          "Importance": "high"
+        },
+        {
+          "Chapter": "vol1_ch2",
+          "Status": "exposed-suspicion",
+          "Event": "内部命令显示回收目标疑似林砚本人。",
+          "Importance": "high"
+        }
+      ]
+    },
+    "fac_lower_aid": {
+      "Name": "下城互助会",
+      "CurrentStatus": "watching",
+      "StateHistory": [
+        {
+          "Chapter": "vol1_ch1",
+          "Status": "watching",
+          "Event": "旧泵站异常在下城区维修网络扩散。",
+          "Importance": "normal"
+        }
+      ]
+    }
+  }
+}

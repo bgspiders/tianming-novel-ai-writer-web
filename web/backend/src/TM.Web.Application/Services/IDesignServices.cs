@@ -58,6 +58,8 @@ public interface ICreativeMaterialService
     Task<PagedResult<CreativeMaterialDto>> ListPagedAsync(DesignListQuery query, CancellationToken ct = default);
     Task<CreativeMaterialDto?> GetAsync(string id, CancellationToken ct = default);
     Task<CreativeMaterialDto> CreateAsync(CreativeMaterialUpsertDto input, CancellationToken ct = default);
+    Task<CreativeMaterialDto> CreateFromBookAnalysisAsync(string bookAnalysisId, CancellationToken ct = default);
+    Task<SkeletonBuildResultDto> BuildSkeletonAsync(string creativeMaterialId, CancellationToken ct = default);
     Task<CreativeMaterialDto> UpdateAsync(string id, CreativeMaterialUpsertDto input, CancellationToken ct = default);
     Task DeleteAsync(string id, CancellationToken ct = default);
 }

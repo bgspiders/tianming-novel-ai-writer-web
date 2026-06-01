@@ -1,0 +1,16 @@
+{
+  "Module": "OutlineGuide",
+  "SourceBookId": "sb_neon_tide",
+  "OutlineId": "outline_neon_tide",
+  "Title": "霓潮残章",
+  "CoreConflict": "潮汐财团试图用第七次大潮抹除旧事故证据，林砚必须在灵潮涨满前公开离线证据链。",
+  "Volumes": [
+    {
+      "VolumeNumber": 1,
+      "Title": "潮汐将至",
+      "StartChapter": 1,
+      "EndChapter": 12,
+      "Goal": "发现离线警报，建立临时同盟，公开灰鲸事故真相。"
+    }
+  ]
+}

@@ -5,6 +5,26 @@ public record BookAnalysisCrawlPreviewRequest(
     int MaxChapters = 12,
     bool IncludeContent = true);
 
+public record BookAnalysisAiAnalyzeRequest(
+    string ProviderId,
+    string? ApiKeyId,
+    string Endpoint,
+    string Model,
+    BookAnalysisCrawlPreviewDto Preview,
+    int MaxTokens = 3000);
+
+public record BookAnalysisBackgroundAnalyzeRequest(
+    string ProviderId,
+    string? ApiKeyId,
+    string Endpoint,
+    string Model,
+    int MaxTokens = 3000);
+
+public record BookAnalysisBackgroundAnalyzeAcceptedDto(
+    string JobId,
+    string BookAnalysisId,
+    string Status);
+
 public record BookAnalysisCrawlChapterDto(
     int Index,
     string Title,

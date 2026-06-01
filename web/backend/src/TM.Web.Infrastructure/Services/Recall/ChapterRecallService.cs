@@ -129,7 +129,7 @@ public class ChapterRecallService : IChapterRecallService
                 hasExplicitQuery,
                 queryTerms,
                 sourceKeywordCounts,
-                keywordRowsByChapter.GetValueOrDefault(candidate.Id) ?? Array.Empty<CandidateKeywordRow>(),
+                keywordRowsByChapter.GetValueOrDefault(candidate.Id) ?? new List<CandidateKeywordRow>(),
                 embeddingScores.GetValueOrDefault(candidate.Id)))
             .Where(x => x != null)
             .Cast<ChapterRecallResultDto>()

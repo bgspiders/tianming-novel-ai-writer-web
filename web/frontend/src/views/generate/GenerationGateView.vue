@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
 import { useWorkContextStore } from '@/stores/workContext'
 import {
   getGenerationStatistics,
@@ -11,6 +12,7 @@ import {
 } from '@/api/modules/generation'
 
 const workContext = useWorkContextStore()
+const { t } = useI18n()
 const loading = ref(false)
 const records = ref<GenerationRecord[]>([])
 const stats = ref<GenerationStatistics | null>(null)
@@ -83,7 +85,7 @@ async function refresh() {
     stats.value = nextStats
     records.value = nextRecords
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to load generation gate records.')
+    ElMessage.error((err as Error).message ?? t('generationGate.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -100,19 +102,19 @@ onMounted(async () => {
   <div class="generation-gate">
     <div class="stats-grid">
       <el-card shadow="never">
-        <span class="stat-label">Total Runs</span>
+        <span class="stat-label">{{ t('generationGate.stats.totalRuns') }}</span>
         <strong>{{ stats?.totalGenerations ?? 0 }}</strong>
       </el-card>
       <el-card shadow="never">
-        <span class="stat-label">First Pass</span>
+        <span class="stat-label">{{ t('generationGate.stats.firstPass') }}</span>
         <strong>{{ stats?.firstPassCount ?? 0 }}</strong>
       </el-card>
       <el-card shadow="never">
-        <span class="stat-label">Failures</span>
+        <span class="stat-label">{{ t('generationGate.stats.failures') }}</span>
         <strong>{{ stats?.failureCount ?? 0 }}</strong>
       </el-card>
       <el-card shadow="never">
-        <span class="stat-label">Pass Rate</span>
+        <span class="stat-label">{{ t('generationGate.stats.passRate') }}</span>
         <strong>{{ passRate }}</strong>
       </el-card>
     </div>
@@ -120,24 +122,24 @@ onMounted(async () => {
     <el-card shadow="never">
       <template #header>
         <div class="panel-head">
-          <span>Generation Records</span>
-          <el-button size="small" :icon="Refresh" :loading="loading" @click="refresh">Refresh</el-button>
+          <span>{{ t('generationGate.title') }}</span>
+          <el-button size="small" :icon="Refresh" :loading="loading" @click="refresh">{{ t('generationGate.refresh') }}</el-button>
         </div>
       </template>
 
-      <el-empty v-if="!canLoad" description="Select a project first." />
+      <el-empty v-if="!canLoad" :description="t('generationGate.emptyProject')" />
       <el-table v-else v-loading="loading" :data="records" size="small">
-        <el-table-column label="Result" width="86">
+        <el-table-column :label="t('generationGate.result')" width="86">
           <template #default="{ row }">
             <el-tag size="small" :type="row.success ? 'success' : 'danger'">
-              {{ row.success ? 'Success' : 'Failed' }}
+              {{ row.success ? t('generationGate.success') : t('generationGate.failed') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Chapter" prop="chapterId" min-width="180" />
-        <el-table-column label="Attempts" prop="totalAttempts" width="80" />
-        <el-table-column label="Rewrites" prop="rewriteCount" width="80" />
-        <el-table-column label="Gate Stages" min-width="180">
+        <el-table-column :label="t('generationGate.chapter')" prop="chapterId" min-width="180" />
+        <el-table-column :label="t('generationGate.attempts')" prop="totalAttempts" width="80" />
+        <el-table-column :label="t('generationGate.rewrites')" prop="rewriteCount" width="80" />
+        <el-table-column :label="t('generationGate.gateStages')" min-width="180">
           <template #default="{ row }">
             <div class="stage-tags">
               <el-tag
@@ -148,24 +150,24 @@ onMounted(async () => {
               >
                 {{ stage }}
               </el-tag>
-              <span v-if="stages(row).length === 0" class="muted">None</span>
+              <span v-if="stages(row).length === 0" class="muted">{{ t('generationGate.none') }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="Started At" prop="startedAt" min-width="180" />
+        <el-table-column :label="t('generationGate.startedAt')" prop="startedAt" min-width="180" />
         <el-table-column type="expand">
           <template #default="{ row }">
             <div class="record-detail">
               <div class="attempt-list">
                 <div v-for="attempt in attempts(row)" :key="attempt.attempt" class="attempt-item">
                   <div class="attempt-head">
-                    <strong>Attempt {{ attempt.attempt ?? '-' }}</strong>
+                    <strong>{{ t('generationGate.attempt', { value: attempt.attempt ?? '-' }) }}</strong>
                     <el-tag size="small" :type="gateTagType(attempt)">
-                      {{ attempt.gate?.success ? 'Gate Passed' : 'Gate Failed' }}
+                      {{ attempt.gate?.success ? t('generationGate.gatePassed') : t('generationGate.gateFailed') }}
                     </el-tag>
                     <span class="muted">
-                      {{ attempt.model || 'Unknown model' }} /
-                      {{ attempt.charCount ?? 0 }} chars /
+                      {{ attempt.model || t('generationGate.unknownModel') }} /
+                      {{ attempt.charCount ?? 0 }} {{ t('generationGate.chars') }} /
                       {{ attempt.elapsedMs ?? 0 }}ms
                     </span>
                   </div>
@@ -176,7 +178,7 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
-              <strong>Raw Attempt Payload</strong>
+              <strong>{{ t('generationGate.rawPayload') }}</strong>
               <pre>{{ parseJsonText(row.attempts) }}</pre>
             </div>
           </template>

@@ -1,5 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { translate, type Locale } from '@/i18n'
+import { useLocaleStore } from '@/stores/locale'
 import { THEME_PRESET_MAP, THEME_PRESETS, type ThemeId } from '@/theme/presets'
 import {
   applyTokensToDocument,
@@ -19,6 +21,40 @@ import {
 } from '@/theme/utils'
 
 const STORAGE_KEY = 'tm.theme.v2'
+function tTheme(locale: Locale, key: string, params?: Record<string, string | number | boolean | null | undefined>) {
+  return translate(key, locale, params)
+}
+
+function localizeHolidayLabel(locale: Locale, label: string) {
+  const keyMap: Record<string, string> = {
+    'New Year 2024': 'holiday.newYear2024',
+    'Spring Festival 2024': 'holiday.springFestival2024',
+    'Qingming 2024': 'holiday.qingming2024',
+    'Labour Day 2024': 'holiday.labourDay2024',
+    'Dragon Boat 2024': 'holiday.dragonBoat2024',
+    'Mid-Autumn 2024': 'holiday.midAutumn2024',
+    'National Day 2024': 'holiday.nationalDay2024',
+    'New Year 2025': 'holiday.newYear2025',
+    'Spring Festival 2025': 'holiday.springFestival2025',
+    'Qingming 2025': 'holiday.qingming2025',
+    'Labour Day 2025': 'holiday.labourDay2025',
+    'Dragon Boat 2025': 'holiday.dragonBoat2025',
+    'National Day 2025': 'holiday.nationalDay2025',
+    'Mid-Autumn 2025': 'holiday.midAutumn2025',
+    'New Year': 'holiday.newYear',
+    'Valentine Day': 'holiday.valentines',
+    'Labour Day': 'holiday.labourDay',
+    'Children Day': 'holiday.childrenDay',
+    'National Day': 'holiday.nationalDay',
+    Halloween: 'holiday.halloween',
+    'Christmas Eve': 'holiday.christmasEve',
+    Christmas: 'holiday.christmas',
+    'New Year Eve': 'holiday.newYearEve'
+  }
+
+  const key = keyMap[label]
+  return key ? tTheme(locale, key) : label
+}
 
 export type ThemeMode = 'preset' | 'system' | 'schedule'
 export type ScheduleBasis = 'fixed' | 'sun'
@@ -193,11 +229,16 @@ function buildGeneratedTheme(label: string, accent: string, dark: boolean, sourc
 }
 
 function toCustomThemePreset(theme: CustomThemePreview) {
+  const category: 'light' | 'dark' = theme.dark ? 'dark' : 'light'
+  const localeStore = useLocaleStore()
+
   return {
     id: theme.id,
     label: theme.label,
-    description: theme.source === 'image' ? 'Image generated palette.' : 'AI generated palette.',
-    category: (theme.dark ? 'dark' : 'light') as const,
+    description: theme.source === 'image'
+      ? tTheme(localeStore.locale, 'themeStudio.customSource.image')
+      : tTheme(localeStore.locale, 'themeStudio.customSource.ai'),
+    category,
     dark: theme.dark,
     hero: `linear-gradient(135deg, ${theme.tokens.bgElevated} 0%, ${theme.tokens.selection} 100%)`,
     accent: theme.accent,
@@ -207,6 +248,7 @@ function toCustomThemePreset(theme: CustomThemePreview) {
 
 export const useThemeStore = defineStore('theme', () => {
   const saved = loadState()
+  const localeStore = useLocaleStore()
 
   const mode = ref<ThemeMode>(saved?.mode ?? 'preset')
   const selectedThemeId = ref<ThemeId>(saved?.selectedThemeId ?? 'light')
@@ -236,10 +278,16 @@ export const useThemeStore = defineStore('theme', () => {
   const holidayCatalog = computed(() =>
     HOLIDAY_OPTIONS.map((item) => ({
       ...item,
+      label: localizeHolidayLabel(localeStore.locale, item.label),
       themeId: (holiday.value.themeMap[item.key] ?? null) as ThemeId | null
     }))
   )
-  const upcomingHolidays = computed(() => getUpcomingHolidays(new Date()))
+  const upcomingHolidays = computed(() =>
+    getUpcomingHolidays(new Date()).map((item) => ({
+      ...item,
+      label: localizeHolidayLabel(localeStore.locale, item.label)
+    }))
+  )
 
   const effectiveResolution = computed<ThemeResolution>(() => resolveTheme())
   const effectiveTheme = computed(() => effectiveResolution.value.theme)
@@ -252,7 +300,9 @@ export const useThemeStore = defineStore('theme', () => {
   })
   const scheduleSummary = computed(() => ({
     enabled: mode.value === 'schedule' && schedule.value.enabled,
-    basisLabel: schedule.value.basis === 'sun' ? 'Sunrise / Sunset' : 'Fixed Time',
+    basisLabel: schedule.value.basis === 'sun'
+      ? tTheme(localeStore.locale, 'themeStudio.scheduleValue.sunriseSunset')
+      : tTheme(localeStore.locale, 'themeStudio.scheduleValue.fixedTime'),
     dayStartsAt: schedule.value.basis === 'sun' ? todaySunTimes.value.sunrise : schedule.value.dayStart,
     nightStartsAt: schedule.value.basis === 'sun' ? todaySunTimes.value.sunset : schedule.value.nightStart
   }))
@@ -372,14 +422,14 @@ export const useThemeStore = defineStore('theme', () => {
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
     const windowState = getScheduleWindow()
     const marks = [
-      { label: 'Day start', at: windowState.dayStartMinutes },
-      { label: 'Night start', at: windowState.nightStartMinutes }
+      { label: tTheme(localeStore.locale, 'themeStudio.scheduleValue.dayStart'), at: windowState.dayStartMinutes },
+      { label: tTheme(localeStore.locale, 'themeStudio.scheduleValue.nightStart'), at: windowState.nightStartMinutes }
     ]
 
     if (schedule.value.basis === 'sun') {
       marks.push(
-        { label: 'Sunrise accent', at: windowState.dayStartMinutes },
-        { label: 'Sunset accent', at: windowState.nightStartMinutes }
+        { label: tTheme(localeStore.locale, 'themeStudio.scheduleValue.sunriseAccent'), at: windowState.dayStartMinutes },
+        { label: tTheme(localeStore.locale, 'themeStudio.scheduleValue.sunsetAccent'), at: windowState.nightStartMinutes }
       )
     }
 
@@ -390,7 +440,12 @@ export const useThemeStore = defineStore('theme', () => {
       }))
       .sort((a, b) => a.delta - b.delta)[0]
 
-    nextScheduledThemeAt.value = next ? `${next.label} at ${minutesToTimeString(next.at)}` : ''
+    nextScheduledThemeAt.value = next
+      ? tTheme(localeStore.locale, 'themeStudio.scheduleValue.at', {
+          label: next.label,
+          time: minutesToTimeString(next.at)
+        })
+      : ''
   }
 
   function restartScheduleTimer() {

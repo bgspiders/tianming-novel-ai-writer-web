@@ -1,30 +1,40 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from '@/composables/useI18n'
 import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
 const themeStore = useThemeStore()
+const { t } = useI18n()
 
 const quickActions = computed(() => [
-  { label: 'Theme Studio', path: '/settings/themes', type: 'primary' as const },
-  { label: 'Chapter Editor', path: '/editor/chapters', type: 'success' as const },
-  { label: 'Design Modules', path: '/design/world_rules', type: 'default' as const },
-  { label: 'Health Check', path: '/health', type: 'info' as const }
+  { label: t('home.quickActions.aiModels'), path: '/settings/ai-models', type: 'primary' as const },
+  { label: t('home.quickActions.bookAnalyses'), path: '/design/book_analyses', type: 'default' as const },
+  { label: t('home.quickActions.creativeMaterials'), path: '/design/creative_materials', type: 'success' as const },
+  { label: t('home.quickActions.outlines'), path: '/generate/outlines', type: 'warning' as const },
+  { label: t('home.quickActions.generationWorkbench'), path: '/generate', type: 'info' as const },
+  { label: t('home.quickActions.aiAssistant'), path: '/ai-assistant', type: 'default' as const }
 ])
+
+const currentTheme = computed(() => t('home.preview.current', { theme: themeStore.effectiveTheme.label }))
+const previewMode = computed(() => t('home.preview.mode', { mode: t(`home.preview.modeValue.${themeStore.mode}`) }))
+const previewSource = computed(() => t('home.preview.source', { source: t(`home.preview.sourceValue.${themeStore.currentSource}`) }))
+const previewHoliday = computed(() =>
+  t('home.preview.holiday', { holiday: themeStore.activeHoliday || t('home.preview.none') })
+)
+const previewNext = computed(() =>
+  t('home.preview.next', { next: themeStore.nextScheduledThemeAt || t('home.preview.notScheduled') })
+)
 </script>
 
 <template>
   <div class="home">
     <section class="hero tm-panel">
       <div class="hero-copy">
-        <div class="eyebrow">TM Web Migration</div>
-        <h1>Stage 9 Theme System</h1>
-        <p>
-          The frontend now carries a full theme system instead of the earlier light and dark shell:
-          built-in palettes, system follow, time scheduling, sunrise and sunset switching,
-          holiday overrides, image color extraction, and AI-style palette generation.
-        </p>
+        <div class="eyebrow">{{ t('home.eyebrow') }}</div>
+        <h1>{{ t('home.title') }}</h1>
+        <p>{{ t('home.summary') }}</p>
         <el-space wrap :size="12">
           <el-button
             v-for="action in quickActions"
@@ -37,12 +47,12 @@ const quickActions = computed(() => [
         </el-space>
       </div>
       <div class="hero-preview" :style="{ background: themeStore.effectiveTheme.hero }">
-        <div class="preview-chip">Current: {{ themeStore.effectiveTheme.label }}</div>
+        <div class="preview-chip">{{ currentTheme }}</div>
         <div class="preview-card">
-          <div class="preview-line strong">Mode: {{ themeStore.mode }}</div>
-          <div class="preview-line">Source: {{ themeStore.currentSource }}</div>
-          <div class="preview-line">Holiday: {{ themeStore.activeHoliday || 'None' }}</div>
-          <div class="preview-line">Next: {{ themeStore.nextScheduledThemeAt || 'Not scheduled' }}</div>
+          <div class="preview-line strong">{{ previewMode }}</div>
+          <div class="preview-line">{{ previewSource }}</div>
+          <div class="preview-line">{{ previewHoliday }}</div>
+          <div class="preview-line">{{ previewNext }}</div>
         </div>
       </div>
     </section>
@@ -50,27 +60,25 @@ const quickActions = computed(() => [
     <section class="grid">
       <el-card shadow="never" class="panel">
         <template #header>
-          <div class="panel-title">Theme Capabilities</div>
+          <div class="panel-title">{{ t('home.sections.currentFocus') }}</div>
         </template>
         <ul class="feature-list">
-          <li>Multiple built-in palettes mapped from the desktop theme set</li>
-          <li>System light and dark follow with theme remapping</li>
-          <li>Fixed-time and sunrise or sunset schedule switching</li>
-          <li>Holiday theme overrides for key dates</li>
-          <li>Image-based palette extraction using Canvas</li>
-          <li>Prompt-seeded AI-style palette generation</li>
+          <li>{{ t('home.focusItems.step1') }}</li>
+          <li>{{ t('home.focusItems.step2') }}</li>
+          <li>{{ t('home.focusItems.step3') }}</li>
+          <li>{{ t('home.focusItems.step4') }}</li>
         </ul>
       </el-card>
 
       <el-card shadow="never" class="panel">
         <template #header>
-          <div class="panel-title">Runtime</div>
+          <div class="panel-title">{{ t('home.sections.runtime') }}</div>
         </template>
         <ul class="feature-list">
-          <li>Backend: <code>http://localhost:38721</code></li>
-          <li>Frontend: <code>http://localhost:38720</code></li>
-          <li>Swagger: <code>http://localhost:38721/swagger</code></li>
-          <li>Theme state persists in local storage.</li>
+          <li>{{ t('home.runtimeItems.backend', { url: 'http://localhost:38721' }) }}</li>
+          <li>{{ t('home.runtimeItems.frontend', { url: 'http://localhost:38720' }) }}</li>
+          <li>{{ t('home.runtimeItems.swagger', { url: 'http://localhost:38721/swagger' }) }}</li>
+          <li>{{ t('home.runtimeItems.theme') }}</li>
         </ul>
       </el-card>
     </section>

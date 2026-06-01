@@ -28,6 +28,17 @@ export interface GenerationStatistics {
   lastUpdatedAt: string
 }
 
+export interface PackageContextResult {
+  manifestId: string
+  projectId: string
+  version: number
+  sourceBookId?: string | null
+  publishedAt: string
+  fileCount: number
+  enabledModuleCount: number
+  statistics: string
+}
+
 export async function listGenerationRecords(projectId: string, chapterId?: string | null, take = 50): Promise<GenerationRecord[]> {
   const params: Record<string, string | number> = { projectId, take }
   if (chapterId) params.chapterId = chapterId
@@ -37,5 +48,13 @@ export async function listGenerationRecords(projectId: string, chapterId?: strin
 
 export async function getGenerationStatistics(projectId: string): Promise<GenerationStatistics> {
   const { data } = await http.get<GenerationStatistics>('/api/generation/statistics', { params: { projectId } })
+  return data
+}
+
+export async function packageGenerationContext(projectId: string, sourceBookId?: string | null): Promise<PackageContextResult> {
+  const { data } = await http.post<PackageContextResult>('/api/generation/package-context', {
+    projectId,
+    sourceBookId: sourceBookId || null
+  })
   return data
 }

@@ -1,0 +1,11 @@
+{
+  "Module": "RelationStrengthIndex",
+  "SourceBookId": "sb_neon_tide",
+  "Pairs": {
+    "林砚|沈栀": {
+      "Strength": 32,
+      "Relation": "临时盟友",
+      "LastUpdatedChapter": "vol1_ch2"
+    }
+  }
+}

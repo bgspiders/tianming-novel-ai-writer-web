@@ -1,0 +1,36 @@
+{
+  "Module": "LocationStateGuide",
+  "SourceBookId": "sb_neon_tide",
+  "Locations": {
+    "loc_lower_bridge": {
+      "Name": "浮桥棚户区",
+      "CurrentStatus": "under-lockdown",
+      "StateHistory": [
+        {
+          "Chapter": "vol1_ch1",
+          "Status": "unstable",
+          "Event": "旧泵站过载并出现离线灵潮警报。",
+          "Importance": "high"
+        },
+        {
+          "Chapter": "vol1_ch2",
+          "Status": "under-lockdown",
+          "Event": "沈栀以审计权限封锁旧泵站外围。",
+          "Importance": "high"
+        }
+      ]
+    },
+    "loc_tide_tower": {
+      "Name": "第三潮汐塔",
+      "CurrentStatus": "targeted",
+      "StateHistory": [
+        {
+          "Chapter": "vol1_ch1",
+          "Status": "targeted",
+          "Event": "离线警报投出审计桥坐标。",
+          "Importance": "high"
+        }
+      ]
+    }
+  }
+}

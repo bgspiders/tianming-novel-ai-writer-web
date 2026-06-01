@@ -4,6 +4,8 @@ public sealed class AiTestRequest
 {
     public string RunId { get; set; } = string.Empty;
 
+    public string? ConfigId { get; set; }
+
     public string Provider { get; set; } = "openai-compatible";
 
     public string Endpoint { get; set; } = string.Empty;

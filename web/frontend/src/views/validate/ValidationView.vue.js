@@ -1,8 +1,10 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { useI18n } from '@/composables/useI18n';
 import { useWorkContextStore } from '@/stores/workContext';
 import { getFactSnapshot, listValidationReports, listValidationSummaries, runValidation, updateValidationReportChapterStatus } from '@/api/modules/validation';
 const workContext = useWorkContextStore();
+const { t } = useI18n();
 const loading = ref(false);
 const running = ref(false);
 const summaries = ref([]);
@@ -12,10 +14,14 @@ const updatingReportId = ref('');
 const selectedVolumeNumber = computed(() => workContext.selectedVolume?.volumeNumber ?? null);
 const targetLabel = computed(() => {
     if (!workContext.selectedProject)
-        return '未选择项目';
+        return t('validationWorkbench.target.noProjectSelected');
     if (!workContext.selectedVolume)
         return workContext.selectedProject.name;
-    return `${workContext.selectedProject.name} / 第 ${workContext.selectedVolume.volumeNumber} 卷`;
+    return t('validationWorkbench.target.volume', {
+        project: workContext.selectedProject.name,
+        number: workContext.selectedVolume.volumeNumber,
+        title: workContext.selectedVolume.title
+    });
 });
 function resultType(result) {
     if (result === 'passed')
@@ -23,6 +29,13 @@ function resultType(result) {
     if (result === 'failed')
         return 'danger';
     return 'warning';
+}
+function resultLabel(result) {
+    if (result === 'passed')
+        return t('validationWorkbench.result.passed');
+    if (result === 'failed')
+        return t('validationWorkbench.result.failed');
+    return t('validationWorkbench.result.warning');
 }
 function statusType(status) {
     if (status === 'validated')
@@ -32,6 +45,23 @@ function statusType(status) {
     if (status === 'drafted')
         return 'warning';
     return 'info';
+}
+function statusLabel(status) {
+    if (!status)
+        return '-';
+    if (status === 'validated')
+        return t('validationWorkbench.chapterStatus.validated');
+    if (status === 'needs_fix')
+        return t('validationWorkbench.chapterStatus.needsFix');
+    if (status === 'drafted')
+        return t('validationWorkbench.chapterStatus.drafted');
+    if (status === 'planned')
+        return t('validationWorkbench.chapterStatus.planned');
+    if (status === 'blueprinted')
+        return t('validationWorkbench.chapterStatus.blueprinted');
+    if (status === 'archived')
+        return t('validationWorkbench.chapterStatus.archived');
+    return status;
 }
 function formatTime(value) {
     return value ? new Date(value).toLocaleString() : '-';
@@ -51,19 +81,101 @@ const factOverviewCards = computed(() => {
     if (!overview)
         return [];
     return [
-        { label: '章节范围', value: overview.chapterCount, hint: '当前快照覆盖章节' },
-        { label: '角色状态', value: overview.characterStateCount, hint: `${overview.characterStatePointCount} 条状态点` },
-        { label: '角色设定', value: overview.characterDescriptionCount, hint: 'Design CharacterRule' },
-        { label: '冲突进度', value: overview.conflictProgressCount, hint: `${overview.conflictProgressPointCount} 条推进点` },
-        { label: '势力状态', value: overview.factionStateCount, hint: `${overview.factionStatePointCount} 条状态点` },
-        { label: '地点状态', value: overview.locationStateCount, hint: `${overview.locationStatePointCount} 条状态点` },
-        { label: '地点设定', value: overview.locationDescriptionCount, hint: 'Design LocationRule' },
-        { label: '世界约束', value: overview.worldRuleConstraintCount, hint: '硬规则/特殊法则' },
-        { label: '角色位置', value: overview.characterLocationCount, hint: `${overview.characterMovementCount} 条移动` },
-        { label: '物品状态', value: overview.itemStateCount, hint: `${overview.itemStatePointCount} 条状态点` },
-        { label: '伏笔', value: overview.foreshadowingCount, hint: `未回收 ${overview.unresolvedForeshadowingCount} · 逾期 ${overview.overdueForeshadowingCount}` },
-        { label: '情节点', value: overview.plotPointCount, hint: `${overview.timelineCount} 条时间线` },
-        { label: '卷归档', value: overview.volumeArchiveCount, hint: 'VolumeFactArchive' }
+        {
+            key: 'chapters',
+            label: t('validationWorkbench.factOverview.chapters.label'),
+            value: overview.chapterCount,
+            hint: t('validationWorkbench.factOverview.chapters.hint')
+        },
+        {
+            key: 'characterStates',
+            label: t('validationWorkbench.factOverview.characterStates.label'),
+            value: overview.characterStateCount,
+            hint: t('validationWorkbench.factOverview.characterStates.hint', {
+                count: overview.characterStatePointCount
+            })
+        },
+        {
+            key: 'characterRules',
+            label: t('validationWorkbench.factOverview.characterRules.label'),
+            value: overview.characterDescriptionCount,
+            hint: t('validationWorkbench.factOverview.characterRules.hint')
+        },
+        {
+            key: 'conflictProgress',
+            label: t('validationWorkbench.factOverview.conflictProgress.label'),
+            value: overview.conflictProgressCount,
+            hint: t('validationWorkbench.factOverview.conflictProgress.hint', {
+                count: overview.conflictProgressPointCount
+            })
+        },
+        {
+            key: 'factionStates',
+            label: t('validationWorkbench.factOverview.factionStates.label'),
+            value: overview.factionStateCount,
+            hint: t('validationWorkbench.factOverview.factionStates.hint', {
+                count: overview.factionStatePointCount
+            })
+        },
+        {
+            key: 'locationStates',
+            label: t('validationWorkbench.factOverview.locationStates.label'),
+            value: overview.locationStateCount,
+            hint: t('validationWorkbench.factOverview.locationStates.hint', {
+                count: overview.locationStatePointCount
+            })
+        },
+        {
+            key: 'locationRules',
+            label: t('validationWorkbench.factOverview.locationRules.label'),
+            value: overview.locationDescriptionCount,
+            hint: t('validationWorkbench.factOverview.locationRules.hint')
+        },
+        {
+            key: 'worldConstraints',
+            label: t('validationWorkbench.factOverview.worldConstraints.label'),
+            value: overview.worldRuleConstraintCount,
+            hint: t('validationWorkbench.factOverview.worldConstraints.hint')
+        },
+        {
+            key: 'characterLocations',
+            label: t('validationWorkbench.factOverview.characterLocations.label'),
+            value: overview.characterLocationCount,
+            hint: t('validationWorkbench.factOverview.characterLocations.hint', {
+                count: overview.characterMovementCount
+            })
+        },
+        {
+            key: 'itemStates',
+            label: t('validationWorkbench.factOverview.itemStates.label'),
+            value: overview.itemStateCount,
+            hint: t('validationWorkbench.factOverview.itemStates.hint', {
+                count: overview.itemStatePointCount
+            })
+        },
+        {
+            key: 'foreshadowing',
+            label: t('validationWorkbench.factOverview.foreshadowing.label'),
+            value: overview.foreshadowingCount,
+            hint: t('validationWorkbench.factOverview.foreshadowing.hint', {
+                unresolved: overview.unresolvedForeshadowingCount,
+                overdue: overview.overdueForeshadowingCount
+            })
+        },
+        {
+            key: 'plotPoints',
+            label: t('validationWorkbench.factOverview.plotPoints.label'),
+            value: overview.plotPointCount,
+            hint: t('validationWorkbench.factOverview.plotPoints.hint', {
+                count: overview.timelineCount
+            })
+        },
+        {
+            key: 'volumeArchives',
+            label: t('validationWorkbench.factOverview.volumeArchives.label'),
+            value: overview.volumeArchiveCount,
+            hint: t('validationWorkbench.factOverview.volumeArchives.hint')
+        }
     ];
 });
 async function refresh() {
@@ -86,7 +198,7 @@ async function refresh() {
         facts.value = factSnapshot;
     }
     catch (err) {
-        ElMessage.error(err.message || '加载校验数据失败');
+        ElMessage.error(err.message || t('validationWorkbench.messages.loadFailed'));
     }
     finally {
         loading.value = false;
@@ -94,7 +206,7 @@ async function refresh() {
 }
 async function runCurrentValidation() {
     if (!workContext.selectedProjectId) {
-        ElMessage.warning('请先选择项目');
+        ElMessage.warning(t('validationWorkbench.messages.selectProjectFirst'));
         return;
     }
     running.value = true;
@@ -103,11 +215,11 @@ async function runCurrentValidation() {
             projectId: workContext.selectedProjectId,
             volumeNumber: selectedVolumeNumber.value
         });
-        ElMessage.success('校验完成');
+        ElMessage.success(t('validationWorkbench.messages.runSuccess'));
         await refresh();
     }
     catch (err) {
-        ElMessage.error(err.message || '校验失败');
+        ElMessage.error(err.message || t('validationWorkbench.messages.runFailed'));
     }
     finally {
         running.value = false;
@@ -116,12 +228,16 @@ async function runCurrentValidation() {
 async function markChapterStatus(report, status) {
     updatingReportId.value = report.id;
     try {
-        await updateValidationReportChapterStatus(report.id, status, status === 'needs_fix' ? '校验报告标记待修复' : '校验报告标记已验证');
-        ElMessage.success(status === 'needs_fix' ? '已标记待修复' : '已标记已验证');
+        await updateValidationReportChapterStatus(report.id, status, status === 'needs_fix'
+            ? t('validationWorkbench.messages.markNeedsFixReason')
+            : t('validationWorkbench.messages.markValidatedReason'));
+        ElMessage.success(status === 'needs_fix'
+            ? t('validationWorkbench.messages.markNeedsFixSuccess')
+            : t('validationWorkbench.messages.markValidatedSuccess'));
         await refresh();
     }
     catch (err) {
-        ElMessage.error(err.message || '更新章节状态失败');
+        ElMessage.error(err.message || t('validationWorkbench.messages.updateStatusFailed'));
     }
     finally {
         updatingReportId.value = '';
@@ -151,10 +267,13 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "eyebrow" },
 });
+(__VLS_ctx.t('validationWorkbench.eyebrow'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h1, __VLS_intrinsicElements.h1)({});
+(__VLS_ctx.t('validationWorkbench.title'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "subtitle" },
 });
+(__VLS_ctx.t('validationWorkbench.subtitle'));
 const __VLS_0 = {}.ElCard;
 /** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
 // @ts-ignore
@@ -170,6 +289,7 @@ __VLS_3.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
     ...{ class: "context-label" },
 });
+(__VLS_ctx.t('validationWorkbench.currentTarget'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
 (__VLS_ctx.targetLabel);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -193,6 +313,7 @@ const __VLS_11 = {
     onClick: (__VLS_ctx.refresh)
 };
 __VLS_7.slots.default;
+(__VLS_ctx.t('validationWorkbench.actions.refresh'));
 var __VLS_7;
 const __VLS_12 = {}.ElButton;
 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -214,6 +335,7 @@ const __VLS_19 = {
     onClick: (__VLS_ctx.runCurrentValidation)
 };
 __VLS_15.slots.default;
+(__VLS_ctx.t('validationWorkbench.actions.runValidation'));
 var __VLS_15;
 var __VLS_3;
 const __VLS_20 = {}.ElRow;
@@ -253,16 +375,17 @@ __VLS_31.slots.default;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
+    (__VLS_ctx.t('validationWorkbench.panels.summaries'));
 }
 if (__VLS_ctx.summaries.length === 0) {
     const __VLS_32 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
-        description: "暂无汇总",
+        description: (__VLS_ctx.t('validationWorkbench.empty.summaries')),
     }));
     const __VLS_34 = __VLS_33({
-        description: "暂无汇总",
+        description: (__VLS_ctx.t('validationWorkbench.empty.summaries')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_33));
 }
 for (const [summary] of __VLS_getVForSourceType((__VLS_ctx.summaries))) {
@@ -274,7 +397,9 @@ for (const [summary] of __VLS_getVForSourceType((__VLS_ctx.summaries))) {
         ...{ class: "summary-head" },
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-    (summary.targetVolumeNumber === 0 ? '全书' : `第 ${summary.targetVolumeNumber} 卷`);
+    (summary.targetVolumeNumber === 0
+        ? __VLS_ctx.t('validationWorkbench.projectScope')
+        : __VLS_ctx.t('validationWorkbench.volumeScope', { number: summary.targetVolumeNumber }));
     const __VLS_36 = {}.ElTag;
     /** @type {[typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ]} */ ;
     // @ts-ignore
@@ -285,11 +410,12 @@ for (const [summary] of __VLS_getVForSourceType((__VLS_ctx.summaries))) {
         type: (__VLS_ctx.resultType(summary.overallResult)),
     }, ...__VLS_functionalComponentArgsRest(__VLS_37));
     __VLS_39.slots.default;
-    (summary.overallResult);
+    (__VLS_ctx.resultLabel(summary.overallResult));
     var __VLS_39;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "meta" },
     });
+    (__VLS_ctx.t('validationWorkbench.validatedAt'));
     (__VLS_ctx.formatTime(summary.lastValidatedAt));
     const __VLS_40 = {}.ElCollapse;
     /** @type {[typeof __VLS_components.ElCollapse, typeof __VLS_components.elCollapse, typeof __VLS_components.ElCollapse, typeof __VLS_components.elCollapse, ]} */ ;
@@ -301,11 +427,11 @@ for (const [summary] of __VLS_getVForSourceType((__VLS_ctx.summaries))) {
     /** @type {[typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, ]} */ ;
     // @ts-ignore
     const __VLS_45 = __VLS_asFunctionalComponent(__VLS_44, new __VLS_44({
-        title: "ModuleResults",
+        title: (__VLS_ctx.t('validationWorkbench.moduleResults')),
         name: (`${summary.id}-modules`),
     }));
     const __VLS_46 = __VLS_45({
-        title: "ModuleResults",
+        title: (__VLS_ctx.t('validationWorkbench.moduleResults')),
         name: (`${summary.id}-modules`),
     }, ...__VLS_functionalComponentArgsRest(__VLS_45));
     __VLS_47.slots.default;
@@ -316,11 +442,11 @@ for (const [summary] of __VLS_getVForSourceType((__VLS_ctx.summaries))) {
     /** @type {[typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, ]} */ ;
     // @ts-ignore
     const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
-        title: "ProblemItems",
+        title: (__VLS_ctx.t('validationWorkbench.problemItems')),
         name: (`${summary.id}-problems`),
     }));
     const __VLS_50 = __VLS_49({
-        title: "ProblemItems",
+        title: (__VLS_ctx.t('validationWorkbench.problemItems')),
         name: (`${summary.id}-problems`),
     }, ...__VLS_functionalComponentArgsRest(__VLS_49));
     __VLS_51.slots.default;
@@ -358,6 +484,7 @@ __VLS_59.slots.default;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
+    (__VLS_ctx.t('validationWorkbench.panels.reports'));
 }
 const __VLS_60 = {}.ElTable;
 /** @type {[typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ]} */ ;
@@ -378,19 +505,23 @@ const __VLS_64 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({
-    label: "章节",
+    label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
     minWidth: "180",
 }));
 const __VLS_66 = __VLS_65({
-    label: "章节",
+    label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
     minWidth: "180",
 }, ...__VLS_functionalComponentArgsRest(__VLS_65));
 __VLS_67.slots.default;
 {
     const { default: __VLS_thisSlot } = __VLS_67.slots;
     const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
-    (row.chapterNumber || '-');
-    (row.chapterTitle || row.chapterId);
+    (row.chapterNumber
+        ? __VLS_ctx.t('validationWorkbench.chapterDisplay', {
+            number: row.chapterNumber,
+            title: row.chapterTitle || row.chapterId
+        })
+        : row.chapterTitle || row.chapterId);
 }
 var __VLS_67;
 const __VLS_68 = {}.ElTableColumn;
@@ -398,23 +529,23 @@ const __VLS_68 = {}.ElTableColumn;
 // @ts-ignore
 const __VLS_69 = __VLS_asFunctionalComponent(__VLS_68, new __VLS_68({
     prop: "summary",
-    label: "摘要",
+    label: (__VLS_ctx.t('validationWorkbench.columns.summary')),
     minWidth: "180",
 }));
 const __VLS_70 = __VLS_69({
     prop: "summary",
-    label: "摘要",
+    label: (__VLS_ctx.t('validationWorkbench.columns.summary')),
     minWidth: "180",
 }, ...__VLS_functionalComponentArgsRest(__VLS_69));
 const __VLS_72 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_73 = __VLS_asFunctionalComponent(__VLS_72, new __VLS_72({
-    label: "结果",
+    label: (__VLS_ctx.t('validationWorkbench.columns.result')),
     width: "110",
 }));
 const __VLS_74 = __VLS_73({
-    label: "结果",
+    label: (__VLS_ctx.t('validationWorkbench.columns.result')),
     width: "110",
 }, ...__VLS_functionalComponentArgsRest(__VLS_73));
 __VLS_75.slots.default;
@@ -431,7 +562,7 @@ __VLS_75.slots.default;
         type: (__VLS_ctx.resultType(row.result)),
     }, ...__VLS_functionalComponentArgsRest(__VLS_77));
     __VLS_79.slots.default;
-    (row.result);
+    (__VLS_ctx.resultLabel(row.result));
     var __VLS_79;
 }
 var __VLS_75;
@@ -439,11 +570,11 @@ const __VLS_80 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_81 = __VLS_asFunctionalComponent(__VLS_80, new __VLS_80({
-    label: "章节状态",
+    label: (__VLS_ctx.t('validationWorkbench.columns.chapterStatus')),
     width: "120",
 }));
 const __VLS_82 = __VLS_81({
-    label: "章节状态",
+    label: (__VLS_ctx.t('validationWorkbench.columns.chapterStatus')),
     width: "120",
 }, ...__VLS_functionalComponentArgsRest(__VLS_81));
 __VLS_83.slots.default;
@@ -460,7 +591,7 @@ __VLS_83.slots.default;
         type: (__VLS_ctx.statusType(row.chapterStatus)),
     }, ...__VLS_functionalComponentArgsRest(__VLS_85));
     __VLS_87.slots.default;
-    (row.chapterStatus || '-');
+    (__VLS_ctx.statusLabel(row.chapterStatus));
     var __VLS_87;
 }
 var __VLS_83;
@@ -468,11 +599,11 @@ const __VLS_88 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_89 = __VLS_asFunctionalComponent(__VLS_88, new __VLS_88({
-    label: "时间",
+    label: (__VLS_ctx.t('validationWorkbench.columns.validatedAt')),
     width: "180",
 }));
 const __VLS_90 = __VLS_89({
-    label: "时间",
+    label: (__VLS_ctx.t('validationWorkbench.columns.validatedAt')),
     width: "180",
 }, ...__VLS_functionalComponentArgsRest(__VLS_89));
 __VLS_91.slots.default;
@@ -486,13 +617,13 @@ const __VLS_92 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_93 = __VLS_asFunctionalComponent(__VLS_92, new __VLS_92({
-    label: "修复闭环",
-    width: "210",
+    label: (__VLS_ctx.t('validationWorkbench.columns.actions')),
+    width: "220",
     fixed: "right",
 }));
 const __VLS_94 = __VLS_93({
-    label: "修复闭环",
-    width: "210",
+    label: (__VLS_ctx.t('validationWorkbench.columns.actions')),
+    width: "220",
     fixed: "right",
 }, ...__VLS_functionalComponentArgsRest(__VLS_93));
 __VLS_95.slots.default;
@@ -530,6 +661,7 @@ __VLS_95.slots.default;
         }
     };
     __VLS_99.slots.default;
+    (__VLS_ctx.t('validationWorkbench.actions.markNeedsFix'));
     var __VLS_99;
     const __VLS_104 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -559,6 +691,7 @@ __VLS_95.slots.default;
         }
     };
     __VLS_107.slots.default;
+    (__VLS_ctx.t('validationWorkbench.actions.markValidated'));
     var __VLS_107;
 }
 var __VLS_95;
@@ -594,25 +727,25 @@ __VLS_115.slots.default;
     // @ts-ignore
     const __VLS_121 = __VLS_asFunctionalComponent(__VLS_120, new __VLS_120({
         prop: "name",
-        label: "检查项",
-        width: "130",
+        label: (__VLS_ctx.t('validationWorkbench.columns.check')),
+        width: "150",
     }));
     const __VLS_122 = __VLS_121({
         prop: "name",
-        label: "检查项",
-        width: "130",
+        label: (__VLS_ctx.t('validationWorkbench.columns.check')),
+        width: "150",
     }, ...__VLS_functionalComponentArgsRest(__VLS_121));
     const __VLS_124 = {}.ElTableColumn;
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_125 = __VLS_asFunctionalComponent(__VLS_124, new __VLS_124({
         prop: "details",
-        label: "详情",
+        label: (__VLS_ctx.t('validationWorkbench.columns.details')),
         minWidth: "220",
     }));
     const __VLS_126 = __VLS_125({
         prop: "details",
-        label: "详情",
+        label: (__VLS_ctx.t('validationWorkbench.columns.details')),
         minWidth: "220",
     }, ...__VLS_functionalComponentArgsRest(__VLS_125));
     const __VLS_128 = {}.ElTableColumn;
@@ -620,23 +753,23 @@ __VLS_115.slots.default;
     // @ts-ignore
     const __VLS_129 = __VLS_asFunctionalComponent(__VLS_128, new __VLS_128({
         prop: "suggestion",
-        label: "建议",
+        label: (__VLS_ctx.t('validationWorkbench.columns.suggestion')),
         minWidth: "220",
     }));
     const __VLS_130 = __VLS_129({
         prop: "suggestion",
-        label: "建议",
+        label: (__VLS_ctx.t('validationWorkbench.columns.suggestion')),
         minWidth: "220",
     }, ...__VLS_functionalComponentArgsRest(__VLS_129));
     const __VLS_132 = {}.ElTableColumn;
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_133 = __VLS_asFunctionalComponent(__VLS_132, new __VLS_132({
-        label: "结果",
+        label: (__VLS_ctx.t('validationWorkbench.columns.result')),
         width: "100",
     }));
     const __VLS_134 = __VLS_133({
-        label: "结果",
+        label: (__VLS_ctx.t('validationWorkbench.columns.result')),
         width: "100",
     }, ...__VLS_functionalComponentArgsRest(__VLS_133));
     __VLS_135.slots.default;
@@ -653,7 +786,7 @@ __VLS_115.slots.default;
             type: (__VLS_ctx.resultType(item.result)),
         }, ...__VLS_functionalComponentArgsRest(__VLS_137));
         __VLS_139.slots.default;
-        (item.result);
+        (__VLS_ctx.resultLabel(item.result));
         var __VLS_139;
     }
     var __VLS_135;
@@ -681,16 +814,17 @@ __VLS_143.slots.default;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
+    (__VLS_ctx.t('validationWorkbench.panels.factOverview'));
 }
 if (!__VLS_ctx.facts) {
     const __VLS_144 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_145 = __VLS_asFunctionalComponent(__VLS_144, new __VLS_144({
-        description: "暂无事实快照",
+        description: (__VLS_ctx.t('validationWorkbench.empty.factOverview')),
     }));
     const __VLS_146 = __VLS_145({
-        description: "暂无事实快照",
+        description: (__VLS_ctx.t('validationWorkbench.empty.factOverview')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_145));
 }
 else {
@@ -699,7 +833,7 @@ else {
     });
     for (const [card] of __VLS_getVForSourceType((__VLS_ctx.factOverviewCards))) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-            key: (card.label),
+            key: (card.key),
             ...{ class: "fact-metric" },
         });
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
@@ -728,16 +862,17 @@ __VLS_151.slots.default;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
+    (__VLS_ctx.t('validationWorkbench.panels.trackingSummary'));
 }
 if (!__VLS_ctx.facts || __VLS_ctx.facts.sections.length === 0) {
     const __VLS_152 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_153 = __VLS_asFunctionalComponent(__VLS_152, new __VLS_152({
-        description: "暂无摘要",
+        description: (__VLS_ctx.t('validationWorkbench.empty.trackingSummary')),
     }));
     const __VLS_154 = __VLS_153({
-        description: "暂无摘要",
+        description: (__VLS_ctx.t('validationWorkbench.empty.trackingSummary')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_153));
 }
 else {
@@ -753,12 +888,12 @@ else {
         // @ts-ignore
         const __VLS_161 = __VLS_asFunctionalComponent(__VLS_160, new __VLS_160({
             key: (section.key),
-            title: (`${section.title} · ${section.totalCount}`),
+            title: (`${section.title} / ${section.totalCount}`),
             name: (section.key),
         }));
         const __VLS_162 = __VLS_161({
             key: (section.key),
-            title: (`${section.title} · ${section.totalCount}`),
+            title: (`${section.title} / ${section.totalCount}`),
             name: (section.key),
         }, ...__VLS_functionalComponentArgsRest(__VLS_161));
         __VLS_163.slots.default;
@@ -785,12 +920,12 @@ else {
         // @ts-ignore
         const __VLS_169 = __VLS_asFunctionalComponent(__VLS_168, new __VLS_168({
             prop: "name",
-            label: "名称",
+            label: (__VLS_ctx.t('validationWorkbench.columns.name')),
             minWidth: "150",
         }));
         const __VLS_170 = __VLS_169({
             prop: "name",
-            label: "名称",
+            label: (__VLS_ctx.t('validationWorkbench.columns.name')),
             minWidth: "150",
         }, ...__VLS_functionalComponentArgsRest(__VLS_169));
         const __VLS_172 = {}.ElTableColumn;
@@ -798,30 +933,32 @@ else {
         // @ts-ignore
         const __VLS_173 = __VLS_asFunctionalComponent(__VLS_172, new __VLS_172({
             prop: "status",
-            label: "状态",
+            label: (__VLS_ctx.t('validationWorkbench.columns.status')),
             width: "130",
         }));
         const __VLS_174 = __VLS_173({
             prop: "status",
-            label: "状态",
+            label: (__VLS_ctx.t('validationWorkbench.columns.status')),
             width: "130",
         }, ...__VLS_functionalComponentArgsRest(__VLS_173));
         const __VLS_176 = {}.ElTableColumn;
         /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
         // @ts-ignore
         const __VLS_177 = __VLS_asFunctionalComponent(__VLS_176, new __VLS_176({
-            label: "章节",
-            width: "100",
+            label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
+            width: "120",
         }));
         const __VLS_178 = __VLS_177({
-            label: "章节",
-            width: "100",
+            label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
+            width: "120",
         }, ...__VLS_functionalComponentArgsRest(__VLS_177));
         __VLS_179.slots.default;
         {
             const { default: __VLS_thisSlot } = __VLS_179.slots;
             const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
-            (row.chapterNumber ? `第 ${row.chapterNumber} 章` : '-');
+            (row.chapterNumber
+                ? __VLS_ctx.t('validationWorkbench.chapterOnly', { number: row.chapterNumber })
+                : '-');
         }
         var __VLS_179;
         const __VLS_180 = {}.ElTableColumn;
@@ -829,12 +966,12 @@ else {
         // @ts-ignore
         const __VLS_181 = __VLS_asFunctionalComponent(__VLS_180, new __VLS_180({
             prop: "detail",
-            label: "摘要",
+            label: (__VLS_ctx.t('validationWorkbench.columns.detail')),
             minWidth: "240",
         }));
         const __VLS_182 = __VLS_181({
             prop: "detail",
-            label: "摘要",
+            label: (__VLS_ctx.t('validationWorkbench.columns.detail')),
             minWidth: "240",
         }, ...__VLS_functionalComponentArgsRest(__VLS_181));
         const __VLS_184 = {}.ElTableColumn;
@@ -842,12 +979,12 @@ else {
         // @ts-ignore
         const __VLS_185 = __VLS_asFunctionalComponent(__VLS_184, new __VLS_184({
             prop: "importance",
-            label: "等级",
+            label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
             width: "110",
         }));
         const __VLS_186 = __VLS_185({
             prop: "importance",
-            label: "等级",
+            label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
             width: "110",
         }, ...__VLS_functionalComponentArgsRest(__VLS_185));
         var __VLS_167;
@@ -893,6 +1030,7 @@ __VLS_199.slots.default;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
+    (__VLS_ctx.t('validationWorkbench.panels.timeline'));
 }
 const __VLS_200 = {}.ElTable;
 /** @type {[typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ]} */ ;
@@ -912,18 +1050,18 @@ const __VLS_204 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_205 = __VLS_asFunctionalComponent(__VLS_204, new __VLS_204({
-    label: "章节",
-    width: "150",
+    label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
+    width: "140",
 }));
 const __VLS_206 = __VLS_205({
-    label: "章节",
-    width: "150",
+    label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
+    width: "140",
 }, ...__VLS_functionalComponentArgsRest(__VLS_205));
 __VLS_207.slots.default;
 {
     const { default: __VLS_thisSlot } = __VLS_207.slots;
     const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
-    (row.chapterNumber);
+    (__VLS_ctx.t('validationWorkbench.chapterOnly', { number: row.chapterNumber }));
 }
 var __VLS_207;
 const __VLS_208 = {}.ElTableColumn;
@@ -931,12 +1069,12 @@ const __VLS_208 = {}.ElTableColumn;
 // @ts-ignore
 const __VLS_209 = __VLS_asFunctionalComponent(__VLS_208, new __VLS_208({
     prop: "timePeriod",
-    label: "时间段",
+    label: (__VLS_ctx.t('validationWorkbench.columns.timePeriod')),
     width: "160",
 }));
 const __VLS_210 = __VLS_209({
     prop: "timePeriod",
-    label: "时间段",
+    label: (__VLS_ctx.t('validationWorkbench.columns.timePeriod')),
     width: "160",
 }, ...__VLS_functionalComponentArgsRest(__VLS_209));
 const __VLS_212 = {}.ElTableColumn;
@@ -944,12 +1082,12 @@ const __VLS_212 = {}.ElTableColumn;
 // @ts-ignore
 const __VLS_213 = __VLS_asFunctionalComponent(__VLS_212, new __VLS_212({
     prop: "elapsedTime",
-    label: "经过时间",
+    label: (__VLS_ctx.t('validationWorkbench.columns.elapsed')),
     width: "150",
 }));
 const __VLS_214 = __VLS_213({
     prop: "elapsedTime",
-    label: "经过时间",
+    label: (__VLS_ctx.t('validationWorkbench.columns.elapsed')),
     width: "150",
 }, ...__VLS_functionalComponentArgsRest(__VLS_213));
 const __VLS_216 = {}.ElTableColumn;
@@ -957,12 +1095,12 @@ const __VLS_216 = {}.ElTableColumn;
 // @ts-ignore
 const __VLS_217 = __VLS_asFunctionalComponent(__VLS_216, new __VLS_216({
     prop: "keyTimeEvent",
-    label: "关键事件",
+    label: (__VLS_ctx.t('validationWorkbench.columns.keyEvent')),
     minWidth: "240",
 }));
 const __VLS_218 = __VLS_217({
     prop: "keyTimeEvent",
-    label: "关键事件",
+    label: (__VLS_ctx.t('validationWorkbench.columns.keyEvent')),
     minWidth: "240",
 }, ...__VLS_functionalComponentArgsRest(__VLS_217));
 const __VLS_220 = {}.ElTableColumn;
@@ -970,12 +1108,12 @@ const __VLS_220 = {}.ElTableColumn;
 // @ts-ignore
 const __VLS_221 = __VLS_asFunctionalComponent(__VLS_220, new __VLS_220({
     prop: "importance",
-    label: "重要性",
+    label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
     width: "110",
 }));
 const __VLS_222 = __VLS_221({
     prop: "importance",
-    label: "重要性",
+    label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
     width: "110",
 }, ...__VLS_functionalComponentArgsRest(__VLS_221));
 var __VLS_203;
@@ -1008,16 +1146,17 @@ __VLS_231.slots.default;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
+    (__VLS_ctx.t('validationWorkbench.panels.archives'));
 }
 if (!__VLS_ctx.facts || __VLS_ctx.facts.volumeArchives.length === 0) {
     const __VLS_232 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_233 = __VLS_asFunctionalComponent(__VLS_232, new __VLS_232({
-        description: "暂无归档",
+        description: (__VLS_ctx.t('validationWorkbench.empty.archives')),
     }));
     const __VLS_234 = __VLS_233({
-        description: "暂无归档",
+        description: (__VLS_ctx.t('validationWorkbench.empty.archives')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_233));
 }
 else {
@@ -1033,18 +1172,19 @@ else {
         // @ts-ignore
         const __VLS_241 = __VLS_asFunctionalComponent(__VLS_240, new __VLS_240({
             key: (archive.id),
-            title: (`第 ${archive.volumeNumber} 卷 · ${__VLS_ctx.formatTime(archive.archivedAt)}`),
+            title: (__VLS_ctx.t('validationWorkbench.archiveTitle', { number: archive.volumeNumber, time: __VLS_ctx.formatTime(archive.archivedAt) })),
             name: (archive.id),
         }));
         const __VLS_242 = __VLS_241({
             key: (archive.id),
-            title: (`第 ${archive.volumeNumber} 卷 · ${__VLS_ctx.formatTime(archive.archivedAt)}`),
+            title: (__VLS_ctx.t('validationWorkbench.archiveTitle', { number: archive.volumeNumber, time: __VLS_ctx.formatTime(archive.archivedAt) })),
             name: (archive.id),
         }, ...__VLS_functionalComponentArgsRest(__VLS_241));
         __VLS_243.slots.default;
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "meta" },
         });
+        (__VLS_ctx.t('validationWorkbench.lastChapterId'));
         (archive.lastChapterId || '-');
         __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
         (__VLS_ctx.parseJsonText(archive.snapshotPayload));
@@ -1086,6 +1226,7 @@ var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
+            t: t,
             loading: loading,
             running: running,
             summaries: summaries,
@@ -1094,7 +1235,9 @@ const __VLS_self = (await import('vue')).defineComponent({
             updatingReportId: updatingReportId,
             targetLabel: targetLabel,
             resultType: resultType,
+            resultLabel: resultLabel,
             statusType: statusType,
+            statusLabel: statusLabel,
             formatTime: formatTime,
             parseJsonText: parseJsonText,
             factOverviewCards: factOverviewCards,

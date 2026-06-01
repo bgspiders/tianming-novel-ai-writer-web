@@ -5,6 +5,7 @@ using TM.Web.Application.Dtos.Ai;
 using TM.Web.Application.Dtos.Core;
 using TM.Web.Application.Dtos.Editor;
 using TM.Web.Application.Dtos.Generate;
+using TM.Web.Application.Dtos.Validation;
 using TM.Web.Application.Services;
 using TM.Web.Domain.Entities.Core;
 using TM.Web.Infrastructure.Persistence;
@@ -88,6 +89,7 @@ public class ChapterDraftPromptRecallTests
             editor,
             new PassingGenerationGateService(),
             new GenerationStateService(db),
+            new NoOpValidationService(),
             db,
             NullLogger<ChapterDraftService>.Instance);
 
@@ -224,6 +226,24 @@ public class ChapterDraftPromptRecallTests
             => Task.CompletedTask;
 
         public Task<ChapterDto> SaveContentAsync(string id, string content, string status = "drafted", CancellationToken ct = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class NoOpValidationService : IValidationService
+    {
+        public Task<ValidationSummaryDto> RunAsync(ValidationRunRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ValidationSummaryDto>> ListSummariesAsync(string projectId, int? volumeNumber = null, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ValidationSummaryDto>>(Array.Empty<ValidationSummaryDto>());
+
+        public Task<IReadOnlyList<ValidationReportDto>> ListReportsAsync(string projectId, int? volumeNumber = null, string? chapterId = null, int take = 100, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<ValidationReportDto>>(Array.Empty<ValidationReportDto>());
+
+        public Task<ValidationReportStatusUpdateResult> UpdateReportChapterStatusAsync(string reportId, ValidationReportStatusUpdateRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<FactSnapshotDto> GetFactSnapshotAsync(string projectId, int? volumeNumber = null, CancellationToken ct = default)
             => throw new NotSupportedException();
     }
 }

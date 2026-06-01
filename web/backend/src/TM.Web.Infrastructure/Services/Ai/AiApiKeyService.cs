@@ -73,6 +73,10 @@ public class AiApiKeyService : IAiApiKeyService
         var entity = await _db.AiApiKeys.FindAsync(new object?[] { id }, ct)
                      ?? throw new InvalidOperationException("Key 不存在。");
 
+        if (!await _db.AiProviders.AnyAsync(p => p.Id == input.ProviderId, ct))
+            throw new InvalidOperationException("Provider 不存在。");
+
+        entity.ProviderId = input.ProviderId;
         entity.Name = input.Name;
         entity.IsEnabled = input.IsEnabled;
         entity.RotationOrder = input.RotationOrder;

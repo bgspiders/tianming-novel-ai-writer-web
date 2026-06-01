@@ -250,6 +250,15 @@ export interface CreativeMaterial extends DesignBase {
 
 export type CreativeMaterialUpsert = Omit<CreativeMaterial, 'id' | 'createdAt' | 'updatedAt'>
 
+export interface SkeletonBuildResult {
+  sourceBookId: string | null
+  ruleCount: number
+  outlineCount: number
+  volumeDesignCount: number
+  chapterPlanCount: number
+  chapterBlueprintCount: number
+}
+
 export const creativeMaterialsApi = {
   list: async (p?: DesignListParams): Promise<CreativeMaterial[]> =>
     (await http.get<CreativeMaterial[]>('/api/design/creative-materials', { params: buildParams(p) })).data,
@@ -259,6 +268,10 @@ export const creativeMaterialsApi = {
     (await http.get<CreativeMaterial>(`/api/design/creative-materials/${id}`)).data,
   create: async (input: CreativeMaterialUpsert): Promise<CreativeMaterial> =>
     (await http.post<CreativeMaterial>('/api/design/creative-materials', input)).data,
+  createFromBookAnalysis: async (bookAnalysisId: string): Promise<CreativeMaterial> =>
+    (await http.post<CreativeMaterial>(`/api/design/creative-materials/from-book-analysis/${bookAnalysisId}`)).data,
+  buildSkeleton: async (id: string): Promise<SkeletonBuildResult> =>
+    (await http.post<SkeletonBuildResult>(`/api/design/creative-materials/${id}/build-skeleton`)).data,
   update: async (id: string, input: CreativeMaterialUpsert): Promise<CreativeMaterial> =>
     (await http.put<CreativeMaterial>(`/api/design/creative-materials/${id}`, input)).data,
   remove: async (id: string): Promise<void> => {
@@ -279,6 +292,11 @@ export interface BookAnalysis extends DesignBase {
   chapterCount: number
   totalWordCount: number
   crawledAt: string | null
+  backgroundAiStatus: string
+  backgroundAiJobId: string | null
+  backgroundAiRequestedAt: string | null
+  backgroundAiFinishedAt: string | null
+  backgroundAiMessage: string
   worldBuildingMethod: string
   powerSystemDesign: string
   environmentDescription: string
@@ -337,6 +355,12 @@ export interface BookAnalysisCrawlPreview {
   chapters: BookAnalysisCrawlChapter[]
 }
 
+export interface BookAnalysisBackgroundAnalyzeAccepted {
+  jobId: string
+  bookAnalysisId: string
+  status: string
+}
+
 export const bookAnalysesApi = {
   list: async (p?: DesignListParams): Promise<BookAnalysis[]> =>
     (await http.get<BookAnalysis[]>('/api/design/book-analyses', { params: buildParams(p) })).data,
@@ -350,6 +374,26 @@ export const bookAnalysesApi = {
     includeContent?: boolean
   }): Promise<BookAnalysisCrawlPreview> =>
     (await http.post<BookAnalysisCrawlPreview>('/api/design/book-analyses/crawl-preview', input)).data,
+  aiAnalyze: async (input: {
+    providerId: string
+    apiKeyId?: string | null
+    endpoint: string
+    model: string
+    preview: BookAnalysisCrawlPreview
+    maxTokens?: number
+  }): Promise<BookAnalysisCrawlPreview> =>
+    (await http.post<BookAnalysisCrawlPreview>('/api/design/book-analyses/ai-analyze', input)).data,
+  queueAiAnalyze: async (
+    id: string,
+    input: {
+      providerId: string
+      apiKeyId?: string | null
+      endpoint: string
+      model: string
+      maxTokens?: number
+    }
+  ): Promise<BookAnalysisBackgroundAnalyzeAccepted> =>
+    (await http.post<BookAnalysisBackgroundAnalyzeAccepted>(`/api/design/book-analyses/${id}/ai-analyze-jobs`, input)).data,
   create: async (input: BookAnalysisUpsert): Promise<BookAnalysis> =>
     (await http.post<BookAnalysis>('/api/design/book-analyses', input)).data,
   update: async (id: string, input: BookAnalysisUpsert): Promise<BookAnalysis> =>
@@ -530,15 +574,15 @@ export interface DesignModuleMeta {
 }
 
 export const DESIGN_MODULES: DesignModuleMeta[] = [
-  { key: 'world_rules', label: 'World Rules', icon: 'WR', hasSourceBookScope: true },
-  { key: 'character_rules', label: 'Character Rules', icon: 'CR', hasSourceBookScope: true },
-  { key: 'faction_rules', label: 'Faction Rules', icon: 'FR', hasSourceBookScope: true },
-  { key: 'location_rules', label: 'Location Rules', icon: 'LR', hasSourceBookScope: true },
-  { key: 'plot_rules', label: 'Plot Rules', icon: 'PR', hasSourceBookScope: true },
-  { key: 'creative_materials', label: 'Creative Materials', icon: 'CM', hasSourceBookScope: true },
-  { key: 'book_analyses', label: 'Book Analyses', icon: 'BA', hasSourceBookScope: false },
-  { key: 'outlines', label: 'Outlines', icon: 'OL', hasSourceBookScope: true },
-  { key: 'volume_designs', label: 'Volume Designs', icon: 'VD', hasSourceBookScope: true },
-  { key: 'chapter_plans', label: 'Chapter Plans', icon: 'CP', hasSourceBookScope: true },
-  { key: 'chapter_blueprints', label: 'Chapter Blueprints', icon: 'CB', hasSourceBookScope: true }
+  { key: 'world_rules', label: '世界规则', icon: '世', hasSourceBookScope: true },
+  { key: 'character_rules', label: '角色规则', icon: '角', hasSourceBookScope: true },
+  { key: 'faction_rules', label: '势力规则', icon: '势', hasSourceBookScope: true },
+  { key: 'location_rules', label: '地点规则', icon: '地', hasSourceBookScope: true },
+  { key: 'plot_rules', label: '剧情规则', icon: '剧', hasSourceBookScope: true },
+  { key: 'creative_materials', label: '创意素材', icon: '材', hasSourceBookScope: true },
+  { key: 'book_analyses', label: '拆书分析', icon: '拆', hasSourceBookScope: false },
+  { key: 'outlines', label: '大纲', icon: '纲', hasSourceBookScope: true },
+  { key: 'volume_designs', label: '卷设计', icon: '卷', hasSourceBookScope: true },
+  { key: 'chapter_plans', label: '章节计划', icon: '章', hasSourceBookScope: true },
+  { key: 'chapter_blueprints', label: '章节蓝图', icon: '图', hasSourceBookScope: true }
 ]

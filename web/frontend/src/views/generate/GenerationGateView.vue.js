@@ -1,9 +1,11 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { useI18n } from '@/composables/useI18n';
 import { useWorkContextStore } from '@/stores/workContext';
 import { getGenerationStatistics, listGenerationRecords } from '@/api/modules/generation';
 const workContext = useWorkContextStore();
+const { t } = useI18n();
 const loading = ref(false);
 const records = ref([]);
 const stats = ref(null);
@@ -54,7 +56,7 @@ async function refresh() {
         records.value = nextRecords;
     }
     catch (err) {
-        ElMessage.error(err.message ?? '加载生成门禁记录失败');
+        ElMessage.error(err.message ?? t('generationGate.loadFailed'));
     }
     finally {
         loading.value = false;
@@ -92,6 +94,7 @@ __VLS_3.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
     ...{ class: "stat-label" },
 });
+(__VLS_ctx.t('generationGate.stats.totalRuns'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
 (__VLS_ctx.stats?.totalGenerations ?? 0);
 var __VLS_3;
@@ -108,6 +111,7 @@ __VLS_7.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
     ...{ class: "stat-label" },
 });
+(__VLS_ctx.t('generationGate.stats.firstPass'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
 (__VLS_ctx.stats?.firstPassCount ?? 0);
 var __VLS_7;
@@ -124,6 +128,7 @@ __VLS_11.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
     ...{ class: "stat-label" },
 });
+(__VLS_ctx.t('generationGate.stats.failures'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
 (__VLS_ctx.stats?.failureCount ?? 0);
 var __VLS_11;
@@ -140,6 +145,7 @@ __VLS_15.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
     ...{ class: "stat-label" },
 });
+(__VLS_ctx.t('generationGate.stats.passRate'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
 (__VLS_ctx.passRate);
 var __VLS_15;
@@ -159,6 +165,7 @@ __VLS_19.slots.default;
         ...{ class: "panel-head" },
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.t('generationGate.title'));
     const __VLS_20 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
     // @ts-ignore
@@ -181,6 +188,7 @@ __VLS_19.slots.default;
         onClick: (__VLS_ctx.refresh)
     };
     __VLS_23.slots.default;
+    (__VLS_ctx.t('generationGate.refresh'));
     var __VLS_23;
 }
 if (!__VLS_ctx.canLoad) {
@@ -188,10 +196,10 @@ if (!__VLS_ctx.canLoad) {
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({
-        description: "请先在顶栏选择 Project",
+        description: (__VLS_ctx.t('generationGate.emptyProject')),
     }));
     const __VLS_30 = __VLS_29({
-        description: "请先在顶栏选择 Project",
+        description: (__VLS_ctx.t('generationGate.emptyProject')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_29));
 }
 else {
@@ -212,11 +220,11 @@ else {
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({
-        label: "结果",
+        label: (__VLS_ctx.t('generationGate.result')),
         width: "86",
     }));
     const __VLS_38 = __VLS_37({
-        label: "结果",
+        label: (__VLS_ctx.t('generationGate.result')),
         width: "86",
     }, ...__VLS_functionalComponentArgsRest(__VLS_37));
     __VLS_39.slots.default;
@@ -235,7 +243,7 @@ else {
             type: (row.success ? 'success' : 'danger'),
         }, ...__VLS_functionalComponentArgsRest(__VLS_41));
         __VLS_43.slots.default;
-        (row.success ? '成功' : '失败');
+        (row.success ? __VLS_ctx.t('generationGate.success') : __VLS_ctx.t('generationGate.failed'));
         var __VLS_43;
     }
     var __VLS_39;
@@ -243,12 +251,12 @@ else {
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_45 = __VLS_asFunctionalComponent(__VLS_44, new __VLS_44({
-        label: "章节",
+        label: (__VLS_ctx.t('generationGate.chapter')),
         prop: "chapterId",
         minWidth: "180",
     }));
     const __VLS_46 = __VLS_45({
-        label: "章节",
+        label: (__VLS_ctx.t('generationGate.chapter')),
         prop: "chapterId",
         minWidth: "180",
     }, ...__VLS_functionalComponentArgsRest(__VLS_45));
@@ -256,37 +264,37 @@ else {
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
-        label: "尝试",
+        label: (__VLS_ctx.t('generationGate.attempts')),
         prop: "totalAttempts",
-        width: "70",
+        width: "80",
     }));
     const __VLS_50 = __VLS_49({
-        label: "尝试",
+        label: (__VLS_ctx.t('generationGate.attempts')),
         prop: "totalAttempts",
-        width: "70",
+        width: "80",
     }, ...__VLS_functionalComponentArgsRest(__VLS_49));
     const __VLS_52 = {}.ElTableColumn;
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({
-        label: "重写",
+        label: (__VLS_ctx.t('generationGate.rewrites')),
         prop: "rewriteCount",
-        width: "70",
+        width: "80",
     }));
     const __VLS_54 = __VLS_53({
-        label: "重写",
+        label: (__VLS_ctx.t('generationGate.rewrites')),
         prop: "rewriteCount",
-        width: "70",
+        width: "80",
     }, ...__VLS_functionalComponentArgsRest(__VLS_53));
     const __VLS_56 = {}.ElTableColumn;
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_57 = __VLS_asFunctionalComponent(__VLS_56, new __VLS_56({
-        label: "门禁阶段",
+        label: (__VLS_ctx.t('generationGate.gateStages')),
         minWidth: "180",
     }));
     const __VLS_58 = __VLS_57({
-        label: "门禁阶段",
+        label: (__VLS_ctx.t('generationGate.gateStages')),
         minWidth: "180",
     }, ...__VLS_functionalComponentArgsRest(__VLS_57));
     __VLS_59.slots.default;
@@ -318,6 +326,7 @@ else {
             __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
                 ...{ class: "muted" },
             });
+            (__VLS_ctx.t('generationGate.none'));
         }
     }
     var __VLS_59;
@@ -325,12 +334,12 @@ else {
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({
-        label: "开始时间",
+        label: (__VLS_ctx.t('generationGate.startedAt')),
         prop: "startedAt",
         minWidth: "180",
     }));
     const __VLS_66 = __VLS_65({
-        label: "开始时间",
+        label: (__VLS_ctx.t('generationGate.startedAt')),
         prop: "startedAt",
         minWidth: "180",
     }, ...__VLS_functionalComponentArgsRest(__VLS_65));
@@ -362,7 +371,7 @@ else {
                 ...{ class: "attempt-head" },
             });
             __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
-            (attempt.attempt ?? '-');
+            (__VLS_ctx.t('generationGate.attempt', { value: attempt.attempt ?? '-' }));
             const __VLS_72 = {}.ElTag;
             /** @type {[typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ]} */ ;
             // @ts-ignore
@@ -375,13 +384,14 @@ else {
                 type: (__VLS_ctx.gateTagType(attempt)),
             }, ...__VLS_functionalComponentArgsRest(__VLS_73));
             __VLS_75.slots.default;
-            (attempt.gate?.success ? '门禁通过' : '门禁失败');
+            (attempt.gate?.success ? __VLS_ctx.t('generationGate.gatePassed') : __VLS_ctx.t('generationGate.gateFailed'));
             var __VLS_75;
             __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
                 ...{ class: "muted" },
             });
-            (attempt.model);
+            (attempt.model || __VLS_ctx.t('generationGate.unknownModel'));
             (attempt.charCount ?? 0);
+            (__VLS_ctx.t('generationGate.chars'));
             (attempt.elapsedMs ?? 0);
             if (attempt.gate?.allFailures?.length) {
                 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -397,6 +407,7 @@ else {
             }
         }
         __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+        (__VLS_ctx.t('generationGate.rawPayload'));
         __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
         (__VLS_ctx.parseJsonText(row.attempts));
     }
@@ -425,6 +436,7 @@ const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
             Refresh: Refresh,
+            t: t,
             loading: loading,
             records: records,
             stats: stats,

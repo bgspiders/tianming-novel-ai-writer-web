@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentChecked, Position, Refresh, Search } from '@element-plus/icons-vue'
+import { useI18n } from '@/composables/useI18n'
 import { useWorkContextStore } from '@/stores/workContext'
 import {
   getEditorIndexStatus,
@@ -16,6 +17,7 @@ import {
 import type { Chapter } from '@/api/modules/chapters'
 
 const workContext = useWorkContextStore()
+const { t } = useI18n()
 
 const chapters = ref<Chapter[]>([])
 const selectedChapterId = ref('')
@@ -41,8 +43,11 @@ const canUseWorkspace = computed(() => !!workContext.selectedProjectId)
 const hasUnsavedChanges = computed(() => editorContent.value !== baselineContent.value)
 const currentWordCount = computed(() => editorContent.value.trim().length)
 const currentTitle = computed(() => {
-  if (!selectedChapter.value) return 'No chapter selected'
-  return `Chapter ${selectedChapter.value.chapterNumber} / ${selectedChapter.value.title}`
+  if (!selectedChapter.value) return t('editorWorkspace.labels.noProjectSelected')
+  return t('editorWorkspace.labels.chapterTitle', {
+    number: selectedChapter.value.chapterNumber,
+    title: selectedChapter.value.title
+  })
 })
 const indexStatusType = computed(() => {
   const status = indexStatus.value?.status
@@ -64,7 +69,7 @@ const searchMatches = computed(() => {
   return matches
 })
 const activeMatchLabel = computed(() => {
-  if (!searchText.value) return 'No query'
+  if (!searchText.value) return t('editorWorkspace.labels.noQuery')
   if (searchMatches.value.length === 0) return '0 / 0'
   return `${currentSearchIndex.value + 1} / ${searchMatches.value.length}`
 })
@@ -79,6 +84,13 @@ function statusType(status?: string | null) {
   if (status === 'drafted') return 'warning'
   if (status === 'planned') return 'info'
   return 'info'
+}
+
+function statusLabel(status?: string | null) {
+  if (!status) return t('editorWorkspace.labels.unknown')
+  const key = `editorWorkspace.labels.status.${status}`
+  const label = t(key)
+  return label === key ? status : label
 }
 
 function getEditorTextarea() {
@@ -108,11 +120,11 @@ async function goToSearchMatch(index: number) {
 
 async function findNextMatch(step = 1) {
   if (!searchText.value) {
-    ElMessage.warning('Enter text to search.')
+    ElMessage.warning(t('editorWorkspace.messages.enterSearchText'))
     return
   }
   if (searchMatches.value.length === 0) {
-    ElMessage.info('No matches found in the current chapter.')
+    ElMessage.info(t('editorWorkspace.messages.noMatchesFound'))
     return
   }
   await goToSearchMatch(currentSearchIndex.value + step)
@@ -136,12 +148,12 @@ function escapeRegExp(value: string) {
 
 function replaceAllMatches() {
   if (!searchText.value) {
-    ElMessage.warning('Enter text to search.')
+    ElMessage.warning(t('editorWorkspace.messages.enterSearchText'))
     return
   }
   const total = searchMatches.value.length
   if (total === 0) {
-    ElMessage.info('No matches to replace.')
+    ElMessage.info(t('editorWorkspace.messages.noMatchesToReplace'))
     return
   }
   editorContent.value = editorContent.value.replace(
@@ -149,7 +161,7 @@ function replaceAllMatches() {
     replaceText.value
   )
   currentSearchIndex.value = -1
-  ElMessage.success(`Replaced ${total} matches.`)
+  ElMessage.success(t('editorWorkspace.messages.replacedMatches', { count: total }))
 }
 
 async function insertTextAtCursor(text: string) {
@@ -162,7 +174,7 @@ async function insertTextAtCursor(text: string) {
 
 async function insertRecallResult(item: VectorRecallResult) {
   await insertTextAtCursor(`\n> ${item.source} / ${item.title}\n${item.excerpt}\n`)
-  ElMessage.success('Recall snippet inserted.')
+  ElMessage.success(t('editorWorkspace.messages.recallSnippetInserted'))
 }
 
 async function refreshIndexStatus(silent = false) {
@@ -175,7 +187,7 @@ async function refreshIndexStatus(silent = false) {
     indexStatus.value = await getEditorIndexStatus(workContext.selectedProjectId)
   } catch (err) {
     indexStatus.value = null
-    if (!silent) ElMessage.error((err as Error).message || 'Failed to load index status.')
+    if (!silent) ElMessage.error((err as Error).message || t('editorWorkspace.messages.loadIndexStatusFailed'))
   } finally {
     loadingIndexStatus.value = false
   }
@@ -183,15 +195,15 @@ async function refreshIndexStatus(silent = false) {
 
 async function rebuildIndex() {
   if (!workContext.selectedProjectId) {
-    ElMessage.warning('Select a project first.')
+    ElMessage.warning(t('editorWorkspace.messages.selectProjectFirst'))
     return
   }
   rebuildingIndex.value = true
   try {
     indexStatus.value = await rebuildEditorIndex(workContext.selectedProjectId)
-    ElMessage.success('Editor index rebuilt.')
+    ElMessage.success(t('editorWorkspace.messages.indexRebuilt'))
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to rebuild the editor index.')
+    ElMessage.error((err as Error).message || t('editorWorkspace.messages.rebuildIndexFailed'))
   } finally {
     rebuildingIndex.value = false
   }
@@ -215,7 +227,7 @@ async function refreshChapters() {
     }
     await loadSelectedChapter()
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to load chapters.')
+    ElMessage.error((err as Error).message || t('editorWorkspace.messages.loadChaptersFailed'))
   } finally {
     loadingChapters.value = false
   }
@@ -239,7 +251,7 @@ async function loadSelectedChapter() {
     baselineContent.value = assist.chapter.content ?? ''
     recallResults.value = assist.related
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to load chapter details.')
+    ElMessage.error((err as Error).message || t('editorWorkspace.messages.loadChapterDetailsFailed'))
   } finally {
     loadingChapter.value = false
     loadingAssist.value = false
@@ -248,7 +260,7 @@ async function loadSelectedChapter() {
 
 async function saveContent() {
   if (!selectedChapter.value) {
-    ElMessage.warning('Select a chapter first.')
+    ElMessage.warning(t('editorWorkspace.messages.selectChapterFirst'))
     return
   }
 
@@ -260,9 +272,9 @@ async function saveContent() {
     editorContent.value = chapter.content ?? ''
     chapters.value = chapters.value.map((item) => (item.id === chapter.id ? chapter : item))
     await refreshIndexStatus(true)
-    ElMessage.success('Chapter content saved.')
+    ElMessage.success(t('editorWorkspace.messages.contentSaved'))
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to save chapter content.')
+    ElMessage.error((err as Error).message || t('editorWorkspace.messages.saveContentFailed'))
   } finally {
     saving.value = false
   }
@@ -270,11 +282,11 @@ async function saveContent() {
 
 async function runVectorRecall() {
   if (!workContext.selectedProjectId) {
-    ElMessage.warning('Select a project first.')
+    ElMessage.warning(t('editorWorkspace.messages.selectProjectFirst'))
     return
   }
   if (!recallQuery.value.trim()) {
-    ElMessage.warning('Enter keywords for recall.')
+    ElMessage.warning(t('editorWorkspace.messages.enterRecallKeywords'))
     return
   }
 
@@ -287,10 +299,10 @@ async function runVectorRecall() {
       topK: 5
     })
     if (recallResults.value.length === 0) {
-      ElMessage.info('No related context found.')
+      ElMessage.info(t('editorWorkspace.messages.noRelatedContextFound'))
     }
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Vector recall failed.')
+    ElMessage.error((err as Error).message || t('editorWorkspace.messages.vectorRecallFailed'))
   } finally {
     searchingRecall.value = false
   }
@@ -315,17 +327,17 @@ onMounted(async () => {
   <div class="editor-page">
     <section class="editor-toolbar">
       <div>
-        <p class="eyebrow">Stage 7 / Editor</p>
-        <h1>Editor Workspace</h1>
+        <p class="eyebrow">{{ t('editorWorkspace.eyebrow') }}</p>
+        <h1>{{ t('editorWorkspace.title') }}</h1>
         <p class="subtitle">
-          {{ workContext.selectedProject?.name || 'No project selected' }}
+          {{ workContext.selectedProject?.name || t('editorWorkspace.labels.noProjectSelected') }}
           <template v-if="workContext.selectedVolume">
-            / Volume {{ workContext.selectedVolume.volumeNumber }} / {{ workContext.selectedVolume.title }}
+            / {{ t('editorWorkspace.labels.volume', { number: workContext.selectedVolume.volumeNumber }) }} / {{ workContext.selectedVolume.title }}
           </template>
         </p>
       </div>
       <div class="toolbar-actions">
-        <el-button :icon="Refresh" :loading="loadingChapters" @click="refreshChapters">Refresh</el-button>
+        <el-button :icon="Refresh" :loading="loadingChapters" @click="refreshChapters">{{ t('editorWorkspace.labels.refresh') }}</el-button>
         <el-button
           type="primary"
           :icon="DocumentChecked"
@@ -333,7 +345,7 @@ onMounted(async () => {
           :disabled="!selectedChapter"
           @click="saveContent"
         >
-          Save
+          {{ t('editorWorkspace.labels.save') }}
         </el-button>
       </div>
     </section>
@@ -342,13 +354,13 @@ onMounted(async () => {
       <el-card shadow="never" class="chapter-panel">
         <template #header>
           <div class="panel-head">
-            <span>Chapters</span>
+            <span>{{ t('editorWorkspace.labels.chapters') }}</span>
             <el-tag size="small" type="info">{{ chapters.length }}</el-tag>
           </div>
         </template>
 
-        <el-empty v-if="!canUseWorkspace" description="Select a project first." />
-        <el-empty v-else-if="chapters.length === 0 && !loadingChapters" description="No chapters yet." />
+        <el-empty v-if="!canUseWorkspace" :description="t('editorWorkspace.empty.selectProjectFirst')" />
+        <el-empty v-else-if="chapters.length === 0 && !loadingChapters" :description="t('editorWorkspace.empty.noChapters')" />
         <el-scrollbar v-else class="chapter-scroll" v-loading="loadingChapters">
           <button
             v-for="chapter in chapters"
@@ -358,10 +370,10 @@ onMounted(async () => {
             type="button"
             @click="selectedChapterId = chapter.id"
           >
-            <span class="chapter-title">Chapter {{ chapter.chapterNumber }} / {{ chapter.title }}</span>
+            <span class="chapter-title">{{ t('editorWorkspace.labels.chapterTitle', { number: chapter.chapterNumber, title: chapter.title }) }}</span>
             <span class="chapter-meta">
-              <el-tag size="small" :type="statusType(chapter.status)" effect="plain">{{ chapter.status || 'unknown' }}</el-tag>
-              <span>{{ chapter.wordCount || 0 }} chars</span>
+              <el-tag size="small" :type="statusType(chapter.status)" effect="plain">{{ statusLabel(chapter.status) }}</el-tag>
+              <span>{{ t('editorWorkspace.labels.chars', { count: chapter.wordCount || 0 }) }}</span>
             </span>
           </button>
         </el-scrollbar>
@@ -372,37 +384,37 @@ onMounted(async () => {
           <div class="panel-head">
             <div>
               <span>{{ currentTitle }}</span>
-              <small v-if="selectedChapter">Updated {{ formatTime(selectedChapter.updatedAt) }}</small>
+              <small v-if="selectedChapter">{{ t('editorWorkspace.labels.updatedAt', { time: formatTime(selectedChapter.updatedAt) }) }}</small>
             </div>
             <div class="chapter-stats">
-              <el-tag v-if="hasUnsavedChanges" size="small" type="warning">Unsaved</el-tag>
-              <span>{{ currentWordCount }} chars</span>
+              <el-tag v-if="hasUnsavedChanges" size="small" type="warning">{{ t('editorWorkspace.labels.unsaved') }}</el-tag>
+              <span>{{ t('editorWorkspace.labels.chars', { count: currentWordCount }) }}</span>
             </div>
           </div>
         </template>
 
-        <el-empty v-if="!selectedChapter" description="Select a chapter to start editing." />
+        <el-empty v-if="!selectedChapter" :description="t('editorWorkspace.empty.selectChapterToEdit')" />
         <div v-else class="writer-wrap">
           <div class="search-replace-bar">
             <el-input
               v-model="searchText"
               class="search-input"
               clearable
-              placeholder="Search in current chapter"
+              :placeholder="t('editorWorkspace.placeholders.searchCurrentChapter')"
               @keyup.enter="findNextMatch(1)"
             />
             <el-input
               v-model="replaceText"
               class="search-input"
               clearable
-              placeholder="Replacement text"
+              :placeholder="t('editorWorkspace.placeholders.replacementText')"
               @keyup.enter="replaceCurrentMatch"
             />
             <span class="search-status">{{ activeMatchLabel }}</span>
-            <el-button :disabled="!searchText" @click="findNextMatch(-1)">Prev</el-button>
-            <el-button :disabled="!searchText" @click="findNextMatch(1)">Next</el-button>
-            <el-button :disabled="!searchText" @click="replaceCurrentMatch">Replace</el-button>
-            <el-button type="primary" plain :disabled="!searchText" @click="replaceAllMatches">Replace All</el-button>
+            <el-button :disabled="!searchText" @click="findNextMatch(-1)">{{ t('editorWorkspace.actions.prev') }}</el-button>
+            <el-button :disabled="!searchText" @click="findNextMatch(1)">{{ t('editorWorkspace.actions.next') }}</el-button>
+            <el-button :disabled="!searchText" @click="replaceCurrentMatch">{{ t('editorWorkspace.actions.replace') }}</el-button>
+            <el-button type="primary" plain :disabled="!searchText" @click="replaceAllMatches">{{ t('editorWorkspace.actions.replaceAll') }}</el-button>
           </div>
 
           <el-input
@@ -411,7 +423,7 @@ onMounted(async () => {
             class="markdown-editor"
             type="textarea"
             resize="none"
-            placeholder="Write chapter content here..."
+            :placeholder="t('editorWorkspace.placeholders.editorContent')"
           />
         </div>
       </el-card>
@@ -420,28 +432,28 @@ onMounted(async () => {
         <el-card shadow="never" class="index-panel">
           <template #header>
             <div class="panel-head">
-              <span>Editor Index</span>
-              <el-tag size="small" :type="indexStatusType">{{ indexStatus?.status || 'unknown' }}</el-tag>
+              <span>{{ t('editorWorkspace.labels.editorIndex') }}</span>
+              <el-tag size="small" :type="indexStatusType">{{ statusLabel(indexStatus?.status) }}</el-tag>
             </div>
           </template>
 
           <div class="index-metrics" v-loading="loadingIndexStatus">
             <div>
-              <span>Indexed Chapters</span>
+              <span>{{ t('editorWorkspace.labels.indexedChapters') }}</span>
               <strong>{{ indexStatus ? `${indexStatus.indexedChapterCount}/${indexStatus.totalChapterCount}` : '-' }}</strong>
             </div>
             <div>
-              <span>Keywords</span>
+              <span>{{ t('editorWorkspace.labels.keywords') }}</span>
               <strong>{{ indexStatus?.keywordCount ?? '-' }}</strong>
             </div>
             <div>
-              <span>Stale Chapters</span>
+              <span>{{ t('editorWorkspace.labels.staleChapters') }}</span>
               <strong>{{ indexStatus?.staleChapterCount ?? 0 }}</strong>
             </div>
           </div>
-          <p class="index-updated">Last built: {{ formatTime(indexStatus?.lastBuiltAt) }}</p>
+          <p class="index-updated">{{ t('editorWorkspace.labels.lastBuilt', { time: formatTime(indexStatus?.lastBuiltAt) }) }}</p>
           <div class="index-actions">
-            <el-button :icon="Refresh" :loading="loadingIndexStatus" @click="refreshIndexStatus()">Refresh Status</el-button>
+            <el-button :icon="Refresh" :loading="loadingIndexStatus" @click="refreshIndexStatus()">{{ t('editorWorkspace.labels.refreshStatus') }}</el-button>
             <el-button
               type="primary"
               plain
@@ -449,7 +461,7 @@ onMounted(async () => {
               :disabled="!workContext.selectedProjectId"
               @click="rebuildIndex"
             >
-              Rebuild Index
+              {{ t('editorWorkspace.labels.rebuildIndex') }}
             </el-button>
           </div>
         </el-card>
@@ -457,8 +469,8 @@ onMounted(async () => {
         <el-card shadow="never" class="recall-panel">
           <template #header>
             <div class="panel-head">
-              <span>Vector Recall</span>
-              <el-tag size="small" type="success">Context</el-tag>
+              <span>{{ t('editorWorkspace.labels.vectorRecall') }}</span>
+              <el-tag size="small" type="success">{{ t('editorWorkspace.labels.context') }}</el-tag>
             </div>
           </template>
 
@@ -466,7 +478,7 @@ onMounted(async () => {
             v-model="recallQuery"
             type="textarea"
             :rows="3"
-            placeholder="Enter people, places, clues, or world rules"
+            :placeholder="t('editorWorkspace.placeholders.recallQuery')"
           />
           <el-button
             class="recall-button"
@@ -475,10 +487,10 @@ onMounted(async () => {
             :disabled="!workContext.selectedProjectId"
             @click="runVectorRecall"
           >
-            Search Recall
+            {{ t('editorWorkspace.actions.searchRecall') }}
           </el-button>
 
-          <el-empty v-if="recallResults.length === 0" description="Search project context to recall related content." />
+          <el-empty v-if="recallResults.length === 0" :description="t('editorWorkspace.empty.noRelatedContext')" />
           <div v-else class="recall-results" v-loading="loadingAssist">
             <div v-for="item in recallResults" :key="item.id" class="recall-item">
               <div class="recall-title-row">
@@ -487,7 +499,7 @@ onMounted(async () => {
                   <span>{{ item.source }} / {{ item.score.toFixed(2) }}</span>
                 </div>
                 <el-button size="small" :icon="Position" :disabled="!selectedChapter" @click="insertRecallResult(item)">
-                  Insert
+                  {{ t('editorWorkspace.labels.insert') }}
                 </el-button>
               </div>
               <div v-if="item.matchedKeywords?.length" class="recall-keywords">

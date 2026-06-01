@@ -7,7 +7,9 @@ using TM.Web.Application.Services;
 using TM.Web.Domain.Common;
 using TM.Web.Domain.Entities.Core;
 using TM.Web.Domain.Entities.Runtime;
+using TM.Web.Domain.Entities.Validation;
 using TM.Web.Infrastructure.Persistence;
+using TM.Web.Infrastructure.Services.Validation;
 
 namespace TM.Web.Infrastructure.Services.Generation;
 
@@ -23,6 +25,7 @@ public class ChapterDraftService : IChapterDraftService
     private readonly IEditorService _editor;
     private readonly IGenerationGateService _generationGate;
     private readonly GenerationStateService _generationState;
+    private readonly IValidationService _validation;
     private readonly AppDbContext _db;
     private readonly ILogger<ChapterDraftService> _logger;
 
@@ -33,6 +36,7 @@ public class ChapterDraftService : IChapterDraftService
         IEditorService editor,
         IGenerationGateService generationGate,
         GenerationStateService generationState,
+        IValidationService validation,
         AppDbContext db,
         ILogger<ChapterDraftService> logger)
     {
@@ -42,6 +46,7 @@ public class ChapterDraftService : IChapterDraftService
         _editor = editor;
         _generationGate = generationGate;
         _generationState = generationState;
+        _validation = validation;
         _db = db;
         _logger = logger;
     }
@@ -80,6 +85,7 @@ public class ChapterDraftService : IChapterDraftService
             var attempts = new List<GenerationAttemptLog>();
             var maxRewriteAttempts = Math.Clamp(request.MaxRewriteAttempts, 0, 3);
             var basePrompt = await BuildPromptWithPlanningContextAsync(request.Prompt, chapter, ct);
+            basePrompt = await AppendValidationRepairContextAsync(basePrompt, request.ValidationReportId, request.ChapterId, ct);
             var prompt = basePrompt;
             GenerationGateResultDto? passedGate = null;
             string content = string.Empty;
@@ -149,6 +155,14 @@ public class ChapterDraftService : IChapterDraftService
                 .Select(p => p.CurrentSourceBookId)
                 .FirstOrDefaultAsync(ct);
             await _generationState.ApplyParsedChangesAsync(request.ProjectId, sourceBookId, request.ChapterId, passedGate.ParsedChangesJson, ct);
+
+            if (request.SaveToChapter && request.RerunValidationAfterSave)
+            {
+                var volume = await _db.Volumes.AsNoTracking().FirstOrDefaultAsync(v => v.Id == chapter.VolumeId, ct);
+                await _validation.RunAsync(new TM.Web.Application.Dtos.Validation.ValidationRunRequest(
+                    request.ProjectId,
+                    volume?.VolumeNumber), ct);
+            }
 
             record.Success = true;
             record.TotalAttempts = attempts.Count;
@@ -394,10 +408,72 @@ public class ChapterDraftService : IChapterDraftService
                    ?? throw new InvalidOperationException("当前 Provider 没有可用 API Key。");
         }
 
+        if (!string.IsNullOrWhiteSpace(request.ConfigId))
+        {
+            return await _apiKeys.RotateNextPlainKeyAsync(request.ConfigId, ct)
+                   ?? throw new InvalidOperationException("当前配置没有可用 API Key。");
+        }
+
         if (!string.IsNullOrWhiteSpace(request.ApiKey))
             return request.ApiKey;
 
         throw new InvalidOperationException("请选择已保存的 API Key，或填写临时 API Key。");
+    }
+
+    private async Task<string> AppendValidationRepairContextAsync(
+        string basePrompt,
+        string? validationReportId,
+        string chapterId,
+        CancellationToken ct)
+    {
+        ValidationReport? report = null;
+
+        if (!string.IsNullOrWhiteSpace(validationReportId))
+        {
+            report = await _db.ValidationReports.AsNoTracking()
+                .Include(x => x.Items)
+                .FirstOrDefaultAsync(x => x.Id == validationReportId, ct);
+        }
+        else
+        {
+            report = await _db.ValidationReports.AsNoTracking()
+                .Include(x => x.Items)
+                .Where(x => x.ChapterId == chapterId)
+                .OrderByDescending(x => x.ValidatedAt)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        if (report == null || !string.Equals(report.Result, "failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return basePrompt;
+        }
+
+        var failedItems = report.Items
+            .Where(static x => !string.Equals(x.Result, "passed", StringComparison.OrdinalIgnoreCase))
+            .Take(12)
+            .ToList();
+
+        if (failedItems.Count == 0)
+        {
+            return basePrompt;
+        }
+
+        var repairLines = new List<string>
+        {
+            "# 校验修正上下文（本次必须优先修复）",
+            $"校验摘要：{report.Summary}"
+        };
+
+        repairLines.AddRange(failedItems.Select((item, index) =>
+            $"{index + 1}. [{item.ValidationType}] {item.Name}\n   问题：{item.Details}\n   建议：{item.Suggestion}"));
+
+        repairLines.Add("请在保证章节规划、蓝图和上下文连续性的前提下，优先消除以上校验问题。");
+
+        return string.Join("\n\n", new[]
+        {
+            string.Join("\n", repairLines),
+            basePrompt
+        });
     }
 
     private static string BuildRewritePrompt(string originalPrompt, string previousContent, IReadOnlyList<string> failures)

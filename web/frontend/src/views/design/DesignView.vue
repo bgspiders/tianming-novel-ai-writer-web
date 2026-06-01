@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, FolderAdd, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { useI18n } from '@/composables/useI18n'
 import { useWorkContextStore } from '@/stores/workContext'
 import {
   DESIGN_MODULES,
@@ -22,6 +23,7 @@ import {
   volumeDesignsApi,
   worldRulesApi
 } from '@/api/modules/design'
+import { listProviderConfigs, type AiProviderConfig } from '@/api/modules/ai'
 import {
   createCategory,
   deleteCategory,
@@ -41,21 +43,22 @@ import {
 } from '@/components/design/moduleSchemas'
 
 type PickerOption = { label: string; value: string | number }
-type PickerRow = Record<string, unknown>
-type DesignRecord = Record<string, unknown>
+type PickerRow = any
+type DesignRecord = any
 
 interface DesignApi {
-  list: (p?: DesignListParams) => Promise<unknown[]>
-  listPaged: (p: DesignListParams) => Promise<{ items: unknown[]; total: number; page: number; pageSize: number }>
-  get: (id: string) => Promise<unknown>
-  create: (input: unknown) => Promise<unknown>
-  update: (id: string, input: unknown) => Promise<unknown>
+  list: (p?: DesignListParams) => Promise<any[]>
+  listPaged: (p: DesignListParams) => Promise<{ items: any[]; total: number; page: number; pageSize: number }>
+  get: (id: string) => Promise<any>
+  create: (input: any) => Promise<DesignRecord>
+  update: (id: string, input: any) => Promise<DesignRecord>
   remove: (id: string) => Promise<void>
 }
 
 const route = useRoute()
 const router = useRouter()
 const workContext = useWorkContextStore()
+const { t } = useI18n()
 
 const moduleKey = computed<DesignModuleKey>(() => {
   const raw = route.params.module as string
@@ -64,6 +67,7 @@ const moduleKey = computed<DesignModuleKey>(() => {
 
 const moduleMeta = computed(() => DESIGN_MODULES.find((item) => item.key === moduleKey.value)!)
 const schema = computed(() => MODULE_SCHEMAS[moduleKey.value])
+const localizedModuleLabel = computed(() => t(`design.modules.${moduleKey.value}`))
 
 const apiMap: Record<DesignModuleKey, DesignApi> = {
   world_rules: worldRulesApi,
@@ -104,7 +108,7 @@ function getPickerValue(row: PickerRow, field: FieldDef): string | number {
 
 function getPickerLabel(row: PickerRow, source: PickerSource): string {
   if (source === 'volumes') {
-    return `Vol ${row.volumeNumber ?? ''} | ${row.title ?? ''}`
+    return t('layout.volumeOption', { number: row.volumeNumber ?? '', title: row.title ?? '' })
   }
   return String(row.name ?? row.title ?? row.id ?? '')
 }
@@ -119,10 +123,10 @@ async function refreshPickers() {
   ])
 
   pickerRows.value = {
-    characters: characters as PickerRow[],
-    factions: factions as PickerRow[],
-    locations: locations as PickerRow[],
-    volumes: workContext.volumes as unknown as PickerRow[]
+    characters,
+    factions,
+    locations,
+    volumes: workContext.volumes as any[]
   }
 }
 
@@ -146,12 +150,12 @@ function invalidReferenceMessage(field: FieldDef, currentValue: unknown): string
 
   if (Array.isArray(currentValue)) {
     const missing = currentValue.filter((value) => !hasPickerOption(options, value))
-    return missing.length ? `Missing references: ${missing.join(', ')}` : ''
+    return missing.length ? t('design.messages.missingReferences', { value: missing.join(', ') }) : ''
   }
 
   return hasPickerOption(options, currentValue)
     ? ''
-    : `Current value "${String(currentValue)}" does not exist in the available options.`
+    : t('design.messages.currentValueMissing', { value: String(currentValue) })
 }
 
 function clearInvalidReferences(field: FieldDef) {
@@ -164,13 +168,13 @@ function clearInvalidReferences(field: FieldDef) {
     const validValues = currentValue.filter((value) => hasPickerOption(options, value))
     const removedCount = currentValue.length - validValues.length
     editorForm.value[field.key] = validValues
-    if (removedCount > 0) ElMessage.success(`Removed ${removedCount} invalid references.`)
+    if (removedCount > 0) ElMessage.success(t('design.messages.removedInvalidReferences', { count: removedCount }))
     return
   }
 
   if (currentValue !== null && currentValue !== undefined && currentValue !== '' && !hasPickerOption(options, currentValue)) {
     editorForm.value[field.key] = field.type === 'select' ? null : ''
-    ElMessage.success('Invalid reference cleared.')
+    ElMessage.success(t('design.messages.invalidReferenceCleared'))
   }
 }
 
@@ -180,12 +184,12 @@ async function rematchReferences(field: FieldDef) {
     await refreshPickers()
     const message = invalidReferenceMessage(field, editorForm.value[field.key])
     if (message) {
-      ElMessage.warning('References refreshed, but some values are still invalid.')
+      ElMessage.warning(t('design.messages.referencesStillInvalid'))
     } else {
-      ElMessage.success('References refreshed.')
+      ElMessage.success(t('design.messages.referencesRefreshed'))
     }
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to refresh references.')
+    ElMessage.error((err as Error).message ?? t('design.messages.refreshReferencesFailed'))
   }
 }
 
@@ -201,13 +205,13 @@ async function refreshSourceBooks() {
       selectedSourceBookId.value = workContext.selectedProject.currentSourceBookId
     }
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to load source books.')
+    ElMessage.error((err as Error).message ?? t('design.messages.loadSourceBooksFailed'))
   }
 }
 
 async function quickCreateSourceBook() {
   if (!newSourceBookName.value.trim()) {
-    ElMessage.warning('Source book name is required.')
+    ElMessage.warning(t('design.messages.sourceBookNameRequired'))
     return
   }
 
@@ -217,23 +221,23 @@ async function quickCreateSourceBook() {
     selectedSourceBookId.value = sourceBook.id
     newSourceBookVisible.value = false
     newSourceBookName.value = ''
-    ElMessage.success('Source book created.')
+    ElMessage.success(t('design.messages.sourceBookCreated'))
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to create source book.')
+    ElMessage.error((err as Error).message ?? t('design.messages.createSourceBookFailed'))
   }
 }
 
 async function bindSourceBookToProject() {
   if (!workContext.selectedProjectId) {
-    ElMessage.warning('Select a project first.')
+    ElMessage.warning(t('design.messages.selectProjectFirst'))
     return
   }
 
   try {
     await workContext.updateSelectedProjectSourceBook(selectedSourceBookId.value || null)
-    ElMessage.success('Project default source book updated.')
+    ElMessage.success(t('design.messages.bindSourceBookSuccess'))
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to bind source book.')
+    ElMessage.error((err as Error).message ?? t('design.messages.bindSourceBookFailed'))
   }
 }
 
@@ -250,7 +254,7 @@ async function refreshCategories() {
       workContext.selectedProjectId || null
     )
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to load categories.')
+    ElMessage.error((err as Error).message ?? t('design.messages.loadCategoriesFailed'))
   } finally {
     loadingCategories.value = false
   }
@@ -314,26 +318,30 @@ async function saveCategory() {
   try {
     if (categoryDialogMode.value === 'create') {
       await createCategory(categoryForm.value)
-      ElMessage.success('Category created.')
+      ElMessage.success(t('design.messages.categoryCreated'))
     } else {
       await updateCategory(categoryEditId.value, categoryForm.value)
-      ElMessage.success('Category updated.')
+      ElMessage.success(t('design.messages.categoryUpdated'))
     }
     categoryDialogVisible.value = false
     await refreshCategories()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to save category.')
+    ElMessage.error((err as Error).message ?? t('design.messages.saveCategoryFailed'))
   }
 }
 
 async function removeCategory(node: CategoryTreeNode) {
   if (node.isBuiltIn) {
-    ElMessage.warning('Built-in categories cannot be deleted.')
+    ElMessage.warning(t('design.messages.builtInCategoriesCannotDelete'))
     return
   }
 
   try {
-    await ElMessageBox.confirm(`Delete category "${node.name}"?`, 'Confirm', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('design.messages.deleteCategoryConfirm', { name: node.name }),
+      t('layout.dialogs.confirm'),
+      { type: 'warning' }
+    )
   } catch {
     return
   }
@@ -341,10 +349,10 @@ async function removeCategory(node: CategoryTreeNode) {
   try {
     await deleteCategory(node.id)
     if (selectedCategoryId.value === node.id) selectedCategoryId.value = null
-    ElMessage.success('Category deleted.')
+    ElMessage.success(t('design.messages.categoryDeleted'))
     await refreshCategories()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to delete category.')
+    ElMessage.error((err as Error).message ?? t('design.messages.deleteCategoryFailed'))
   }
 }
 
@@ -368,13 +376,16 @@ async function saveCategoryOrder() {
     })
     await refreshCategories()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to save category order.')
+    ElMessage.error((err as Error).message ?? t('design.messages.saveCategoryOrderFailed'))
     await refreshCategories()
   }
 }
 
 const items = ref<DesignRecord[]>([])
 const loadingItems = ref(false)
+const backgroundAnalyzingId = ref('')
+const generatingCreativeMaterialId = ref('')
+const buildingSkeletonId = ref('')
 const keyword = ref('')
 const isEnabledFilter = ref<'all' | 'enabled' | 'disabled'>('all')
 const includeUncategorized = ref(false)
@@ -382,6 +393,7 @@ const updatedRange = ref<[string, string] | []>([])
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+let backgroundAiPollTimer: number | null = null
 
 function buildListParams(): DesignListParams {
   return {
@@ -407,10 +419,32 @@ async function refreshItems() {
     page.value = result.page
     pageSize.value = result.pageSize
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to load records.')
+    ElMessage.error((err as Error).message ?? t('design.messages.loadRecordsFailed'))
   } finally {
     loadingItems.value = false
   }
+}
+
+function stopBackgroundAiPolling() {
+  if (backgroundAiPollTimer !== null) {
+    window.clearInterval(backgroundAiPollTimer)
+    backgroundAiPollTimer = null
+  }
+}
+
+function startBackgroundAiPolling() {
+  if (backgroundAiPollTimer !== null || moduleKey.value !== 'book_analyses') {
+    return
+  }
+
+  backgroundAiPollTimer = window.setInterval(() => {
+    const hasBusyItem = items.value.some((row) => row.backgroundAiStatus === 'queued' || row.backgroundAiStatus === 'running')
+    if (!hasBusyItem) {
+      stopBackgroundAiPolling()
+      return
+    }
+    void refreshItems()
+  }, 15000)
 }
 
 async function refreshWorkspaceData() {
@@ -449,13 +483,13 @@ async function openEdit(row: DesignRecord) {
     editorTab.value = schema.value.tabs[0]?.key ?? ''
     editorVisible.value = true
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to load record detail.')
+    ElMessage.error((err as Error).message ?? t('design.messages.loadRecordDetailFailed'))
   }
 }
 
 async function saveEditor() {
   if (!editorForm.value.name) {
-    ElMessage.warning('Name is required.')
+    ElMessage.warning(t('design.messages.nameRequired'))
     return
   }
 
@@ -463,17 +497,17 @@ async function saveEditor() {
   try {
     if (editorMode.value === 'create') {
       await activeApi.value.create(editorForm.value)
-      ElMessage.success('Record created.')
+      ElMessage.success(t('design.messages.recordCreated'))
     } else {
       await activeApi.value.update(editorId.value, editorForm.value)
-      ElMessage.success('Record updated.')
+      ElMessage.success(t('design.messages.recordUpdated'))
     }
     editorVisible.value = false
     await refreshItems()
     await refreshCategories()
     await refreshPickers()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to save record.')
+    ElMessage.error((err as Error).message ?? t('design.messages.saveRecordFailed'))
   } finally {
     saving.value = false
   }
@@ -481,19 +515,145 @@ async function saveEditor() {
 
 async function removeItem(row: DesignRecord) {
   try {
-    await ElMessageBox.confirm(`Delete "${row.name}"?`, 'Confirm', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('design.messages.deleteRecordConfirm', { name: row.name }),
+      t('layout.dialogs.confirm'),
+      { type: 'warning' }
+    )
   } catch {
     return
   }
 
   try {
     await activeApi.value.remove(String(row.id))
-    ElMessage.success('Record deleted.')
+    ElMessage.success(t('design.messages.recordDeleted'))
     await refreshItems()
     await refreshCategories()
     await refreshPickers()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to delete record.')
+    ElMessage.error((err as Error).message ?? t('design.messages.deleteRecordFailed'))
+  }
+}
+
+function isBackgroundAiBusy(row: DesignRecord) {
+  return backgroundAnalyzingId.value === String(row.id) || row.backgroundAiStatus === 'queued' || row.backgroundAiStatus === 'running'
+}
+
+function getBackgroundAiStatusTagType(status: string) {
+  switch (status) {
+    case 'completed':
+      return 'success'
+    case 'failed':
+      return 'danger'
+    case 'queued':
+      return 'warning'
+    case 'running':
+      return ''
+    default:
+      return 'info'
+  }
+}
+
+function getBackgroundAiStatusLabel(status: string) {
+  switch (status) {
+    case 'queued':
+      return t('design.labels.aiQueued')
+    case 'running':
+      return t('design.labels.aiRunning')
+    case 'completed':
+      return t('design.labels.aiCompleted')
+    case 'failed':
+      return t('design.labels.aiFailed')
+    default:
+      return t('design.labels.aiIdle')
+  }
+}
+
+function getBackgroundAiFailureReason(row: DesignRecord) {
+  if (row?.backgroundAiStatus !== 'failed') return ''
+  const message = String(row?.backgroundAiMessage ?? '').trim()
+  if (!message) return t('design.labels.aiFailureUnknown')
+  return message
+}
+
+async function queueBookAnalysisBackgroundAi(row: DesignRecord) {
+  if (moduleKey.value !== 'book_analyses') return
+  if (isBackgroundAiBusy(row)) {
+    ElMessage.warning(t('design.messages.backgroundAiAlreadyRunning'))
+    return
+  }
+  if (!bookAnalysisAiConfigId.value || !bookAnalysisAiEndpoint.value || !bookAnalysisAiModel.value) {
+    ElMessage.warning(t('design.messages.aiConfigRequired'))
+    return
+  }
+
+  backgroundAnalyzingId.value = String(row.id)
+  try {
+    await bookAnalysesApi.queueAiAnalyze(String(row.id), {
+      providerId: bookAnalysisAiConfigId.value,
+      apiKeyId: null,
+      endpoint: bookAnalysisAiEndpoint.value,
+      model: bookAnalysisAiModel.value,
+      maxTokens: 3600
+    })
+    ElMessage.success(t('design.messages.backgroundAiQueued'))
+    await refreshItems()
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('design.messages.backgroundAiQueueFailed'))
+  } finally {
+    backgroundAnalyzingId.value = ''
+  }
+}
+
+async function createCreativeMaterialFromBookAnalysis(row: DesignRecord) {
+  if (moduleKey.value !== 'book_analyses') return
+
+  generatingCreativeMaterialId.value = String(row.id)
+  try {
+    const created = await creativeMaterialsApi.createFromBookAnalysis(String(row.id))
+    ElMessage.success(t('design.messages.creativeMaterialCreatedFromBookAnalysis', { name: created.name }))
+    await router.push({
+      path: '/design/creative_materials',
+      query: created.sourceBookId ? { sourceBookId: created.sourceBookId } : {}
+    })
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('design.messages.createCreativeMaterialFromBookAnalysisFailed'))
+  } finally {
+    generatingCreativeMaterialId.value = ''
+  }
+}
+
+async function buildSkeletonFromCreativeMaterial(row: DesignRecord) {
+  if (moduleKey.value !== 'creative_materials') return
+
+  buildingSkeletonId.value = String(row.id)
+  try {
+    const result = await creativeMaterialsApi.buildSkeleton(String(row.id))
+    ElMessage.success(
+      t('design.messages.skeletonBuilt', {
+        rules: result.ruleCount,
+        outlines: result.outlineCount,
+        volumes: result.volumeDesignCount,
+        chapters: result.chapterPlanCount,
+        blueprints: result.chapterBlueprintCount
+      })
+    )
+    await router.push({
+      path: '/generate/outlines',
+      query: result.sourceBookId ? { sourceBookId: result.sourceBookId } : {}
+    })
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('design.messages.skeletonBuildFailed'))
+  } finally {
+    buildingSkeletonId.value = ''
+  }
+}
+
+function syncSourceBookSelectionFromRoute() {
+  if (!moduleMeta.value.hasSourceBookScope) return
+  const routeSourceBookId = route.query.sourceBookId
+  if (typeof routeSourceBookId === 'string') {
+    selectedSourceBookId.value = routeSourceBookId
   }
 }
 
@@ -510,6 +670,15 @@ const bookAnalysisImportVisible = ref(false)
 const importingBookAnalysis = ref(false)
 const bookAnalysisImportUrl = ref('')
 const bookAnalysisImportPreview = ref<BookAnalysisCrawlPreview | null>(null)
+const bookAnalysisImportFileInput = ref<HTMLInputElement | null>(null)
+const analyzingBookAnalysis = ref(false)
+const bookAnalysisAiConfigs = ref<AiProviderConfig[]>([])
+const bookAnalysisAiConfigId = ref('')
+const bookAnalysisAiModel = ref('')
+const bookAnalysisAiEndpoint = ref('')
+const selectedBookAnalysisAiConfig = computed(() =>
+  bookAnalysisAiConfigs.value.find((item) => item.providerId === bookAnalysisAiConfigId.value) ?? null
+)
 
 function openBookAnalysisImport() {
   bookAnalysisImportUrl.value = ''
@@ -519,7 +688,7 @@ function openBookAnalysisImport() {
 
 async function previewBookAnalysisImport() {
   if (!bookAnalysisImportUrl.value.trim()) {
-    ElMessage.warning('A source URL is required.')
+    ElMessage.warning(t('design.messages.sourceUrlRequired'))
     return
   }
 
@@ -530,11 +699,184 @@ async function previewBookAnalysisImport() {
       maxChapters: 12,
       includeContent: true
     })
-    ElMessage.success('Preview loaded.')
+    ElMessage.success(t('design.messages.previewLoaded'))
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to crawl preview.')
+    ElMessage.error((err as Error).message ?? t('design.messages.crawlPreviewFailed'))
   } finally {
     importingBookAnalysis.value = false
+  }
+}
+
+function openBookAnalysisTxtPicker() {
+  bookAnalysisImportFileInput.value?.click()
+}
+
+async function importBookAnalysisTxt(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  importingBookAnalysis.value = true
+  try {
+    const text = await readTextFile(file)
+    bookAnalysisImportPreview.value = buildBookAnalysisPreviewFromText(file, text)
+    ElMessage.success(t('design.messages.txtImportLoaded'))
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('design.messages.txtImportFailed'))
+  } finally {
+    importingBookAnalysis.value = false
+  }
+}
+
+async function readTextFile(file: File) {
+  const buffer = await file.arrayBuffer()
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buffer)
+  } catch {
+    try {
+      return new TextDecoder('gb18030').decode(buffer)
+    } catch {
+      return file.text()
+    }
+  }
+}
+
+function buildBookAnalysisPreviewFromText(file: File, text: string): BookAnalysisCrawlPreview {
+  const title = file.name.replace(/\.[^.]+$/, '') || t('design.labels.localTxtBook')
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+  const chapters = splitTxtChapters(normalized)
+  const sampleChapters = chapters.slice(0, 12).map((chapter, index) => ({
+    index: index + 1,
+    title: chapter.title,
+    url: `local://${file.name}#${index + 1}`,
+    summary: chapter.content.slice(0, 240),
+    wordCount: countTextWords(chapter.content),
+    content: chapter.content
+  }))
+  const totalWordCount = countTextWords(normalized)
+  const summary = normalized.slice(0, 900)
+  const importedAt = new Date().toISOString()
+
+  return {
+    sourceUrl: `local://${file.name}`,
+    sourceSite: t('design.labels.localTxtFile'),
+    suggestedName: title,
+    title,
+    author: '',
+    genre: '',
+    keywords: '',
+    chapterCount: chapters.length,
+    totalWordCount,
+    crawledAt: importedAt,
+    summary,
+    worldBuildingMethod: t('design.labels.txtAnalysisPlaceholder'),
+    powerSystemDesign: '',
+    environmentDescription: '',
+    factionDesign: '',
+    worldviewHighlights: '',
+    protagonistDesign: '',
+    supportingRoles: '',
+    characterRelations: '',
+    goldenFingerDesign: '',
+    characterHighlights: '',
+    plotStructure: chapters.slice(0, 20).map((chapter) => chapter.title).join('\n'),
+    conflictDesign: '',
+    climaxArrangement: '',
+    foreshadowingTechnique: '',
+    plotHighlights: '',
+    chapters: sampleChapters
+  }
+}
+
+function splitTxtChapters(text: string) {
+  const chapterTitlePattern =
+    /^(?:\s*)(第[零〇一二三四五六七八九十百千万两\d]+[章节卷集回][^\n]{0,80}|Chapter\s+\d+[^\n]{0,80}|\d+[\.、]\s*[^\n]{1,80})\s*$/i
+  const lines = text.split('\n')
+  const chapters: Array<{ title: string; content: string }> = []
+  let currentTitle = t('design.labels.fullText')
+  let currentLines: string[] = []
+
+  for (const line of lines) {
+    if (chapterTitlePattern.test(line.trim())) {
+      if (currentLines.join('').trim()) {
+        chapters.push({ title: currentTitle, content: currentLines.join('\n').trim() })
+      }
+      currentTitle = line.trim()
+      currentLines = []
+      continue
+    }
+    currentLines.push(line)
+  }
+
+  if (currentLines.join('').trim()) {
+    chapters.push({ title: currentTitle, content: currentLines.join('\n').trim() })
+  }
+
+  return chapters.length > 0 ? chapters : [{ title: currentTitle, content: text }]
+}
+
+function countTextWords(text: string) {
+  return text.replace(/\s+/g, '').length
+}
+
+async function refreshBookAnalysisAiConfig() {
+  bookAnalysisAiConfigs.value = (await listProviderConfigs()).filter((item) => item.isEnabled)
+  if (!bookAnalysisAiConfigs.value.some((item) => item.providerId === bookAnalysisAiConfigId.value)) {
+    bookAnalysisAiConfigId.value = bookAnalysisAiConfigs.value[0]?.providerId ?? ''
+  }
+  refreshBookAnalysisAiProviderAssets()
+}
+
+function refreshBookAnalysisAiProviderAssets() {
+  if (!bookAnalysisAiConfigId.value) {
+    bookAnalysisAiEndpoint.value = ''
+    bookAnalysisAiModel.value = ''
+    return
+  }
+
+  const config = selectedBookAnalysisAiConfig.value
+  bookAnalysisAiEndpoint.value = config?.defaultEndpoint || ''
+  bookAnalysisAiModel.value = config?.modelCode || ''
+}
+
+function compactBookAnalysisPreviewForAi(preview: BookAnalysisCrawlPreview): BookAnalysisCrawlPreview {
+  return {
+    ...preview,
+    summary: preview.summary?.slice(0, 3000) ?? '',
+    chapters: preview.chapters.slice(0, 12).map((chapter) => ({
+      ...chapter,
+      summary: chapter.summary?.slice(0, 1000) ?? '',
+      content: chapter.content?.slice(0, 2500) ?? ''
+    }))
+  }
+}
+
+async function analyzeBookAnalysisWithAi() {
+  if (!bookAnalysisImportPreview.value) {
+    ElMessage.warning(t('design.messages.previewRequiredForAi'))
+    return
+  }
+  if (!bookAnalysisAiConfigId.value || !bookAnalysisAiEndpoint.value || !bookAnalysisAiModel.value) {
+    ElMessage.warning(t('design.messages.aiConfigRequired'))
+    return
+  }
+
+  analyzingBookAnalysis.value = true
+  try {
+    bookAnalysisImportPreview.value = await bookAnalysesApi.aiAnalyze({
+      providerId: bookAnalysisAiConfigId.value,
+      apiKeyId: null,
+      endpoint: bookAnalysisAiEndpoint.value,
+      model: bookAnalysisAiModel.value,
+      preview: compactBookAnalysisPreviewForAi(bookAnalysisImportPreview.value),
+      maxTokens: 3600
+    })
+    ElMessage.success(t('design.messages.aiAnalysisCompleted'))
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('design.messages.aiAnalysisFailed'))
+  } finally {
+    analyzingBookAnalysis.value = false
   }
 }
 
@@ -543,7 +885,7 @@ function toBookAnalysisDraft(preview: BookAnalysisCrawlPreview): DesignRecord {
     ...buildEmptyForm('book_analyses'),
     categoryId: selectedCategoryId.value,
     projectId: workContext.selectedProjectId || null,
-    name: preview.suggestedName || preview.title || 'Web Book Analysis',
+    name: preview.suggestedName || preview.title || t('design.labels.webBookAnalysis'),
     icon: 'BOOK',
     author: preview.author || '',
     genre: preview.genre || '',
@@ -590,7 +932,7 @@ function applyImportedBookAnalysis(mode: 'current' | 'new') {
   }
 
   bookAnalysisImportVisible.value = false
-  ElMessage.success('Preview applied to the form.')
+  ElMessage.success(t('design.messages.previewApplied'))
 }
 
 function switchModule(key: DesignModuleKey) {
@@ -602,8 +944,10 @@ function switchModule(key: DesignModuleKey) {
 }
 
 watch(moduleKey, async () => {
+  stopBackgroundAiPolling()
   selectedCategoryId.value = null
   page.value = 1
+  syncSourceBookSelectionFromRoute()
   await refreshWorkspaceData()
 })
 
@@ -628,14 +972,25 @@ watch(
   () => workContext.selectedProjectId,
   async () => {
     selectedSourceBookId.value = workContext.selectedProject?.currentSourceBookId ?? ''
+    syncSourceBookSelectionFromRoute()
     page.value = 1
     await refreshWorkspaceData()
+  }
+)
+
+watch(
+  () => route.query.sourceBookId,
+  (value) => {
+    if (!moduleMeta.value.hasSourceBookScope) return
+    selectedSourceBookId.value = typeof value === 'string' ? value : ''
   }
 )
 
 watch(() => workContext.selectedVolumeId, () => {
   void refreshPickers()
 })
+
+watch(bookAnalysisAiConfigId, refreshBookAnalysisAiProviderAssets)
 
 watch(
   () => workContext.volumes,
@@ -645,10 +1000,28 @@ watch(
   { deep: true }
 )
 
+watch(
+  () => items.value.map((row) => row.backgroundAiStatus).join('|'),
+  () => {
+    const hasBusyItem = moduleKey.value === 'book_analyses'
+      && items.value.some((row) => row.backgroundAiStatus === 'queued' || row.backgroundAiStatus === 'running')
+    if (hasBusyItem) {
+      startBackgroundAiPolling()
+    } else {
+      stopBackgroundAiPolling()
+    }
+  }
+)
+
 onMounted(async () => {
   await workContext.init()
-  await refreshSourceBooks()
+  await Promise.all([refreshSourceBooks(), refreshBookAnalysisAiConfig()])
+  syncSourceBookSelectionFromRoute()
   await refreshWorkspaceData()
+})
+
+onBeforeUnmount(() => {
+  stopBackgroundAiPolling()
 })
 </script>
 
@@ -666,19 +1039,19 @@ onMounted(async () => {
             @click="switchModule(moduleItem.key)"
           >
             <span class="icon">{{ moduleItem.icon }}</span>
-            <span>{{ moduleItem.label }}</span>
+            <span>{{ t(`design.modules.${moduleItem.key}`) }}</span>
           </button>
         </div>
 
         <div v-if="moduleMeta.hasSourceBookScope" class="sourcebook-area">
-          <span class="label">Source Book</span>
+          <span class="label">{{ t('design.labels.sourceBook') }}</span>
           <el-select v-model="selectedSourceBookId" clearable size="small" style="width: 220px">
-            <el-option label="All" value="" />
+            <el-option :label="t('design.labels.all')" value="" />
             <el-option v-for="book in sourceBooks" :key="book.id" :label="book.name" :value="book.id" />
           </el-select>
-          <el-button size="small" :icon="Plus" @click="newSourceBookVisible = true">New</el-button>
+          <el-button size="small" :icon="Plus" @click="newSourceBookVisible = true">{{ t('design.labels.new') }}</el-button>
           <el-button size="small" :disabled="!workContext.selectedProjectId" @click="bindSourceBookToProject">
-            Set As Project Default
+            {{ t('design.labels.setProjectDefault') }}
           </el-button>
         </div>
       </div>
@@ -688,7 +1061,7 @@ onMounted(async () => {
       <el-card shadow="never" class="tree-panel">
         <template #header>
           <div class="panel-head">
-            <span>{{ moduleMeta.label }} Categories</span>
+            <span>{{ t('design.labels.categories', { module: localizedModuleLabel }) }}</span>
             <div class="head-actions">
               <el-button text size="small" :icon="Refresh" @click="refreshCategories" />
               <el-button text size="small" :icon="FolderAdd" @click="openCreateCategory()" />
@@ -698,7 +1071,7 @@ onMounted(async () => {
 
         <div v-loading="loadingCategories" class="tree-body">
           <div :class="['cat-item', 'all', { active: !selectedCategoryId }]" @click="selectedCategoryId = null">
-            All / Uncategorized
+            {{ t('design.labels.allUncategorized') }}
           </div>
 
           <el-tree
@@ -708,13 +1081,13 @@ onMounted(async () => {
             :default-expand-all="true"
             :expand-on-click-node="false"
             :highlight-current="true"
-            empty-text="No categories"
+            :empty-text="t('design.labels.noCategories')"
             @node-drop="saveCategoryOrder"
           >
             <template #default="{ data }">
               <div :class="['cat-node', { active: selectedCategoryId === data.id }]" @click.stop="selectedCategoryId = data.id">
                 <span class="cat-name">{{ data.name }}</span>
-                <el-tag v-if="data.isBuiltIn" size="small" type="info" effect="plain">Built-in</el-tag>
+                <el-tag v-if="data.isBuiltIn" size="small" type="info" effect="plain">{{ t('design.labels.builtIn') }}</el-tag>
                 <span class="cat-count">{{ data.itemCount }}</span>
                 <span class="cat-actions">
                   <el-button text size="small" :icon="Plus" @click.stop="openCreateCategory(data)" />
@@ -737,14 +1110,14 @@ onMounted(async () => {
       <el-card shadow="never" class="list-panel">
         <template #header>
           <div class="panel-head">
-            <span>{{ moduleMeta.label }} Records</span>
+            <span>{{ t('design.labels.records', { module: localizedModuleLabel }) }}</span>
             <div class="head-actions">
               <el-button v-if="moduleKey === 'book_analyses'" size="small" @click="openBookAnalysisImport">
-                Crawl Import
+                {{ t('design.labels.crawlImport') }}
               </el-button>
               <el-input
                 v-model="keyword"
-                placeholder="Search by name"
+                :placeholder="t('design.labels.searchByName')"
                 clearable
                 size="small"
                 style="width: 200px"
@@ -752,29 +1125,29 @@ onMounted(async () => {
                 @change="page = 1; refreshItems()"
               />
               <el-select v-model="isEnabledFilter" size="small" style="width: 110px">
-                <el-option label="All" value="all" />
-                <el-option label="Enabled" value="enabled" />
-                <el-option label="Disabled" value="disabled" />
+                <el-option :label="t('design.labels.all')" value="all" />
+                <el-option :label="t('design.labels.enabled')" value="enabled" />
+                <el-option :label="t('design.labels.disabled')" value="disabled" />
               </el-select>
               <el-date-picker
                 v-model="updatedRange"
                 type="datetimerange"
-                start-placeholder="Updated From"
-                end-placeholder="Updated To"
+                :start-placeholder="t('design.labels.updatedFrom')"
+                :end-placeholder="t('design.labels.updatedTo')"
                 value-format="YYYY-MM-DDTHH:mm:ss"
                 size="small"
                 style="width: 320px"
               />
-              <el-checkbox v-model="includeUncategorized" size="small">Only Uncategorized</el-checkbox>
+              <el-checkbox v-model="includeUncategorized" size="small">{{ t('design.labels.onlyUncategorized') }}</el-checkbox>
               <el-button size="small" :icon="Refresh" @click="refreshItems" />
-              <el-button type="primary" size="small" :icon="Plus" @click="openCreate">New</el-button>
+              <el-button type="primary" size="small" :icon="Plus" @click="openCreate">{{ t('design.labels.new') }}</el-button>
             </div>
           </div>
         </template>
 
         <el-table v-loading="loadingItems" :data="items" stripe size="small" @row-dblclick="openEdit">
-          <el-table-column prop="name" label="Name" min-width="200" />
-          <el-table-column prop="category" label="Category" width="120" />
+          <el-table-column prop="name" :label="t('design.labels.name')" min-width="200" />
+          <el-table-column prop="category" :label="t('design.labels.category')" width="120" />
           <el-table-column
             v-for="col in schema.listColumns ?? []"
             :key="col.key"
@@ -785,31 +1158,77 @@ onMounted(async () => {
               <span>{{ formatCellValue(row, col) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Status" width="80">
+          <el-table-column :label="t('design.labels.status')" width="80">
             <template #default="{ row }">
               <el-tag :type="row.isEnabled ? 'success' : 'info'" size="small">
-                {{ row.isEnabled ? 'On' : 'Off' }}
+                {{ row.isEnabled ? t('design.labels.on') : t('design.labels.off') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="Updated" width="170">
+          <el-table-column :label="t('design.labels.updated')" width="170">
             <template #default="{ row }">
               <span class="muted">{{ new Date(row.updatedAt).toLocaleString() }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Actions" width="140" align="center" fixed="right">
+        <el-table-column v-if="moduleKey === 'book_analyses'" :label="t('design.labels.aiStatus')" width="120" align="center">
             <template #default="{ row }">
-              <el-button text size="small" :icon="Edit" @click="openEdit(row)">Edit</el-button>
-              <el-button text size="small" :icon="Delete" type="danger" @click="removeItem(row)">Delete</el-button>
+              <el-tag :type="getBackgroundAiStatusTagType(row.backgroundAiStatus)" size="small" effect="plain">
+                {{ getBackgroundAiStatusLabel(row.backgroundAiStatus) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="moduleKey === 'book_analyses'" :label="t('design.labels.aiFailureReason')" min-width="240">
+            <template #default="{ row }">
+              <span v-if="row.backgroundAiStatus === 'failed'" class="failure-reason" :title="getBackgroundAiFailureReason(row)">
+                {{ getBackgroundAiFailureReason(row) }}
+              </span>
+              <span v-else class="muted">--</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('design.labels.actions')" width="320" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="moduleKey === 'book_analyses'"
+                text
+                size="small"
+                type="primary"
+                :loading="backgroundAnalyzingId === String(row.id)"
+                :disabled="isBackgroundAiBusy(row)"
+                @click="queueBookAnalysisBackgroundAi(row)"
+              >
+                {{ t('design.labels.runAiAnalysis') }}
+              </el-button>
+              <el-button
+                v-if="moduleKey === 'book_analyses'"
+                text
+                size="small"
+                type="success"
+                :loading="generatingCreativeMaterialId === String(row.id)"
+                @click="createCreativeMaterialFromBookAnalysis(row)"
+              >
+                {{ t('design.labels.generateCreativeMaterial') }}
+              </el-button>
+              <el-button
+                v-if="moduleKey === 'creative_materials'"
+                text
+                size="small"
+                type="warning"
+                :loading="buildingSkeletonId === String(row.id)"
+                @click="buildSkeletonFromCreativeMaterial(row)"
+              >
+                {{ t('design.labels.buildSkeleton') }}
+              </el-button>
+              <el-button text size="small" :icon="Edit" @click="openEdit(row)">{{ t('design.labels.edit') }}</el-button>
+              <el-button text size="small" :icon="Delete" type="danger" @click="removeItem(row)">{{ t('design.labels.delete') }}</el-button>
             </template>
           </el-table-column>
           <template #empty>
-            <el-empty :description="`No records in ${moduleMeta.label}`" />
+            <el-empty :description="t('design.labels.noRecordsInModule', { module: localizedModuleLabel })" />
           </template>
         </el-table>
 
         <div class="pager-row">
-          <span class="muted">Total {{ total }}</span>
+          <span class="muted">{{ t('design.labels.total', { count: total }) }}</span>
           <el-pagination
             v-model:current-page="page"
             v-model:page-size="pageSize"
@@ -827,34 +1246,34 @@ onMounted(async () => {
 
     <el-dialog
       v-model="categoryDialogVisible"
-      :title="categoryDialogMode === 'create' ? 'New Category' : 'Edit Category'"
+      :title="categoryDialogMode === 'create' ? t('design.labels.newCategory') : t('design.labels.editCategory')"
       width="460px"
     >
       <el-form :model="categoryForm" label-width="100px" label-position="right">
-        <el-form-item label="Name" required>
+        <el-form-item :label="t('design.labels.name')" required>
           <el-input v-model="categoryForm.name" />
         </el-form-item>
-        <el-form-item label="Parent">
-          <el-select v-model="categoryForm.parentId" clearable filterable style="width: 100%" placeholder="Root category">
+        <el-form-item :label="t('design.labels.parent')">
+          <el-select v-model="categoryForm.parentId" clearable filterable style="width: 100%" :placeholder="t('design.labels.rootCategory')">
             <el-option v-for="option in categoryParentOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Sort">
+        <el-form-item :label="t('design.labels.sort')">
           <el-input-number v-model="categoryForm.sortOrder" :min="0" />
         </el-form-item>
-        <el-form-item label="Enabled">
+        <el-form-item :label="t('design.labels.enabled')">
           <el-switch v-model="categoryForm.isEnabled" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="categoryDialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="saveCategory">Save</el-button>
+        <el-button @click="categoryDialogVisible = false">{{ t('design.labels.cancel') }}</el-button>
+        <el-button type="primary" @click="saveCategory">{{ t('design.labels.save') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="editorVisible"
-      :title="`${editorMode === 'create' ? 'New' : 'Edit'} ${moduleMeta.label}`"
+      :title="`${editorMode === 'create' ? t('design.labels.new') : t('design.labels.edit')} ${localizedModuleLabel}`"
       width="780px"
       :close-on-click-modal="false"
     >
@@ -870,14 +1289,27 @@ onMounted(async () => {
           @rematch-references="rematchReferences(field)"
         />
 
-        <el-form-item label="Category ID">
+        <el-form-item :label="t('design.labels.categoryId')">
           <el-tag v-if="editorForm.categoryId" type="info">{{ editorForm.categoryId }}</el-tag>
-          <span v-else class="muted">Not bound</span>
+          <span v-else class="muted">{{ t('design.labels.notBound') }}</span>
         </el-form-item>
 
-        <el-form-item v-if="moduleMeta.hasSourceBookScope" label="Source Book ID">
+        <el-form-item v-if="moduleMeta.hasSourceBookScope" :label="t('design.labels.sourceBookId')">
           <el-tag v-if="editorForm.sourceBookId" type="info">{{ editorForm.sourceBookId }}</el-tag>
-          <span v-else class="muted">Global scope</span>
+          <span v-else class="muted">{{ t('design.labels.globalScope') }}</span>
+        </el-form-item>
+
+        <el-form-item
+          v-if="moduleKey === 'book_analyses' && editorForm.backgroundAiStatus === 'failed'"
+          :label="t('design.labels.aiFailureReason')"
+        >
+          <el-alert
+            type="error"
+            :closable="false"
+            show-icon
+            class="editor-ai-failure"
+            :title="getBackgroundAiFailureReason(editorForm)"
+          />
         </el-form-item>
 
         <el-tabs v-model="editorTab" class="editor-tabs">
@@ -902,26 +1334,26 @@ onMounted(async () => {
       </el-form>
 
       <template #footer>
-        <el-button @click="editorVisible = false">Cancel</el-button>
-        <el-button type="primary" :loading="saving" @click="saveEditor">Save</el-button>
+        <el-button @click="editorVisible = false">{{ t('design.labels.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="saveEditor">{{ t('design.labels.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="newSourceBookVisible" title="New Source Book" width="400px">
+    <el-dialog v-model="newSourceBookVisible" :title="t('design.labels.newSourceBook')" width="400px">
       <el-form>
-        <el-form-item label="Name" required>
+        <el-form-item :label="t('design.labels.name')" required>
           <el-input v-model="newSourceBookName" @keyup.enter="quickCreateSourceBook" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="newSourceBookVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="quickCreateSourceBook">Create</el-button>
+        <el-button @click="newSourceBookVisible = false">{{ t('design.labels.cancel') }}</el-button>
+        <el-button type="primary" @click="quickCreateSourceBook">{{ t('design.labels.create') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="bookAnalysisImportVisible"
-      title="Crawl Import"
+      :title="t('design.labels.crawlImportTitle')"
       width="760px"
       :close-on-click-modal="false"
     >
@@ -929,73 +1361,126 @@ onMounted(async () => {
         <div class="import-input-row">
           <el-input
             v-model="bookAnalysisImportUrl"
-            placeholder="Book detail page URL"
+            :placeholder="t('design.labels.bookDetailUrl')"
             clearable
             @keyup.enter="previewBookAnalysisImport"
           />
           <el-button type="primary" :loading="importingBookAnalysis" @click="previewBookAnalysisImport">
-            Preview
+            {{ t('design.labels.preview') }}
           </el-button>
+        </div>
+        <div class="import-file-row">
+          <input
+            ref="bookAnalysisImportFileInput"
+            class="hidden-file-input"
+            type="file"
+            accept=".txt,text/plain"
+            @change="importBookAnalysisTxt"
+          />
+          <el-button :loading="importingBookAnalysis" @click="openBookAnalysisTxtPicker">
+            {{ t('design.labels.uploadTxt') }}
+          </el-button>
+          <span class="muted">{{ t('design.labels.uploadTxtHint') }}</span>
+        </div>
+        <div class="ai-analysis-box">
+          <div class="ai-analysis-title">{{ t('design.labels.aiAnalysis') }}</div>
+          <div class="ai-config-grid">
+            <el-select
+              v-model="bookAnalysisAiConfigId"
+              :placeholder="t('design.labels.aiProviderConfig')"
+              filterable
+              size="small"
+            >
+              <el-option
+                v-for="config in bookAnalysisAiConfigs"
+                :key="config.providerId"
+                :label="`${config.name} / ${config.modelCode || '--'}`"
+                :value="config.providerId"
+              />
+            </el-select>
+            <el-input :model-value="bookAnalysisAiModel" :placeholder="t('design.labels.aiModel')" size="small" readonly />
+            <el-input
+              v-model="bookAnalysisAiEndpoint"
+              :placeholder="t('design.labels.aiEndpoint')"
+              size="small"
+              readonly
+            />
+            <el-input
+              :model-value="selectedBookAnalysisAiConfig?.apiKeyMaskedTail || t('design.labels.aiKeyAuto')"
+              :placeholder="t('design.labels.aiKeyAuto')"
+              size="small"
+              readonly
+            />
+            <el-button
+              type="primary"
+              :loading="analyzingBookAnalysis"
+              :disabled="!bookAnalysisImportPreview || importingBookAnalysis"
+              @click="analyzeBookAnalysisWithAi"
+            >
+              {{ t('design.labels.runAiAnalysis') }}
+            </el-button>
+          </div>
+          <div class="muted">{{ t('design.labels.aiAnalysisHint') }}</div>
         </div>
 
         <el-empty
           v-if="!bookAnalysisImportPreview"
-          description="Enter a URL, preview the crawl result, then apply it to a form."
+          :description="t('design.labels.enterUrlPreviewApply')"
         />
 
         <template v-else>
           <div class="preview-meta">
             <div class="preview-meta-item">
-              <span class="preview-label">Source URL</span>
+              <span class="preview-label">{{ t('design.labels.sourceUrl') }}</span>
               <span class="preview-value">{{ bookAnalysisImportPreview.sourceUrl }}</span>
             </div>
             <div class="preview-meta-item">
-              <span class="preview-label">Title</span>
-              <span class="preview-value">{{ bookAnalysisImportPreview.title || 'N/A' }}</span>
+              <span class="preview-label">{{ t('design.labels.title') }}</span>
+              <span class="preview-value">{{ bookAnalysisImportPreview.title || t('design.labels.na') }}</span>
             </div>
             <div class="preview-meta-item">
-              <span class="preview-label">Site</span>
-              <span class="preview-value">{{ bookAnalysisImportPreview.sourceSite || 'N/A' }}</span>
+              <span class="preview-label">{{ t('design.labels.site') }}</span>
+              <span class="preview-value">{{ bookAnalysisImportPreview.sourceSite || t('design.labels.na') }}</span>
             </div>
             <div class="preview-meta-item">
-              <span class="preview-label">Author</span>
-              <span class="preview-value">{{ bookAnalysisImportPreview.author || 'N/A' }}</span>
+              <span class="preview-label">{{ t('design.labels.author') }}</span>
+              <span class="preview-value">{{ bookAnalysisImportPreview.author || t('design.labels.na') }}</span>
             </div>
           </div>
 
           <el-alert type="info" show-icon :closable="false" class="import-warning">
-            <template #title>Preview Summary</template>
+            <template #title>{{ t('design.labels.previewSummary') }}</template>
             <div class="warning-list">
-              <div>Sample chapters: {{ bookAnalysisImportPreview.chapters.length }}</div>
-              <div>Chapter count: {{ bookAnalysisImportPreview.chapterCount }}</div>
-              <div>Total words: {{ bookAnalysisImportPreview.totalWordCount }}</div>
+              <div>{{ t('design.labels.sampleChapters', { count: bookAnalysisImportPreview.chapters.length }) }}</div>
+              <div>{{ t('design.labels.chapterCount', { count: bookAnalysisImportPreview.chapterCount }) }}</div>
+              <div>{{ t('design.labels.totalWords', { count: bookAnalysisImportPreview.totalWordCount }) }}</div>
             </div>
           </el-alert>
 
           <div class="preview-block">
-            <div class="preview-block-title">Summary</div>
-            <div class="preview-excerpt">{{ bookAnalysisImportPreview.summary || 'No summary' }}</div>
+            <div class="preview-block-title">{{ t('design.labels.summary') }}</div>
+            <div class="preview-excerpt">{{ bookAnalysisImportPreview.summary || t('design.labels.noSummary') }}</div>
           </div>
 
           <div class="preview-block">
-            <div class="preview-block-title">Mapped Draft Fields</div>
+            <div class="preview-block-title">{{ t('design.labels.mappedDraftFields') }}</div>
             <el-descriptions :column="2" border size="small">
-              <el-descriptions-item label="Name">
+              <el-descriptions-item :label="t('design.labels.name')">
                 {{ toBookAnalysisDraft(bookAnalysisImportPreview).name }}
               </el-descriptions-item>
-              <el-descriptions-item label="Source URL">
-                {{ toBookAnalysisDraft(bookAnalysisImportPreview).sourceUrl || 'N/A' }}
+              <el-descriptions-item :label="t('design.labels.sourceUrl')">
+                {{ toBookAnalysisDraft(bookAnalysisImportPreview).sourceUrl || t('design.labels.na') }}
               </el-descriptions-item>
-              <el-descriptions-item label="Book Title">
-                {{ toBookAnalysisDraft(bookAnalysisImportPreview).sourceBookTitle || 'N/A' }}
+              <el-descriptions-item :label="t('design.labels.title')">
+                {{ toBookAnalysisDraft(bookAnalysisImportPreview).sourceBookTitle || t('design.labels.na') }}
               </el-descriptions-item>
-              <el-descriptions-item label="Author">
-                {{ toBookAnalysisDraft(bookAnalysisImportPreview).sourceAuthor || 'N/A' }}
+              <el-descriptions-item :label="t('design.labels.author')">
+                {{ toBookAnalysisDraft(bookAnalysisImportPreview).sourceAuthor || t('design.labels.na') }}
               </el-descriptions-item>
-              <el-descriptions-item label="Genre">
-                {{ toBookAnalysisDraft(bookAnalysisImportPreview).sourceGenre || 'N/A' }}
+              <el-descriptions-item :label="t('design.labels.genre')">
+                {{ toBookAnalysisDraft(bookAnalysisImportPreview).sourceGenre || t('design.labels.na') }}
               </el-descriptions-item>
-              <el-descriptions-item label="Chapter Count">
+              <el-descriptions-item :label="t('design.labels.chapterCount', { count: '' })">
                 {{ toBookAnalysisDraft(bookAnalysisImportPreview).chapterCount ?? 0 }}
               </el-descriptions-item>
             </el-descriptions>
@@ -1004,12 +1489,12 @@ onMounted(async () => {
       </div>
 
       <template #footer>
-        <el-button @click="bookAnalysisImportVisible = false">Close</el-button>
+        <el-button @click="bookAnalysisImportVisible = false">{{ t('design.labels.close') }}</el-button>
         <el-button type="primary" plain :disabled="!bookAnalysisImportPreview" @click="applyImportedBookAnalysis('current')">
-          Apply To Current
+          {{ t('design.labels.applyToCurrent') }}
         </el-button>
         <el-button type="primary" :disabled="!bookAnalysisImportPreview" @click="applyImportedBookAnalysis('new')">
-          New Draft
+          {{ t('design.labels.newDraft') }}
         </el-button>
       </template>
     </el-dialog>
@@ -1067,6 +1552,19 @@ onMounted(async () => {
 
 .module-tab .icon {
   font-size: 14px;
+}
+
+.failure-reason {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--el-color-danger);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-ai-failure {
+  width: 100%;
 }
 
 .sourcebook-area {
@@ -1198,6 +1696,38 @@ onMounted(async () => {
   align-items: center;
 }
 
+.import-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.ai-analysis-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dfe8e5;
+  border-radius: 12px;
+  background: #fbfaf4;
+}
+
+.ai-analysis-title {
+  font-weight: 700;
+  color: #2c4a45;
+}
+
+.ai-config-grid {
+  display: grid;
+  grid-template-columns: 160px 160px 180px minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
 .preview-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1260,6 +1790,10 @@ onMounted(async () => {
   }
 
   .import-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-config-grid {
     grid-template-columns: 1fr;
   }
 }

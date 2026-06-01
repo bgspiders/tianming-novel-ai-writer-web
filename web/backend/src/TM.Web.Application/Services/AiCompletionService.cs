@@ -11,11 +11,16 @@ namespace TM.Web.Application.Services;
 public sealed class AiCompletionService : IAiCompletionService
 {
     private readonly IGenerationNotifier _notifier;
+    private readonly IAiHttpClientFactory _httpClientFactory;
     private readonly ILogger<AiCompletionService> _logger;
 
-    public AiCompletionService(IGenerationNotifier notifier, ILogger<AiCompletionService> logger)
+    public AiCompletionService(
+        IGenerationNotifier notifier,
+        IAiHttpClientFactory httpClientFactory,
+        ILogger<AiCompletionService> logger)
     {
         _notifier = notifier;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -57,7 +62,8 @@ public sealed class AiCompletionService : IAiCompletionService
                 .AddOpenAIChatCompletion(
                     modelId: request.Model,
                     endpoint: new Uri(NormalizeEndpoint(request.Endpoint)),
-                    apiKey: request.ApiKey)
+                    apiKey: request.ApiKey,
+                    httpClient: _httpClientFactory.CreateOpenAiCompatibleClient())
                 .Build();
 
             var chat = kernel.GetRequiredService<IChatCompletionService>();

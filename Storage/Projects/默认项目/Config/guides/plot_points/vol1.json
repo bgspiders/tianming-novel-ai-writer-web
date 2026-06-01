@@ -1,0 +1,22 @@
+{
+  "Module": "PlotPointsIndex",
+  "SourceBookId": "sb_neon_tide",
+  "PlotPoints": [
+    {
+      "Chapter": "vol1_ch1",
+      "Context": "旧泵站离线警报出现，断裂符箓针投出第三潮汐塔坐标。",
+      "Keywords": ["离线警报", "断裂符箓针", "第三潮汐塔"],
+      "InvolvedCharacters": ["林砚"],
+      "Importance": "high",
+      "Storyline": "灰鲸事故真相"
+    },
+    {
+      "Chapter": "vol1_ch2",
+      "Context": "沈栀确认官方日志缺失三秒，与林砚形成临时同盟。",
+      "Keywords": ["缺失三秒日志", "审计封锁", "临时同盟"],
+      "InvolvedCharacters": ["林砚", "沈栀"],
+      "Importance": "high",
+      "Storyline": "灰鲸事故真相"
+    }
+  ]
+}

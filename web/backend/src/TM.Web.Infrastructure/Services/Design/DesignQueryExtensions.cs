@@ -57,6 +57,29 @@ internal static class DesignQueryExtensions
         return project.CurrentSourceBookId;
     }
 
+    public static async Task<string?> ResolveReadSourceBookIdAsync(
+        this AppDbContext db,
+        string? projectId,
+        string? sourceBookId,
+        CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(sourceBookId))
+        {
+            return sourceBookId.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(projectId))
+        {
+            return null;
+        }
+
+        return await db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => p.CurrentSourceBookId)
+            .FirstOrDefaultAsync(ct);
+    }
+
     public static IQueryable<T> ApplyFilter<T>(this IQueryable<T> q, DesignListQuery query)
         where T : BusinessDataBase
     {

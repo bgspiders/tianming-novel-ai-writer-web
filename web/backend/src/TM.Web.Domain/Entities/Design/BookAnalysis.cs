@@ -25,6 +25,12 @@ public class BookAnalysis : BusinessDataBase
     public int TotalWordCount { get; set; }
     public DateTime? CrawledAt { get; set; }
 
+    public string BackgroundAiStatus { get; set; } = "idle";
+    public string? BackgroundAiJobId { get; set; }
+    public DateTime? BackgroundAiRequestedAt { get; set; }
+    public DateTime? BackgroundAiFinishedAt { get; set; }
+    public string BackgroundAiMessage { get; set; } = string.Empty;
+
     // 拆书结论字段（与 CreativeMaterial 同构，是拆书 → 素材的来源）
     public string WorldBuildingMethod { get; set; } = string.Empty;
     public string PowerSystemDesign { get; set; } = string.Empty;

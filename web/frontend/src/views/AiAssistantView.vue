@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatLineRound, Delete, Plus, Promotion, Refresh } from '@element-plus/icons-vue'
+import { useI18n } from '@/composables/useI18n'
 import { useWorkContextStore } from '@/stores/workContext'
 import { chatHub, type RunEvent } from '@/signalr/chat'
 import {
@@ -23,6 +24,7 @@ import {
 import { listKeys, listModels, listProviders, type AiApiKey, type AiModel, type AiProvider } from '@/api/modules/ai'
 
 const workContext = useWorkContextStore()
+const { t } = useI18n()
 
 const sessions = ref<ChatSession[]>([])
 const messages = ref<ChatMessage[]>([])
@@ -90,9 +92,9 @@ const visibleMessages = computed(() => {
 })
 
 function modeLabel(value: string) {
-  if (value === 'plan') return 'Plan'
-  if (value === 'edit') return 'Edit'
-  return 'Agent'
+  if (value === 'plan') return t('aiAssistant.mode.plan')
+  if (value === 'edit') return t('aiAssistant.mode.edit')
+  return t('aiAssistant.mode.agent')
 }
 
 function formatTime(value: string) {
@@ -225,6 +227,10 @@ function toolCallsFromRunEvent(event: RunEvent, eventIndex: number): ToolCallDis
     .filter((call): call is ToolCallDisplay => !!call)
 }
 
+function isPlanBusinessStep(call: ToolCallDisplay) {
+  return call.pluginName?.toLowerCase() === 'plan' && call.functionName?.toLowerCase() === 'preparestep'
+}
+
 function normalizeTraceSummary(value: unknown): ExecutionTraceSummaryPayload | null {
   if (!isRecord(value)) return null
   const totalSteps = asNullableNumber(fieldValue(value, 'totalSteps', 'TotalSteps'))
@@ -261,18 +267,20 @@ function traceSummaryFromRunEvent(event: RunEvent) {
 
 function summarizeToolCalls(calls: ToolCallDisplay[]): ExecutionTraceSummaryPayload | null {
   if (calls.length === 0) return null
-  const completedSteps = calls.filter((call) => call.status === 'completed').length
-  const failedSteps = calls.filter((call) => call.status === 'failed').length
-  const failedStepSummaries = calls
+  const businessCalls = calls.filter(isPlanBusinessStep)
+  const summaryCalls = businessCalls.length > 0 ? businessCalls : calls
+  const completedSteps = summaryCalls.filter((call) => call.status === 'completed').length
+  const failedSteps = summaryCalls.filter((call) => call.status === 'failed').length
+  const failedStepSummaries = summaryCalls
     .filter((call) => call.status === 'failed')
     .map((call) => call.errorMessage || call.title || toolCallName(call))
-  const totalDurationSeconds = calls.reduce((total, call) => {
+  const totalDurationSeconds = summaryCalls.reduce((total, call) => {
     if (typeof call.durationSeconds === 'number') return total + call.durationSeconds
     if (typeof call.durationMs === 'number') return total + call.durationMs / 1000
     return total
   }, 0)
   return {
-    totalSteps: calls.length,
+    totalSteps: summaryCalls.length,
     completedSteps,
     failedSteps,
     totalDurationSeconds: totalDurationSeconds > 0 ? totalDurationSeconds : null,
@@ -306,12 +314,12 @@ function canExecutePlan(message: ChatMessage) {
 }
 
 function toolCallStatusLabel(status?: ToolCallStatus | null) {
-  if (status === 'pending') return 'Pending'
-  if (status === 'running') return 'Running'
-  if (status === 'completed') return 'Completed'
-  if (status === 'failed') return 'Failed'
-  if (status === 'cancelled') return 'Cancelled'
-  return status || 'Unknown'
+  if (status === 'pending') return t('aiAssistant.status.pending')
+  if (status === 'running') return t('aiAssistant.status.running')
+  if (status === 'completed') return t('aiAssistant.status.completed')
+  if (status === 'failed') return t('aiAssistant.status.failed')
+  if (status === 'cancelled') return t('aiAssistant.status.cancelled')
+  return status || t('aiAssistant.status.unknown')
 }
 
 function toolCallStatusTag(status?: ToolCallStatus | null) {
@@ -326,7 +334,7 @@ function toolCallName(call: ToolCallRecordPayload) {
   const plugin = call.pluginName?.trim()
   const fn = call.functionName?.trim()
   if (plugin && fn) return `${plugin}.${fn}`
-  return plugin || fn || call.title || 'Tool Call'
+  return plugin || fn || call.title || t('aiAssistant.labels.toolCall')
 }
 
 function formatToolValue(value: ToolCallRecordPayload['arguments'] | ToolCallRecordPayload['result']) {
@@ -357,9 +365,9 @@ function formatTraceSummary(summary?: ExecutionTraceSummaryPayload | null) {
   if (!summary) return ''
   if (summary.summaryText) return summary.summaryText
   const parts: string[] = []
-  if (typeof summary.totalSteps === 'number') parts.push(`${summary.totalSteps} steps`)
-  if (typeof summary.completedSteps === 'number') parts.push(`${summary.completedSteps} completed`)
-  if (typeof summary.failedSteps === 'number' && summary.failedSteps > 0) parts.push(`${summary.failedSteps} failed`)
+  if (typeof summary.totalSteps === 'number') parts.push(t('aiAssistant.labels.steps', { count: summary.totalSteps }))
+  if (typeof summary.completedSteps === 'number') parts.push(t('aiAssistant.labels.completedSteps', { count: summary.completedSteps }))
+  if (typeof summary.failedSteps === 'number' && summary.failedSteps > 0) parts.push(t('aiAssistant.labels.failedSteps', { count: summary.failedSteps }))
   if (typeof summary.totalDurationSeconds === 'number' && summary.totalDurationSeconds > 0) {
     parts.push(`${summary.totalDurationSeconds.toFixed(1)}s`)
   }
@@ -371,21 +379,21 @@ function shouldShowRawContent(message: ChatMessage) {
 }
 
 function normalizationLabel(value?: string | null) {
-  if (value === 'singleChapterMerged') return 'Single Chapter Merge'
-  if (value === 'chapterRangeSplit') return 'Chapter Range Split'
-  if (value === 'multiChapterPreserved') return 'Multi Chapter Preserved'
+  if (value === 'singleChapterMerged') return t('aiAssistant.normalization.singleChapterMerged')
+  if (value === 'chapterRangeSplit') return t('aiAssistant.normalization.chapterRangeSplit')
+  if (value === 'multiChapterPreserved') return t('aiAssistant.normalization.multiChapterPreserved')
   return value || ''
 }
 
 function directiveLabel(kind?: string) {
-  if (kind === 'continue') return 'Continue'
-  if (kind === 'rewrite') return 'Rewrite'
-  return kind || 'Directive'
+  if (kind === 'continue') return t('aiAssistant.directive.continue')
+  if (kind === 'rewrite') return t('aiAssistant.directive.rewrite')
+  return kind || t('aiAssistant.directive.default')
 }
 
 function targetPanelLabel(value?: string | null) {
-  if (value === 'ExecutionPlan') return 'Execution Plan'
-  if (value === 'ExecutionPanel') return 'Execution Panel'
+  if (value === 'ExecutionPlan') return t('aiAssistant.targetPanel.ExecutionPlan')
+  if (value === 'ExecutionPanel') return t('aiAssistant.targetPanel.ExecutionPanel')
   return value || ''
 }
 
@@ -425,7 +433,7 @@ async function refreshSessions() {
     }
     await refreshMessages()
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to load chat sessions.')
+    ElMessage.error((err as Error).message || t('aiAssistant.messages.loadSessionsFailed'))
   } finally {
     loading.value = false
   }
@@ -444,7 +452,7 @@ async function createSession(nextMode: ChatMode = mode.value) {
     mode.value = session.mode
     messages.value = []
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to create a session.')
+    ElMessage.error((err as Error).message || t('aiAssistant.messages.createSessionFailed'))
   }
 }
 
@@ -459,9 +467,9 @@ async function saveSessionSettings() {
       modelCode: selectedModel.value || null
     })
     sessions.value = sessions.value.map((item) => (item.id === updated.id ? updated : item))
-    ElMessage.success('Session settings saved.')
+    ElMessage.success(t('aiAssistant.messages.saveSessionSuccess'))
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to save session settings.')
+    ElMessage.error((err as Error).message || t('aiAssistant.messages.saveSessionFailed'))
   } finally {
     savingSession.value = false
   }
@@ -469,7 +477,11 @@ async function saveSessionSettings() {
 
 async function removeSession(session: ChatSession) {
   try {
-    await ElMessageBox.confirm(`Delete session "${session.title}"?`, 'Confirm', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('aiAssistant.messages.deleteConfirm', { title: session.title }),
+      t('layout.dialogs.confirm'),
+      { type: 'warning' }
+    )
   } catch {
     return
   }
@@ -482,7 +494,7 @@ async function removeSession(session: ChatSession) {
       await refreshMessages()
     }
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to delete the session.')
+    ElMessage.error((err as Error).message || t('aiAssistant.messages.deleteFailed'))
   }
 }
 
@@ -551,19 +563,19 @@ async function send() {
   }
   if (!selectedSessionId.value) return
   if (!input.value.trim()) {
-    ElMessage.warning('Enter a message first.')
+    ElMessage.warning(t('aiAssistant.messages.enterMessage'))
     return
   }
   if (!endpoint.value || !selectedModel.value) {
-    ElMessage.warning('Endpoint and model are required.')
+    ElMessage.warning(t('aiAssistant.messages.endpointModelRequired'))
     return
   }
   if (useSavedKey.value && !selectedProviderId.value) {
-    ElMessage.warning('Select a provider first.')
+    ElMessage.warning(t('aiAssistant.messages.selectProviderFirst'))
     return
   }
   if (!useSavedKey.value && !tempKey.value.trim()) {
-    ElMessage.warning('Enter a temporary API key.')
+    ElMessage.warning(t('aiAssistant.messages.tempKeyRequired'))
     return
   }
 
@@ -595,7 +607,7 @@ async function send() {
     await refreshSessions()
   } catch (err) {
     status.value = 'error'
-    errorMessage.value = (err as Error).message || 'Failed to send the message.'
+    errorMessage.value = (err as Error).message || t('aiAssistant.messages.sendFailed')
     ElMessage.error(errorMessage.value)
   } finally {
     sending.value = false
@@ -607,7 +619,7 @@ async function send() {
 async function executePlan(message: ChatMessage) {
   if (!selectedSessionId.value) return
   if (executingMessageId.value) {
-    ElMessage.warning('Another execution is already in progress.')
+    ElMessage.warning(t('aiAssistant.messages.executingAnother'))
     return
   }
 
@@ -628,10 +640,14 @@ async function executePlan(message: ChatMessage) {
     await refreshMessages()
     await refreshSessions()
     status.value = `completed (${result.finishReason})`
-    ElMessage.success(result.finishReason === 'failed' ? 'Plan execution finished with failures.' : 'Plan execution completed.')
+    ElMessage.success(
+      result.finishReason === 'failed'
+        ? t('aiAssistant.messages.executeFinishedWithFailures')
+        : t('aiAssistant.messages.executeCompleted')
+    )
   } catch (err) {
     status.value = 'error'
-    errorMessage.value = (err as Error).message || 'Failed to execute the plan.'
+    errorMessage.value = (err as Error).message || t('aiAssistant.messages.executeFailed')
     ElMessage.error(errorMessage.value)
   } finally {
     executingMessageId.value = ''
@@ -682,15 +698,15 @@ onBeforeUnmount(async () => {
   <div class="assistant-page">
     <aside class="session-panel">
       <div class="panel-head">
-        <strong>AI Assistant</strong>
-        <el-button :icon="Plus" size="small" type="primary" @click="createSession()">New Session</el-button>
+        <strong>{{ t('aiAssistant.title') }}</strong>
+        <el-button :icon="Plus" size="small" type="primary" @click="createSession()">{{ t('aiAssistant.actions.newSession') }}</el-button>
       </div>
       <el-segmented
         v-model="mode"
         :options="[
-          { label: 'Agent', value: 'agent' },
-          { label: 'Plan', value: 'plan' },
-          { label: 'Edit', value: 'edit' }
+          { label: t('aiAssistant.mode.agent'), value: 'agent' },
+          { label: t('aiAssistant.mode.plan'), value: 'plan' },
+          { label: t('aiAssistant.mode.edit'), value: 'edit' }
         ]"
         block
       />
@@ -706,22 +722,22 @@ onBeforeUnmount(async () => {
           <span class="session-meta">{{ modeLabel(session.mode) }} / {{ formatTime(session.lastMessageAt) }}</span>
           <el-button text type="danger" :icon="Delete" @click.stop="removeSession(session)" />
         </button>
-        <el-empty v-if="sessions.length === 0" description="No sessions yet." />
+        <el-empty v-if="sessions.length === 0" :description="t('aiAssistant.empty.sessions')" />
       </div>
     </aside>
 
     <main class="chat-panel">
       <header class="toolbar">
         <div>
-          <h1>{{ selectedSession?.title ?? 'AI Assistant' }}</h1>
+          <h1>{{ selectedSession?.title ?? t('aiAssistant.title') }}</h1>
           <span>{{ modeLabel(mode) }} / {{ status }}</span>
         </div>
         <div class="config">
-          <el-switch v-model="useSavedKey" active-text="Saved key" inactive-text="Temporary key" />
-          <el-select v-model="selectedProviderId" placeholder="Provider" filterable style="width: 180px">
+          <el-switch v-model="useSavedKey" :active-text="t('aiAssistant.switch.savedKey')" :inactive-text="t('aiAssistant.switch.temporaryKey')" />
+          <el-select v-model="selectedProviderId" :placeholder="t('aiAssistant.placeholders.provider')" filterable style="width: 180px">
             <el-option v-for="provider in providers" :key="provider.id" :label="provider.name" :value="provider.id" />
           </el-select>
-          <el-select v-if="useSavedKey" v-model="selectedKeyId" placeholder="Key" clearable filterable style="width: 160px">
+          <el-select v-if="useSavedKey" v-model="selectedKeyId" :placeholder="t('aiAssistant.placeholders.key')" clearable filterable style="width: 160px">
             <el-option
               v-for="key in enabledKeys"
               :key="key.id"
@@ -729,8 +745,8 @@ onBeforeUnmount(async () => {
               :value="key.id"
             />
           </el-select>
-          <el-input v-else v-model="tempKey" type="password" show-password placeholder="API key" style="width: 180px" />
-          <el-select v-model="selectedModel" placeholder="Model" filterable allow-create style="width: 180px">
+          <el-input v-else v-model="tempKey" type="password" show-password :placeholder="t('aiAssistant.placeholders.apiKey')" style="width: 180px" />
+          <el-select v-model="selectedModel" :placeholder="t('aiAssistant.placeholders.model')" filterable allow-create style="width: 180px">
             <el-option v-for="model in enabledModels" :key="model.id" :label="model.code" :value="model.code" />
           </el-select>
           <el-button :icon="Refresh" @click="refreshAiConfig" />
@@ -738,11 +754,11 @@ onBeforeUnmount(async () => {
       </header>
 
       <div class="session-settings" v-if="selectedSession">
-        <el-input v-model="titleDraft" placeholder="Session title" />
-        <el-button :loading="savingSession" @click="saveSessionSettings">Save Settings</el-button>
+        <el-input v-model="titleDraft" :placeholder="t('aiAssistant.placeholders.sessionTitle')" />
+        <el-button :loading="savingSession" @click="saveSessionSettings">{{ t('aiAssistant.actions.saveSettings') }}</el-button>
       </div>
 
-      <el-input v-model="endpoint" placeholder="Endpoint, for example https://api.openai.com/v1" />
+      <el-input v-model="endpoint" :placeholder="t('aiAssistant.placeholders.endpoint')" />
       <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="true" @close="errorMessage = ''" />
 
       <section v-if="runEvents.length > 0" class="run-events">
@@ -755,8 +771,8 @@ onBeforeUnmount(async () => {
 
       <section v-if="liveToolCalls.length > 0 || hasLiveExecutionEvents" class="execution-panel">
         <div class="execution-head">
-          <strong>Execution Trace</strong>
-          <span>{{ liveToolCalls.length > 0 ? `${liveToolCalls.length} tool calls` : 'Waiting for tool call details' }}</span>
+          <strong>{{ t('aiAssistant.labels.executionTrace') }}</strong>
+          <span>{{ liveToolCalls.length > 0 ? t('aiAssistant.labels.rows', { count: liveToolCalls.length }) : t('aiAssistant.labels.waitingToolDetails') }}</span>
         </div>
         <div v-if="liveTraceSummary" class="execution-summary">
           <span>{{ formatTraceSummary(liveTraceSummary) }}</span>
@@ -764,7 +780,7 @@ onBeforeUnmount(async () => {
             {{ liveTraceSummary.failedStepSummaries.join(' / ') }}
           </span>
         </div>
-        <el-empty v-if="liveToolCalls.length === 0" description="Execution events received, waiting for tool details." />
+        <el-empty v-if="liveToolCalls.length === 0" :description="t('aiAssistant.empty.toolDetails')" />
         <div v-else class="tool-call-list">
           <div v-for="call in liveToolCalls" :key="call.key" class="tool-call">
             <div class="tool-call-main">
@@ -780,15 +796,15 @@ onBeforeUnmount(async () => {
             <p v-if="call.description" class="tool-call-title">{{ call.description }}</p>
             <div v-if="formatToolValue(call.arguments) || formatToolValue(call.result) || call.errorMessage" class="tool-call-detail">
               <div v-if="formatToolValue(call.arguments)">
-                <span>Arguments</span>
+                <span>{{ t('aiAssistant.labels.arguments') }}</span>
                 <pre>{{ formatToolValue(call.arguments) }}</pre>
               </div>
               <div v-if="formatToolValue(call.result)">
-                <span>Result</span>
+                <span>{{ t('aiAssistant.labels.result') }}</span>
                 <pre>{{ formatToolValue(call.result) }}</pre>
               </div>
               <div v-if="call.errorMessage" class="tool-call-error">
-                <span>Error</span>
+                <span>{{ t('aiAssistant.labels.error') }}</span>
                 <pre>{{ call.errorMessage }}</pre>
               </div>
             </div>
@@ -797,7 +813,7 @@ onBeforeUnmount(async () => {
       </section>
 
       <section class="messages">
-        <el-empty v-if="visibleMessages.length === 0" description="Start a conversation." />
+        <el-empty v-if="visibleMessages.length === 0" :description="t('aiAssistant.empty.messages')" />
         <article v-for="message in visibleMessages" :key="message.id" class="message" :class="message.role">
           <div class="role">
             <el-icon><ChatLineRound /></el-icon>
@@ -807,7 +823,7 @@ onBeforeUnmount(async () => {
             {{ message.summary }}
           </p>
           <el-collapse v-if="message.thinkingContent">
-            <el-collapse-item title="thinking" :name="message.id">
+            <el-collapse-item :title="t('aiAssistant.thinking')" :name="message.id">
               <pre>{{ message.thinkingContent }}</pre>
             </el-collapse-item>
           </el-collapse>
@@ -825,13 +841,13 @@ onBeforeUnmount(async () => {
               {{ targetPanelLabel(payloadMeta(message)?.targetPanel) }}
             </el-tag>
             <el-tag v-if="payloadMeta(message)?.requiresExecutionEngine" size="small" type="danger">
-              Execution Required
+              {{ t('aiAssistant.labels.executionRequired') }}
             </el-tag>
             <el-tag v-if="payloadMeta(message)?.normalization" size="small" type="success">
               {{ normalizationLabel(payloadMeta(message)?.normalization) }}
             </el-tag>
             <el-tag v-if="payloadMeta(message)?.chapterRange" size="small" type="warning">
-              Chapters {{ payloadMeta(message)?.chapterRange?.start }}-{{ payloadMeta(message)?.chapterRange?.end }}
+              {{ t('aiAssistant.labels.chapters', { start: payloadMeta(message)?.chapterRange?.start, end: payloadMeta(message)?.chapterRange?.end }) }}
             </el-tag>
             <el-tag v-if="payloadMeta(message)?.directive" size="small">
               {{ directiveLabel(payloadMeta(message)?.directive?.kind) }} {{ payloadMeta(message)?.directive?.chapterId }}
@@ -846,7 +862,7 @@ onBeforeUnmount(async () => {
                 :disabled="sending || (!!executingMessageId && executingMessageId !== message.id)"
                 @click="executePlan(message)"
               >
-                Execute Plan
+                {{ t('aiAssistant.actions.executePlan') }}
               </el-button>
             </div>
             <div v-for="step in planSteps(message)" :key="step.index" class="plan-step">
@@ -854,9 +870,9 @@ onBeforeUnmount(async () => {
               <div>
                 <div class="step-title">
                   <strong>{{ step.title }}</strong>
-                  <el-tag v-if="step.chapterNumber" size="small" type="info">Chapter {{ step.chapterNumber }}</el-tag>
-                  <el-tag v-if="step.continueFromChapterId" size="small">Continue {{ step.continueFromChapterId }}</el-tag>
-                  <el-tag v-if="step.rewriteTargetChapterId" size="small" type="warning">Rewrite {{ step.rewriteTargetChapterId }}</el-tag>
+                  <el-tag v-if="step.chapterNumber" size="small" type="info">{{ t('aiAssistant.labels.chapter', { value: step.chapterNumber }) }}</el-tag>
+                  <el-tag v-if="step.continueFromChapterId" size="small">{{ t('aiAssistant.labels.continue', { value: step.continueFromChapterId }) }}</el-tag>
+                  <el-tag v-if="step.rewriteTargetChapterId" size="small" type="warning">{{ t('aiAssistant.labels.rewrite', { value: step.rewriteTargetChapterId }) }}</el-tag>
                 </div>
                 <p v-if="step.detail">{{ step.detail }}</p>
               </div>
@@ -864,8 +880,8 @@ onBeforeUnmount(async () => {
           </div>
           <div v-if="payloadToolCalls(message).length > 0" class="execution-panel message-execution">
             <div class="execution-head">
-              <strong>Execution Trace / Tool Calls</strong>
-              <span>{{ payloadToolCalls(message).length }} rows</span>
+              <strong>{{ t('aiAssistant.labels.executionTraceWithTools') }}</strong>
+              <span>{{ t('aiAssistant.labels.rows', { count: payloadToolCalls(message).length }) }}</span>
             </div>
             <div v-if="payloadTraceSummary(message)" class="execution-summary">
               <span>{{ formatTraceSummary(payloadTraceSummary(message)) }}</span>
@@ -887,15 +903,15 @@ onBeforeUnmount(async () => {
                 <p v-if="call.description" class="tool-call-title">{{ call.description }}</p>
                 <div v-if="formatToolValue(call.arguments) || formatToolValue(call.result) || call.errorMessage" class="tool-call-detail">
                   <div v-if="formatToolValue(call.arguments)">
-                    <span>Arguments</span>
+                    <span>{{ t('aiAssistant.labels.arguments') }}</span>
                     <pre>{{ formatToolValue(call.arguments) }}</pre>
                   </div>
                   <div v-if="formatToolValue(call.result)">
-                    <span>Result</span>
+                    <span>{{ t('aiAssistant.labels.result') }}</span>
                     <pre>{{ formatToolValue(call.result) }}</pre>
                   </div>
                   <div v-if="call.errorMessage" class="tool-call-error">
-                    <span>Error</span>
+                    <span>{{ t('aiAssistant.labels.error') }}</span>
                     <pre>{{ call.errorMessage }}</pre>
                   </div>
                 </div>
@@ -912,11 +928,11 @@ onBeforeUnmount(async () => {
           type="textarea"
           :rows="4"
           resize="none"
-          placeholder="Enter a task, a planning request, or text to edit..."
+          :placeholder="t('aiAssistant.placeholders.composer')"
           @keydown.meta.enter.prevent="send"
           @keydown.ctrl.enter.prevent="send"
         />
-        <el-button type="primary" :icon="Promotion" :loading="sending" @click="send">Send</el-button>
+        <el-button type="primary" :icon="Promotion" :loading="sending" @click="send">{{ t('aiAssistant.actions.send') }}</el-button>
       </footer>
     </main>
   </div>

@@ -1,0 +1,106 @@
+{
+  "Module": "BlueprintGuide",
+  "SourceBookId": "sb_neon_tide",
+  "Chapters": {
+    "vol1_ch1": {
+      "ChapterId": "vol1_ch1",
+      "Title": "旧泵站的蓝光",
+      "ChapterGoal": "林砚修理旧泵站时发现姐姐留下的断裂符箓针被异常激活。",
+      "ContextIds": {
+        "VolumeOutline": "outline_neon_tide",
+        "VolumeDesignId": "vol_001",
+        "ChapterPlanId": "vol1_ch1",
+        "ChapterBlueprint": "bp_vol1_ch1_s1",
+        "BlueprintIds": ["bp_vol1_ch1_s1"],
+        "Characters": ["char_linyan"],
+        "Factions": ["fac_tide_corp", "fac_lower_aid"],
+        "Locations": ["loc_lower_bridge"],
+        "PlotRules": ["plot_first_alarm"],
+        "TemplateIds": [],
+        "WorldRuleIds": ["wr_neon_tide_core"],
+        "Conflicts": ["conf_gray_whale_truth"],
+        "ForeshadowingSetups": ["fs_offline_alarm"],
+        "ForeshadowingPayoffs": [],
+        "PreviousChapter": "",
+        "PreviousVolumes": [],
+        "PreviousOutlines": []
+      },
+      "Rhythm": {
+        "PaceType": "压迫到爆点",
+        "Intensity": "中高",
+        "EmotionalTone": "冷雨、紧绷、旧伤被揭开"
+      },
+      "Scenes": [
+        {
+          "SceneId": "bp_vol1_ch1_s1",
+          "SceneNumber": 1,
+          "Purpose": "引出离线警报和第三潮汐塔坐标。",
+          "Title": "雨夜旧泵站",
+          "PovCharacter": "林砚",
+          "Opening": "下城区暴雨，林砚接到旧泵站抢修单。",
+          "Development": "他发现灵纹日志记录正常，但实体管线出现不可能的离线脉冲。",
+          "Turning": "断裂符箓针亮起蓝光，投出第三潮汐塔坐标。",
+          "Ending": "财团远程封锁泵站，林砚带着符箓针跳入退潮河道逃走。",
+          "InfoDrop": "解释灵纹日志与离线符箓的区别。",
+          "CharacterIds": ["char_linyan"],
+          "LocationId": "loc_lower_bridge"
+        }
+      ]
+    },
+    "vol1_ch2": {
+      "ChapterId": "vol1_ch2",
+      "Title": "审计员的封锁线",
+      "ChapterGoal": "沈栀封锁旧泵站并审问林砚，二人发现官方日志与现场灵纹矛盾。",
+      "ContextIds": {
+        "VolumeOutline": "outline_neon_tide",
+        "VolumeDesignId": "vol_001",
+        "ChapterPlanId": "vol1_ch2",
+        "ChapterBlueprint": "bp_vol1_ch2_s1",
+        "BlueprintIds": ["bp_vol1_ch2_s1"],
+        "Characters": ["char_linyan", "char_shenzhi"],
+        "Factions": ["fac_tide_corp"],
+        "Locations": ["loc_lower_bridge", "loc_tide_tower"],
+        "PlotRules": ["plot_first_alarm"],
+        "TemplateIds": [],
+        "WorldRuleIds": ["wr_neon_tide_core"],
+        "Conflicts": ["conf_gray_whale_truth"],
+        "ForeshadowingSetups": ["fs_missing_three_seconds"],
+        "ForeshadowingPayoffs": [],
+        "PreviousChapter": "vol1_ch1",
+        "PreviousVolumes": [],
+        "PreviousOutlines": []
+      },
+      "Rhythm": {
+        "PaceType": "对峙推理",
+        "Intensity": "中",
+        "EmotionalTone": "冷静、互刺、信任萌芽"
+      },
+      "Scenes": [
+        {
+          "SceneId": "bp_vol1_ch2_s1",
+          "SceneNumber": 1,
+          "Purpose": "让沈栀与林砚建立冲突式同盟。",
+          "Title": "封锁线后的审问",
+          "PovCharacter": "沈栀",
+          "Opening": "沈栀抵达旧泵站，发现林砚留下的维修痕迹。",
+          "Development": "她追上林砚，双方围绕符箓针和审计权限互相试探。",
+          "Turning": "沈栀识别出官方日志被人为掐掉了三秒。",
+          "Ending": "她放低封锁线，让林砚带路前往第三潮汐塔外围。",
+          "InfoDrop": "展示审计员如何读取灵纹日志。",
+          "CharacterIds": ["char_linyan", "char_shenzhi"],
+          "LocationId": "loc_lower_bridge"
+        }
+      ]
+    }
+  },
+  "ReverseIndex": {
+    "ByCharacter": {
+      "char_linyan": ["vol1_ch1", "vol1_ch2"],
+      "char_shenzhi": ["vol1_ch2"]
+    },
+    "ByLocation": {
+      "loc_lower_bridge": ["vol1_ch1", "vol1_ch2"],
+      "loc_tide_tower": ["vol1_ch2"]
+    }
+  }
+}

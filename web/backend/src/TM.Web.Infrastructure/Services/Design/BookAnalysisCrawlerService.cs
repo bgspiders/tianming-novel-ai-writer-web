@@ -1,11 +1,35 @@
 using Microsoft.Playwright;
+using Microsoft.EntityFrameworkCore;
+using System.Text;
+using System.Text.Json;
+using TM.Web.Application.Dtos;
 using TM.Web.Application.Dtos.Design;
 using TM.Web.Application.Services;
+using TM.Web.Infrastructure.Persistence;
 
 namespace TM.Web.Infrastructure.Services.Design;
 
 public sealed class BookAnalysisCrawlerService : IBookAnalysisCrawlerService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private readonly IAiCompletionService _ai;
+    private readonly IAiApiKeyService _apiKeys;
+    private readonly IBookAnalysisBackgroundJobQueue _backgroundJobs;
+    private readonly AppDbContext _db;
+
+    public BookAnalysisCrawlerService(
+        IAiCompletionService ai,
+        IAiApiKeyService apiKeys,
+        IBookAnalysisBackgroundJobQueue backgroundJobs,
+        AppDbContext db)
+    {
+        _ai = ai;
+        _apiKeys = apiKeys;
+        _backgroundJobs = backgroundJobs;
+        _db = db;
+    }
+
     public async Task<BookAnalysisCrawlPreviewDto> CrawlPreviewAsync(
         BookAnalysisCrawlPreviewRequest request,
         CancellationToken ct = default)
@@ -42,6 +66,201 @@ public sealed class BookAnalysisCrawlerService : IBookAnalysisCrawlerService
         var preview = await ExtractPreviewAsync(page, uri, maxChapters, request.IncludeContent, ct);
         await context.CloseAsync();
         return preview;
+    }
+
+    public async Task<BookAnalysisCrawlPreviewDto> AnalyzePreviewAsync(
+        BookAnalysisAiAnalyzeRequest request,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderId))
+        {
+            throw new ArgumentException("ProviderId 不能为空。", nameof(request));
+        }
+        if (string.IsNullOrWhiteSpace(request.Endpoint))
+        {
+            throw new ArgumentException("Endpoint 不能为空。", nameof(request));
+        }
+        if (string.IsNullOrWhiteSpace(request.Model))
+        {
+            throw new ArgumentException("Model 不能为空。", nameof(request));
+        }
+
+        var apiKey = string.IsNullOrWhiteSpace(request.ApiKeyId)
+            ? await _apiKeys.RotateNextPlainKeyAsync(request.ProviderId, ct)
+            : await _apiKeys.GetPlainKeyAsync(request.ApiKeyId!, ct);
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            throw new InvalidOperationException("当前 Provider 没有可用 Key。");
+        }
+
+        var result = await _ai.StreamAsync(new AiTestRequest
+        {
+            RunId = Guid.NewGuid().ToString("N"),
+            Endpoint = request.Endpoint,
+            ApiKey = apiKey,
+            Model = request.Model,
+            SystemPrompt = BuildAnalyzeSystemPrompt(),
+            Prompt = BuildAnalyzeUserPrompt(request.Preview),
+            Temperature = 0.2f,
+            MaxTokens = Math.Clamp(request.MaxTokens, 1024, 6000)
+        }, ct);
+
+        var ai = ParseAnalyzeResult(result.Content);
+        return request.Preview with
+        {
+            WorldBuildingMethod = Pick(ai.WorldBuildingMethod, request.Preview.WorldBuildingMethod),
+            PowerSystemDesign = Pick(ai.PowerSystemDesign, request.Preview.PowerSystemDesign),
+            EnvironmentDescription = Pick(ai.EnvironmentDescription, request.Preview.EnvironmentDescription),
+            FactionDesign = Pick(ai.FactionDesign, request.Preview.FactionDesign),
+            WorldviewHighlights = Pick(ai.WorldviewHighlights, request.Preview.WorldviewHighlights),
+            ProtagonistDesign = Pick(ai.ProtagonistDesign, request.Preview.ProtagonistDesign),
+            SupportingRoles = Pick(ai.SupportingRoles, request.Preview.SupportingRoles),
+            CharacterRelations = Pick(ai.CharacterRelations, request.Preview.CharacterRelations),
+            GoldenFingerDesign = Pick(ai.GoldenFingerDesign, request.Preview.GoldenFingerDesign),
+            CharacterHighlights = Pick(ai.CharacterHighlights, request.Preview.CharacterHighlights),
+            PlotStructure = Pick(ai.PlotStructure, request.Preview.PlotStructure),
+            ConflictDesign = Pick(ai.ConflictDesign, request.Preview.ConflictDesign),
+            ClimaxArrangement = Pick(ai.ClimaxArrangement, request.Preview.ClimaxArrangement),
+            ForeshadowingTechnique = Pick(ai.ForeshadowingTechnique, request.Preview.ForeshadowingTechnique),
+            PlotHighlights = Pick(ai.PlotHighlights, request.Preview.PlotHighlights)
+        };
+    }
+
+    public async Task<BookAnalysisBackgroundAnalyzeAcceptedDto> QueueBackgroundAnalyzeAsync(
+        string bookAnalysisId,
+        BookAnalysisBackgroundAnalyzeRequest request,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(bookAnalysisId))
+        {
+            throw new ArgumentException("BookAnalysisId 不能为空。", nameof(bookAnalysisId));
+        }
+        if (string.IsNullOrWhiteSpace(request.ProviderId))
+        {
+            throw new ArgumentException("ProviderId 不能为空。", nameof(request));
+        }
+        if (string.IsNullOrWhiteSpace(request.Endpoint))
+        {
+            throw new ArgumentException("Endpoint 不能为空。", nameof(request));
+        }
+        if (string.IsNullOrWhiteSpace(request.Model))
+        {
+            throw new ArgumentException("Model 不能为空。", nameof(request));
+        }
+
+        var entity = await _db.BookAnalyses.FirstOrDefaultAsync(x => x.Id == bookAnalysisId, ct)
+            ?? throw new InvalidOperationException("拆书数据不存在。");
+
+        var jobId = Guid.NewGuid().ToString("N");
+        entity.BackgroundAiStatus = "queued";
+        entity.BackgroundAiJobId = jobId;
+        entity.BackgroundAiRequestedAt = DateTime.UtcNow;
+        entity.BackgroundAiFinishedAt = null;
+        entity.BackgroundAiMessage = "Queued for background AI analysis.";
+        await _db.SaveChangesAsync(ct);
+
+        await _backgroundJobs.EnqueueAsync(new BookAnalysisBackgroundAnalyzeJob(
+            jobId,
+            bookAnalysisId,
+            request,
+            entity.BackgroundAiRequestedAt.Value), ct);
+
+        return new BookAnalysisBackgroundAnalyzeAcceptedDto(jobId, bookAnalysisId, entity.BackgroundAiStatus);
+    }
+
+    private static string BuildAnalyzeSystemPrompt()
+        => """
+           你是专业网文拆书分析师。请根据用户提供的书籍元信息、简介和章节样本，提炼可复用的创作方法。
+           必须只输出一个 JSON 对象，不要 Markdown，不要解释。JSON 字段必须使用用户指定的英文键。
+           每个字段输出中文，内容要具体、可执行，避免空泛形容。
+           """;
+
+    private static string BuildAnalyzeUserPrompt(BookAnalysisCrawlPreviewDto preview)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("请分析以下小说拆书样本，并只返回 JSON：");
+        sb.AppendLine();
+        sb.AppendLine("JSON 字段：");
+        sb.AppendLine("""
+        {
+          "worldBuildingMethod": "",
+          "powerSystemDesign": "",
+          "environmentDescription": "",
+          "factionDesign": "",
+          "worldviewHighlights": "",
+          "protagonistDesign": "",
+          "supportingRoles": "",
+          "characterRelations": "",
+          "goldenFingerDesign": "",
+          "characterHighlights": "",
+          "plotStructure": "",
+          "conflictDesign": "",
+          "climaxArrangement": "",
+          "foreshadowingTechnique": "",
+          "plotHighlights": ""
+        }
+        """);
+        sb.AppendLine();
+        sb.AppendLine($"标题：{preview.Title}");
+        sb.AppendLine($"作者：{preview.Author}");
+        sb.AppendLine($"类型：{preview.Genre}");
+        sb.AppendLine($"关键词：{preview.Keywords}");
+        sb.AppendLine($"摘要：{TrimForPrompt(preview.Summary, 1800)}");
+        sb.AppendLine();
+        sb.AppendLine("章节样本：");
+        foreach (var chapter in preview.Chapters.Take(12))
+        {
+            sb.AppendLine($"## {chapter.Index}. {chapter.Title}（{chapter.WordCount}字）");
+            sb.AppendLine(TrimForPrompt(string.IsNullOrWhiteSpace(chapter.Summary) ? chapter.Content : chapter.Summary, 900));
+        }
+        return sb.ToString();
+    }
+
+    private static BookAnalysisAiResult ParseAnalyzeResult(string? content)
+    {
+        var json = ExtractJson(content);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            throw new InvalidOperationException("AI 没有返回可解析的 JSON。");
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<BookAnalysisAiResult>(json, JsonOptions)
+                ?? throw new InvalidOperationException("AI 返回 JSON 为空。");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException($"AI 返回 JSON 解析失败：{ex.Message}");
+        }
+    }
+
+    private static string ExtractJson(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return string.Empty;
+        var text = content.Trim();
+        if (text.StartsWith("```", StringComparison.Ordinal))
+        {
+            var firstLineEnd = text.IndexOf('\n');
+            if (firstLineEnd >= 0) text = text[(firstLineEnd + 1)..];
+            var fence = text.LastIndexOf("```", StringComparison.Ordinal);
+            if (fence >= 0) text = text[..fence];
+        }
+
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+        return start >= 0 && end > start ? text[start..(end + 1)] : text;
+    }
+
+    private static string Pick(string? primary, string fallback)
+        => string.IsNullOrWhiteSpace(primary) ? fallback : primary.Trim();
+
+    private static string TrimForPrompt(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var text = value.Trim();
+        return text.Length <= maxLength ? text : text[..maxLength];
     }
 
     private static async Task<BookAnalysisCrawlPreviewDto> ExtractPreviewAsync(
@@ -392,4 +611,21 @@ public sealed class BookAnalysisCrawlerService : IBookAnalysisCrawlerService
     private sealed record ChapterLinkPayload(int Index, string Title, string Url);
     private sealed record ChapterContentPayload(string Title, string Content);
     private sealed record MetaPayload(string Title, string Author, string Genre, string Keywords, string Description);
+
+    private sealed record BookAnalysisAiResult(
+        string? WorldBuildingMethod,
+        string? PowerSystemDesign,
+        string? EnvironmentDescription,
+        string? FactionDesign,
+        string? WorldviewHighlights,
+        string? ProtagonistDesign,
+        string? SupportingRoles,
+        string? CharacterRelations,
+        string? GoldenFingerDesign,
+        string? CharacterHighlights,
+        string? PlotStructure,
+        string? ConflictDesign,
+        string? ClimaxArrangement,
+        string? ForeshadowingTechnique,
+        string? PlotHighlights);
 }

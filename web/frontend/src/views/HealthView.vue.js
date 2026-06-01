@@ -1,19 +1,21 @@
 import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { getHealth } from '@/api/modules/health';
+import { useI18n } from '@/composables/useI18n';
 const loading = ref(false);
 const result = ref(null);
 const errorMsg = ref('');
+const { t } = useI18n();
 async function ping() {
     loading.value = true;
     errorMsg.value = '';
     try {
         result.value = await getHealth();
-        ElMessage.success('后端响应正常');
+        ElMessage.success(t('health.success'));
     }
-    catch (err) {
-        const e = err;
-        errorMsg.value = e.message ?? '请求失败';
+    catch (error) {
+        const err = error;
+        errorMsg.value = err.message ?? t('health.failure');
         ElMessage.error(errorMsg.value);
     }
     finally {
@@ -43,11 +45,11 @@ __VLS_3.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h2, __VLS_intrinsicElements.h2)({
     ...{ class: "title" },
 });
+(__VLS_ctx.t('health.title'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "hint" },
 });
-__VLS_asFunctionalElement(__VLS_intrinsicElements.code, __VLS_intrinsicElements.code)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.code, __VLS_intrinsicElements.code)({});
+(__VLS_ctx.t('health.hint'));
 const __VLS_4 = {}.ElSpace;
 /** @type {[typeof __VLS_components.ElSpace, typeof __VLS_components.elSpace, typeof __VLS_components.ElSpace, typeof __VLS_components.elSpace, ]} */ ;
 // @ts-ignore
@@ -82,6 +84,7 @@ const __VLS_15 = {
     onClick: (__VLS_ctx.ping)
 };
 __VLS_11.slots.default;
+(__VLS_ctx.t('health.action'));
 var __VLS_11;
 var __VLS_7;
 const __VLS_16 = {}.ElDivider;
@@ -107,10 +110,10 @@ if (__VLS_ctx.result) {
     /** @type {[typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, ]} */ ;
     // @ts-ignore
     const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
-        label: "status",
+        label: (__VLS_ctx.t('health.labels.status')),
     }));
     const __VLS_26 = __VLS_25({
-        label: "status",
+        label: (__VLS_ctx.t('health.labels.status')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_25));
     __VLS_27.slots.default;
     const __VLS_28 = {}.ElTag;
@@ -132,10 +135,10 @@ if (__VLS_ctx.result) {
     /** @type {[typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, ]} */ ;
     // @ts-ignore
     const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
-        label: "version",
+        label: (__VLS_ctx.t('health.labels.version')),
     }));
     const __VLS_34 = __VLS_33({
-        label: "version",
+        label: (__VLS_ctx.t('health.labels.version')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_33));
     __VLS_35.slots.default;
     (__VLS_ctx.result.version);
@@ -144,10 +147,10 @@ if (__VLS_ctx.result) {
     /** @type {[typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, ]} */ ;
     // @ts-ignore
     const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({
-        label: "env",
+        label: (__VLS_ctx.t('health.labels.env')),
     }));
     const __VLS_38 = __VLS_37({
-        label: "env",
+        label: (__VLS_ctx.t('health.labels.env')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_37));
     __VLS_39.slots.default;
     (__VLS_ctx.result.env);
@@ -156,10 +159,10 @@ if (__VLS_ctx.result) {
     /** @type {[typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, ]} */ ;
     // @ts-ignore
     const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
-        label: "time",
+        label: (__VLS_ctx.t('health.labels.time')),
     }));
     const __VLS_42 = __VLS_41({
-        label: "time",
+        label: (__VLS_ctx.t('health.labels.time')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_41));
     __VLS_43.slots.default;
     (__VLS_ctx.result.time);
@@ -168,10 +171,10 @@ if (__VLS_ctx.result) {
     /** @type {[typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, typeof __VLS_components.ElDescriptionsItem, typeof __VLS_components.elDescriptionsItem, ]} */ ;
     // @ts-ignore
     const __VLS_45 = __VLS_asFunctionalComponent(__VLS_44, new __VLS_44({
-        label: "timeUtc",
+        label: (__VLS_ctx.t('health.labels.timeUtc')),
     }));
     const __VLS_46 = __VLS_45({
-        label: "timeUtc",
+        label: (__VLS_ctx.t('health.labels.timeUtc')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_45));
     __VLS_47.slots.default;
     (__VLS_ctx.result.timeUtc);
@@ -206,6 +209,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             loading: loading,
             result: result,
             errorMsg: errorMsg,
+            t: t,
             ping: ping,
         };
     },

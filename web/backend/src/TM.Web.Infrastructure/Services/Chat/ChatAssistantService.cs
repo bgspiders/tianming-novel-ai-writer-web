@@ -235,7 +235,7 @@ public sealed class ChatAssistantService : IChatAssistantService
         {
             trace.Add(await RunToolStepAsync(
                 request.RunId,
-                1,
+                0,
                 "project",
                 "loadContext",
                 "加载项目上下文",
@@ -243,12 +243,11 @@ public sealed class ChatAssistantService : IChatAssistantService
                 async token => await ExecuteLoadProjectContextAsync(session.ProjectId, token),
                 ct));
 
-            var nextIndex = 2;
             foreach (var step in steps)
             {
                 trace.Add(await RunToolStepAsync(
                     request.RunId,
-                    nextIndex++,
+                    step.Index,
                     "plan",
                     "prepareStep",
                     $"准备步骤 {step.Index}",
@@ -739,7 +738,12 @@ public sealed class ChatAssistantService : IChatAssistantService
 
     private static ExecutionTraceSummaryPayload BuildExecutionTraceSummary(IReadOnlyList<ToolCallRecordPayload> records)
     {
-        var failedSummaries = records
+        var businessStepRecords = records
+            .Where(IsPlanBusinessStep)
+            .ToList();
+        var summaryRecords = businessStepRecords.Count > 0 ? businessStepRecords : records;
+
+        var failedSummaries = summaryRecords
             .Where(r => string.Equals(r.Status, "failed", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(r.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
             .OrderBy(r => r.StepIndex)
@@ -748,13 +752,17 @@ public sealed class ChatAssistantService : IChatAssistantService
             .ToList();
 
         return new ExecutionTraceSummaryPayload(
-            TotalSteps: records.Count,
-            CompletedSteps: records.Count(r => string.Equals(r.Status, "completed", StringComparison.OrdinalIgnoreCase)),
-            FailedSteps: records.Count(r => string.Equals(r.Status, "failed", StringComparison.OrdinalIgnoreCase)
+            TotalSteps: summaryRecords.Count,
+            CompletedSteps: summaryRecords.Count(r => string.Equals(r.Status, "completed", StringComparison.OrdinalIgnoreCase)),
+            FailedSteps: summaryRecords.Count(r => string.Equals(r.Status, "failed", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(r.Status, "cancelled", StringComparison.OrdinalIgnoreCase)),
-            TotalDurationSeconds: records.Where(r => r.DurationSeconds.HasValue).Sum(r => r.DurationSeconds!.Value),
+            TotalDurationSeconds: summaryRecords.Where(r => r.DurationSeconds.HasValue).Sum(r => r.DurationSeconds!.Value),
             FailedStepSummaries: failedSummaries.Count > 0 ? failedSummaries : null);
     }
+
+    private static bool IsPlanBusinessStep(ToolCallRecordPayload record)
+        => string.Equals(record.PluginName, "plan", StringComparison.OrdinalIgnoreCase)
+           && string.Equals(record.FunctionName, "prepareStep", StringComparison.OrdinalIgnoreCase);
 
     private static string FormatFailedStepSummary(ToolCallRecordPayload record)
     {

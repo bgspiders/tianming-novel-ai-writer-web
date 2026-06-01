@@ -53,3 +53,22 @@ export async function testKey(id, input) {
     const { data } = await http.post(`/api/ai-keys/${id}/test`, input);
     return data;
 }
+export async function listProviderConfigs() {
+    const { data } = await http.get('/api/ai-provider-configs');
+    return data;
+}
+export async function createProviderConfig(input) {
+    const { data } = await http.post('/api/ai-provider-configs', input);
+    return data;
+}
+export async function updateProviderConfig(providerId, input) {
+    const { data } = await http.put(`/api/ai-provider-configs/${providerId}`, input);
+    return data;
+}
+export async function deleteProviderConfig(providerId) {
+    await http.delete(`/api/ai-provider-configs/${providerId}`);
+}
+export async function discoverRemoteModels(input) {
+    const { data } = await http.post('/api/ai-provider-configs/discover-models', input);
+    return data;
+}

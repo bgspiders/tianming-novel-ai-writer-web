@@ -12,13 +12,19 @@ namespace TM.Web.Api.Controllers;
 public class GenerationController : ControllerBase
 {
     private readonly IChapterDraftService _drafts;
+    private readonly IContextPackagingService _packaging;
     private readonly AppDbContext _db;
 
-    public GenerationController(IChapterDraftService drafts, AppDbContext db)
+    public GenerationController(IChapterDraftService drafts, IContextPackagingService packaging, AppDbContext db)
     {
         _drafts = drafts;
+        _packaging = packaging;
         _db = db;
     }
+
+    [HttpPost("package-context")]
+    public Task<PackageContextResult> PackageContext([FromBody] PackageContextRequest request, CancellationToken ct)
+        => _packaging.PackageAsync(request, ct);
 
     [HttpPost("chapter-draft")]
     public Task<ChapterDraftResult> GenerateChapterDraft([FromBody] ChapterDraftRequest request, CancellationToken ct)

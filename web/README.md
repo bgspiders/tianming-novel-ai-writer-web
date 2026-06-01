@@ -96,9 +96,35 @@ docker compose up -d --build
 
 健康检查地址：<http://localhost:38721/api/health>。
 
+## 阶段 10 当前能力
+
+- 通知中心：前端 `/settings/notifications` 页面，可查看 `Notification.permission`、申请浏览器通知权限、发送测试通知；后端 `/api/notifications` 用于保存和更新通知历史。
+- 出站代理：后端支持从 `HttpProxy` 配置节读取 HTTP/HTTPS 代理，适用于 AI 请求和通用 `HttpClient` 出站请求。
+- 部署收口：Dockerfile 多阶段构建、docker-compose、`/api/health` 健康检查已接入。
+
+## 代理配置
+
+在 `web/backend/src/TM.Web.Api/appsettings.json` 中配置：
+
+```json
+"HttpProxy": {
+  "Url": "http://127.0.0.1:7890",
+  "Username": "",
+  "Password": "",
+  "BypassOnLocal": false,
+  "BypassList": []
+}
+```
+
+说明：
+
+- `Url` 为空时表示不启用代理。
+- `Username` / `Password` 可选；如果代理凭据已经写在 `Url` 中，也会自动解析。
+- `BypassOnLocal` 和 `BypassList` 用于控制本地地址或特定地址绕过代理。
+
 ## 当前进度
 
-本目录是阶段 0 的产物（骨架 + 端到端 AI 流式 Demo）。完整迁移路线图见 [docs/迁移路线图.md](docs/迁移路线图.md)。
+全部 10 个阶段代码已完成，后端 `dotnet build` 和前端 `vue-tsc --noEmit` 均通过。详细状态见 [docs/迁移路线图.md](docs/迁移路线图.md)。
 
 ## 许可证
 

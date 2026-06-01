@@ -1,47 +1,63 @@
 import { computed } from 'vue';
+import { useI18n } from '@/composables/useI18n';
 import { useWorkContextStore } from '@/stores/workContext';
 const workContext = useWorkContextStore();
+const { t } = useI18n();
 const cards = computed(() => [
     {
-        title: '大纲',
+        title: t('generationWorkbench.cards.outlines.title'),
         path: '/generate/outlines',
-        icon: '🧭',
-        desc: '全书定位、主题内核、结构规划',
+        icon: 'O',
+        desc: t('generationWorkbench.cards.outlines.desc'),
         ready: true
     },
     {
-        title: '分卷',
+        title: t('generationWorkbench.cards.volumes.title'),
         path: '/generate/volume_designs',
-        icon: '📚',
-        desc: '卷主题、阶段目标、章节分配',
+        icon: 'V',
+        desc: t('generationWorkbench.cards.volumes.desc'),
         ready: true
     },
     {
-        title: '章节规划',
+        title: t('generationWorkbench.cards.chapterPlans.title'),
         path: '/generate/chapter_plans',
-        icon: '📝',
-        desc: '章节目标、冲突转折、交付物',
+        icon: 'P',
+        desc: t('generationWorkbench.cards.chapterPlans.desc'),
         ready: true
     },
     {
-        title: '章节蓝图',
+        title: t('generationWorkbench.cards.blueprints.title'),
         path: '/generate/chapter_blueprints',
-        icon: '🎬',
-        desc: '场景节奏、POV、要素清单',
+        icon: 'B',
+        desc: t('generationWorkbench.cards.blueprints.desc'),
         ready: true
     },
     {
-        title: '章节生成',
+        title: t('generationWorkbench.cards.package.title'),
+        path: '',
+        icon: '包',
+        desc: t('generationWorkbench.cards.package.desc'),
+        ready: false
+    },
+    {
+        title: t('generationWorkbench.cards.preview.title'),
+        path: '',
+        icon: '阅',
+        desc: t('generationWorkbench.cards.preview.desc'),
+        ready: false
+    },
+    {
+        title: t('generationWorkbench.cards.draftChapters.title'),
         path: '/generate/chapters',
-        icon: '✍️',
-        desc: '流式生成正文并服务端保存草稿',
+        icon: '写',
+        desc: t('generationWorkbench.cards.draftChapters.desc'),
         ready: true
     },
     {
-        title: '生成门禁',
+        title: t('generationWorkbench.cards.gate.title'),
         path: '/generate/gate',
-        icon: '🚦',
-        desc: '生成记录、失败阶段、门禁接入状态',
+        icon: 'G',
+        desc: t('generationWorkbench.cards.gate.desc'),
         ready: true
     }
 ]);
@@ -51,6 +67,9 @@ let __VLS_components;
 let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['context-row']} */ ;
 /** @type {__VLS_StyleScopedClasses['module-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['module-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['module-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['disabled']} */ ;
 /** @type {__VLS_StyleScopedClasses['hero']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-grid']} */ ;
 // CSS variable injection 
@@ -65,10 +84,13 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "eyebrow" },
 });
+(__VLS_ctx.t('generationWorkbench.eyebrow'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h1, __VLS_intrinsicElements.h1)({});
+(__VLS_ctx.t('generationWorkbench.title'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "subtitle" },
 });
+(__VLS_ctx.t('generationWorkbench.subtitle'));
 const __VLS_0 = {}.ElCard;
 /** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
 // @ts-ignore
@@ -85,31 +107,39 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
     ...{ class: "context-row" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+(__VLS_ctx.t('generationWorkbench.context.project'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
-(__VLS_ctx.workContext.selectedProject?.name ?? '未选择');
+(__VLS_ctx.workContext.selectedProject?.name ?? __VLS_ctx.t('generationWorkbench.context.notSelected'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "context-row" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+(__VLS_ctx.t('generationWorkbench.context.volume'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
-(__VLS_ctx.workContext.selectedVolume ? `第 ${__VLS_ctx.workContext.selectedVolume.volumeNumber} 卷 · ${__VLS_ctx.workContext.selectedVolume.title}` : '未选择');
+(__VLS_ctx.workContext.selectedVolume
+    ? __VLS_ctx.t('generationWorkbench.context.volumeLabel', {
+        number: __VLS_ctx.workContext.selectedVolume.volumeNumber,
+        title: __VLS_ctx.workContext.selectedVolume.title
+    })
+    : __VLS_ctx.t('generationWorkbench.context.notSelected'));
 var __VLS_3;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "card-grid" },
 });
 for (const [card] of __VLS_getVForSourceType((__VLS_ctx.cards))) {
-    const __VLS_4 = {}.RouterLink;
-    /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
+    const __VLS_4 = ((card.ready && card.path ? 'router-link' : 'div'));
     // @ts-ignore
     const __VLS_5 = __VLS_asFunctionalComponent(__VLS_4, new __VLS_4({
-        key: (card.path),
-        to: (card.path),
+        key: (card.title),
+        to: (card.ready && card.path ? card.path : undefined),
         ...{ class: "module-card" },
+        ...{ class: ({ disabled: !card.ready }) },
     }));
     const __VLS_6 = __VLS_5({
-        key: (card.path),
-        to: (card.path),
+        key: (card.title),
+        to: (card.ready && card.path ? card.path : undefined),
         ...{ class: "module-card" },
+        ...{ class: ({ disabled: !card.ready }) },
     }, ...__VLS_functionalComponentArgsRest(__VLS_5));
     __VLS_7.slots.default;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
@@ -136,7 +166,7 @@ for (const [card] of __VLS_getVForSourceType((__VLS_ctx.cards))) {
         type: (card.ready ? 'success' : 'warning'),
     }, ...__VLS_functionalComponentArgsRest(__VLS_9));
     __VLS_11.slots.default;
-    (card.ready ? '已接入' : '待接入');
+    (card.ready ? __VLS_ctx.t('generationWorkbench.cardStatus.ready') : __VLS_ctx.t('generationWorkbench.cardStatus.pending'));
     var __VLS_11;
     var __VLS_7;
 }
@@ -149,6 +179,7 @@ for (const [card] of __VLS_getVForSourceType((__VLS_ctx.cards))) {
 /** @type {__VLS_StyleScopedClasses['context-row']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['module-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['disabled']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-icon']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-title']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-desc']} */ ;
@@ -157,6 +188,7 @@ const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
             workContext: workContext,
+            t: t,
             cards: cards,
         };
     },

@@ -84,6 +84,8 @@ export const creativeMaterialsApi = {
     listPaged: async (p) => listPaged('/api/design/creative-materials', p),
     get: async (id) => (await http.get(`/api/design/creative-materials/${id}`)).data,
     create: async (input) => (await http.post('/api/design/creative-materials', input)).data,
+    createFromBookAnalysis: async (bookAnalysisId) => (await http.post(`/api/design/creative-materials/from-book-analysis/${bookAnalysisId}`)).data,
+    buildSkeleton: async (id) => (await http.post(`/api/design/creative-materials/${id}/build-skeleton`)).data,
     update: async (id, input) => (await http.put(`/api/design/creative-materials/${id}`, input)).data,
     remove: async (id) => {
         await http.delete(`/api/design/creative-materials/${id}`);
@@ -93,6 +95,9 @@ export const bookAnalysesApi = {
     list: async (p) => (await http.get('/api/design/book-analyses', { params: buildParams(p) })).data,
     listPaged: async (p) => listPaged('/api/design/book-analyses', p),
     get: async (id) => (await http.get(`/api/design/book-analyses/${id}`)).data,
+    crawlPreview: async (input) => (await http.post('/api/design/book-analyses/crawl-preview', input)).data,
+    aiAnalyze: async (input) => (await http.post('/api/design/book-analyses/ai-analyze', input)).data,
+    queueAiAnalyze: async (id, input) => (await http.post(`/api/design/book-analyses/${id}/ai-analyze-jobs`, input)).data,
     create: async (input) => (await http.post('/api/design/book-analyses', input)).data,
     update: async (id, input) => (await http.put(`/api/design/book-analyses/${id}`, input)).data,
     remove: async (id) => {
@@ -140,15 +145,15 @@ export const chapterBlueprintsApi = {
     }
 };
 export const DESIGN_MODULES = [
-    { key: 'world_rules', label: '世界规则', icon: '🌍', hasSourceBookScope: true },
-    { key: 'character_rules', label: '角色规则', icon: '🧑', hasSourceBookScope: true },
-    { key: 'faction_rules', label: '势力规则', icon: '⚔️', hasSourceBookScope: true },
-    { key: 'location_rules', label: '地点规则', icon: '🗺️', hasSourceBookScope: true },
-    { key: 'plot_rules', label: '剧情规则', icon: '📜', hasSourceBookScope: true },
-    { key: 'creative_materials', label: '创意素材', icon: '💡', hasSourceBookScope: true },
-    { key: 'book_analyses', label: '智能拆书', icon: '📖', hasSourceBookScope: false },
-    { key: 'outlines', label: '全书大纲', icon: '🧭', hasSourceBookScope: true },
-    { key: 'volume_designs', label: '卷设计', icon: '📚', hasSourceBookScope: true },
-    { key: 'chapter_plans', label: '章节规划', icon: '📝', hasSourceBookScope: true },
-    { key: 'chapter_blueprints', label: '章节蓝图', icon: '🎬', hasSourceBookScope: true }
+    { key: 'world_rules', label: '世界规则', icon: '世', hasSourceBookScope: true },
+    { key: 'character_rules', label: '角色规则', icon: '角', hasSourceBookScope: true },
+    { key: 'faction_rules', label: '势力规则', icon: '势', hasSourceBookScope: true },
+    { key: 'location_rules', label: '地点规则', icon: '地', hasSourceBookScope: true },
+    { key: 'plot_rules', label: '剧情规则', icon: '剧', hasSourceBookScope: true },
+    { key: 'creative_materials', label: '创意素材', icon: '材', hasSourceBookScope: true },
+    { key: 'book_analyses', label: '拆书分析', icon: '拆', hasSourceBookScope: false },
+    { key: 'outlines', label: '大纲', icon: '纲', hasSourceBookScope: true },
+    { key: 'volume_designs', label: '卷设计', icon: '卷', hasSourceBookScope: true },
+    { key: 'chapter_plans', label: '章节计划', icon: '章', hasSourceBookScope: true },
+    { key: 'chapter_blueprints', label: '章节蓝图', icon: '图', hasSourceBookScope: true }
 ];

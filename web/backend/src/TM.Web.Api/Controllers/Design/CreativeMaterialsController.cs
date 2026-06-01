@@ -49,6 +49,17 @@ public class CreativeMaterialsController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
 
+    [HttpPost("from-book-analysis/{bookAnalysisId}")]
+    public async Task<ActionResult<CreativeMaterialDto>> CreateFromBookAnalysis(string bookAnalysisId, CancellationToken ct)
+    {
+        var created = await _svc.CreateFromBookAnalysisAsync(bookAnalysisId, ct);
+        return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+    }
+
+    [HttpPost("{id}/build-skeleton")]
+    public Task<SkeletonBuildResultDto> BuildSkeleton(string id, CancellationToken ct)
+        => _svc.BuildSkeletonAsync(id, ct);
+
     [HttpPut("{id}")]
     public Task<CreativeMaterialDto> Update(string id, [FromBody] CreativeMaterialUpsertDto input, CancellationToken ct)
         => _svc.UpdateAsync(id, input, ct);

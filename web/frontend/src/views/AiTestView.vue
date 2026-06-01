@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { postTestCompletion } from '@/api/modules/aiTest'
+import { listProviderConfigs, type AiProviderConfig } from '@/api/modules/ai'
+import { useI18n } from '@/composables/useI18n'
 import { chatHub } from '@/signalr/chat'
 import { useAiTestStore } from '@/stores/aiTest'
 
 const store = useAiTestStore()
 const { form, output, status, error, isStreaming } = storeToRefs(store)
+const { t } = useI18n()
 
 const currentRunId = ref('')
 const metaInfo = ref<{ chunkCount: number; charCount: number; elapsedMs: number; finishReason?: string } | null>(null)
+const configs = ref<AiProviderConfig[]>([])
+const loadingConfigs = ref(false)
+
+const selectedConfig = computed(() =>
+  configs.value.find((item) => item.providerId === form.value.configId) ?? null
+)
 
 function onToken(token: string) {
   store.appendToken(token)
@@ -35,6 +44,7 @@ onMounted(() => {
   chatHub.onStatus(onStatus)
   chatHub.onCompleted(onCompleted)
   chatHub.onError(onError)
+  void refreshConfigs()
 })
 
 onBeforeUnmount(async () => {
@@ -49,8 +59,9 @@ onBeforeUnmount(async () => {
 })
 
 async function submit() {
-  if (!form.value.endpoint || !form.value.apiKey || !form.value.model || !form.value.prompt) {
-    ElMessage.warning('Please provide endpoint, API key, model, and prompt.')
+  const hasResolvedKey = Boolean(form.value.apiKey || form.value.configId)
+  if (!form.value.endpoint || !hasResolvedKey || !form.value.model || !form.value.prompt) {
+    ElMessage.warning(t('aiTest.messages.required'))
     return
   }
 
@@ -65,13 +76,18 @@ async function submit() {
     await chatHub.joinRun(runId)
   } catch (err) {
     isStreaming.value = false
-    ElMessage.error(`SignalR connection failed: ${(err as Error).message ?? 'Unknown error'}`)
+    ElMessage.error(
+      t('aiTest.messages.signalrFailed', {
+        message: (err as Error).message ?? t('aiTest.messages.unknownError')
+      })
+    )
     return
   }
 
   try {
     const result = await postTestCompletion({
       runId,
+      configId: form.value.configId || null,
       endpoint: form.value.endpoint,
       apiKey: form.value.apiKey,
       model: form.value.model,
@@ -89,7 +105,7 @@ async function submit() {
     }
     store.saveToStorage()
   } catch (err) {
-    error.value = (err as Error).message ?? 'Request failed.'
+    error.value = (err as Error).message ?? t('aiTest.messages.requestFailed')
     ElMessage.error(error.value)
   } finally {
     isStreaming.value = false
@@ -102,53 +118,93 @@ function clearOutput() {
   store.reset()
   metaInfo.value = null
 }
+
+async function refreshConfigs() {
+  loadingConfigs.value = true
+  try {
+    configs.value = (await listProviderConfigs()).filter((item) => item.isEnabled)
+    if (!configs.value.some((item) => item.providerId === form.value.configId)) {
+      form.value.configId = configs.value[0]?.providerId ?? ''
+    }
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('aiTest.messages.loadConfigsFailed'))
+  } finally {
+    loadingConfigs.value = false
+  }
+}
+
+watch(
+  () => form.value.configId,
+  (configId) => {
+    const config = configs.value.find((item) => item.providerId === configId)
+    if (!config) return
+    form.value.endpoint = config.defaultEndpoint || form.value.endpoint
+    form.value.model = config.modelCode || form.value.model
+  }
+)
 </script>
 
 <template>
   <div class="ai-test">
     <el-card shadow="never">
-      <h2 class="title">AI Streaming Test</h2>
+      <h2 class="title">{{ t('aiTest.title') }}</h2>
       <p class="hint">
-        This page sends a request to <code>POST /api/ai/test-completion</code>, receives streamed tokens
-        through SignalR <code>ChatHub</code>, and renders the result live in the browser.
+        {{ t('aiTest.hint') }}
         <br />
-        <strong>The API key is used in memory only and is not written to local storage.</strong>
+        <strong>{{ t('aiTest.memoryOnly') }}</strong>
       </p>
 
       <el-form :model="form" label-width="110px" class="form" :disabled="isStreaming">
-        <el-form-item label="Endpoint">
-          <el-input v-model="form.endpoint" placeholder="https://api.openai.com/v1" />
+        <el-form-item :label="t('aiTest.labels.config')">
+          <el-select v-model="form.configId" filterable clearable :loading="loadingConfigs" style="width: 100%">
+            <el-option
+              v-for="config in configs"
+              :key="config.providerId"
+              :label="`${config.name} / ${config.modelCode || '--'}`"
+              :value="config.providerId"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="API Key">
-          <el-input v-model="form.apiKey" type="password" show-password placeholder="sk-..." />
+        <el-form-item :label="t('aiTest.labels.endpoint')">
+          <el-input v-model="form.endpoint" :placeholder="t('aiTest.placeholders.endpoint')" />
         </el-form-item>
-        <el-form-item label="Model">
-          <el-input v-model="form.model" placeholder="gpt-4o-mini / deepseek-chat / ..." />
+        <el-form-item :label="t('aiTest.labels.apiKey')">
+          <el-input v-model="form.apiKey" type="password" show-password :placeholder="t('aiTest.placeholders.apiKey')" />
         </el-form-item>
-        <el-form-item label="System Prompt">
+        <el-form-item :label="t('aiTest.labels.model')">
+          <el-input v-model="form.model" :placeholder="t('aiTest.placeholders.model')" />
+        </el-form-item>
+        <el-form-item v-if="selectedConfig" :label="t('aiTest.labels.configSummary')">
+          <div class="config-summary">
+            <div>{{ selectedConfig.name }}</div>
+            <div class="config-meta">{{ selectedConfig.defaultEndpoint || '--' }}</div>
+            <div class="config-meta">{{ selectedConfig.apiKeyMaskedTail || t('aiTest.labels.noSavedKey') }}</div>
+          </div>
+        </el-form-item>
+        <el-form-item :label="t('aiTest.labels.systemPrompt')">
           <el-input
             v-model="form.systemPrompt"
             type="textarea"
             :rows="2"
-            placeholder="Optional system instruction"
+            :placeholder="t('aiTest.placeholders.systemPrompt')"
           />
         </el-form-item>
-        <el-form-item label="User Prompt">
+        <el-form-item :label="t('aiTest.labels.userPrompt')">
           <el-input v-model="form.prompt" type="textarea" :rows="3" />
         </el-form-item>
-        <el-form-item label="Temperature">
+        <el-form-item :label="t('aiTest.labels.temperature')">
           <el-input-number v-model="form.temperature" :min="0" :max="2" :step="0.1" />
         </el-form-item>
-        <el-form-item label="Max Tokens">
+        <el-form-item :label="t('aiTest.labels.maxTokens')">
           <el-input-number v-model="form.maxTokens" :min="64" :max="8192" :step="64" />
         </el-form-item>
 
         <el-form-item>
           <el-space :size="12">
             <el-button type="primary" :loading="isStreaming" @click="submit">
-              {{ isStreaming ? 'Running...' : 'Send Request' }}
+              {{ isStreaming ? t('aiTest.actions.running') : t('aiTest.actions.send') }}
             </el-button>
-            <el-button :disabled="isStreaming" @click="clearOutput">Clear</el-button>
+            <el-button :disabled="isStreaming" @click="clearOutput">{{ t('aiTest.actions.clear') }}</el-button>
           </el-space>
         </el-form-item>
       </el-form>
@@ -156,10 +212,14 @@ function clearOutput() {
       <el-divider />
 
       <div class="status-row">
-        <el-tag size="small" :type="status === 'error' ? 'danger' : 'info'">Status: {{ status }}</el-tag>
+        <el-tag size="small" :type="status === 'error' ? 'danger' : 'info'">
+          {{ t('aiTest.status.label', { status }) }}
+        </el-tag>
         <el-tag v-if="metaInfo" size="small" type="success">
-          chunks: {{ metaInfo.chunkCount }} | chars: {{ metaInfo.charCount }} | {{ metaInfo.elapsedMs }}ms |
-          {{ metaInfo.finishReason || 'completed' }}
+          {{ t('aiTest.status.chunks') }}: {{ metaInfo.chunkCount }} |
+          {{ t('aiTest.status.chars') }}: {{ metaInfo.charCount }} |
+          {{ metaInfo.elapsedMs }}ms |
+          {{ metaInfo.finishReason || t('aiTest.status.completed') }}
         </el-tag>
       </div>
 
@@ -173,7 +233,7 @@ function clearOutput() {
       />
 
       <div v-if="output" class="output">{{ output }}</div>
-      <el-empty v-else description="No output yet" :image-size="80" />
+      <el-empty v-else :description="t('aiTest.status.noOutput')" :image-size="80" />
     </el-card>
   </div>
 </template>
@@ -214,6 +274,19 @@ function clearOutput() {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.config-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--tm-fg-primary);
+}
+
+.config-meta {
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
+  word-break: break-all;
 }
 
 .output {

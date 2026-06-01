@@ -17,3 +17,8 @@ public interface IChapterDraftService
 {
     Task<ChapterDraftResult> GenerateDraftAsync(ChapterDraftRequest request, CancellationToken ct = default);
 }
+
+public interface IContextPackagingService
+{
+    Task<PackageContextResult> PackageAsync(PackageContextRequest request, CancellationToken ct = default);
+}

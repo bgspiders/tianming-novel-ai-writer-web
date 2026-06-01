@@ -12,6 +12,7 @@ import {
 } from '@/api/modules/chapters'
 import { listSourceBooks, type SourceBook } from '@/api/modules/sourceBooks'
 import MonacoMarkdownEditor from '@/components/editor/MonacoMarkdownEditor.vue'
+import { useI18n } from '@/composables/useI18n'
 
 interface DiffLine {
   line: number
@@ -22,6 +23,7 @@ interface DiffLine {
 
 const markdownModuleName = 'markdown-it'
 const diff2htmlModuleName = 'diff2html'
+const { t } = useI18n()
 
 const loading = ref(false)
 const detailLoading = ref(false)
@@ -124,16 +126,16 @@ function buildUnifiedDiff(before: string, after: string) {
 }
 
 function formatTime(value: string | null | undefined) {
-  if (!value) return '未知时间'
+  if (!value) return t('editor.labels.unknownTime')
   const time = new Date(value)
   if (Number.isNaN(time.getTime())) return value
   return time.toLocaleString('zh-CN', { hour12: false })
 }
 
 function formatSize(size: number) {
-  if (size < 1024) return `${size} B`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
-  return `${(size / 1024 / 1024).toFixed(1)} MB`
+  if (size < 1024) return t('editor.labels.sizeBytes', { size })
+  if (size < 1024 * 1024) return t('editor.labels.sizeKilobytes', { size: (size / 1024).toFixed(1) })
+  return t('editor.labels.sizeMegabytes', { size: (size / 1024 / 1024).toFixed(1) })
 }
 
 async function loadOptionalMarkdown() {
@@ -172,7 +174,7 @@ async function loadSourceBooks() {
   try {
     sourceBooks.value = await listSourceBooks()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载来源书失败')
+    ElMessage.error(error instanceof Error ? error.message : t('editor.messages.loadSourceBooksFailed'))
   }
 }
 
@@ -207,7 +209,7 @@ async function loadChapters() {
       selectedChapterId.value = nextId
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载章节失败')
+    ElMessage.error(error instanceof Error ? error.message : t('editor.messages.loadChaptersFailed'))
   } finally {
     loading.value = false
   }
@@ -226,7 +228,7 @@ async function loadChapterDetail(id: string) {
     recallResults.value = []
     await loadVersions(id)
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载章节详情失败')
+    ElMessage.error(error instanceof Error ? error.message : t('editor.messages.loadChapterDetailFailed'))
   } finally {
     detailLoading.value = false
   }
@@ -251,7 +253,7 @@ async function loadVersions(id: string) {
     versions.value = []
     selectedVersionId.value = ''
     selectedVersionDetail.value = null
-    ElMessage.error(error instanceof Error ? error.message : '加载版本历史失败')
+    ElMessage.error(error instanceof Error ? error.message : t('editor.messages.loadVersionsFailed'))
   } finally {
     versionsLoading.value = false
   }
@@ -270,7 +272,7 @@ async function loadVersionDetail() {
     }
   } catch (error) {
     selectedVersionDetail.value = null
-    ElMessage.error(error instanceof Error ? error.message : '加载版本内容失败')
+    ElMessage.error(error instanceof Error ? error.message : t('editor.messages.loadVersionDetailFailed'))
   }
 }
 
@@ -289,9 +291,9 @@ async function saveContent() {
     }
 
     await loadVersions(selectedChapterId.value)
-    ElMessage.success('章节内容已保存')
+    ElMessage.success(t('editor.messages.contentSaved'))
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '保存章节内容失败')
+    ElMessage.error(error instanceof Error ? error.message : t('editor.messages.saveContentFailed'))
   } finally {
     saving.value = false
   }
@@ -317,9 +319,9 @@ async function restoreSelectedVersion() {
 
     await loadVersions(selectedChapterId.value)
     activeTab.value = 'write'
-    ElMessage.success('已恢复到所选版本')
+    ElMessage.success(t('editor.messages.versionRestored'))
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '恢复版本失败')
+    ElMessage.error(error instanceof Error ? error.message : t('editor.messages.restoreVersionFailed'))
   } finally {
     restoringVersion.value = false
   }
@@ -339,7 +341,7 @@ async function runRecall() {
     recallQuerySource.value = response.querySource
     activeTab.value = 'recall'
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载召回结果失败')
+    ElMessage.error(error instanceof Error ? error.message : t('editor.messages.loadRecallFailed'))
   } finally {
     recalling.value = false
   }
@@ -381,7 +383,7 @@ onMounted(async () => {
         <el-select
           v-model="selectedSourceBookId"
           clearable
-          placeholder="按来源书筛选"
+          :placeholder="t('editor.placeholders.filterBySourceBook')"
           style="width: 220px"
           @change="loadChapters"
         >
@@ -395,7 +397,7 @@ onMounted(async () => {
 
         <el-input
           v-model="keyword"
-          placeholder="搜索章节标题或摘要"
+          :placeholder="t('editor.placeholders.searchKeyword')"
           clearable
           style="width: 280px"
           :prefix-icon="Search"
@@ -403,12 +405,16 @@ onMounted(async () => {
           @clear="loadChapters"
         />
 
-        <el-button :icon="RefreshRight" @click="loadChapters">刷新</el-button>
+        <el-button :icon="RefreshRight" @click="loadChapters">{{ t('editor.actions.refresh') }}</el-button>
       </div>
 
       <div class="toolbar-right">
-        <el-tag v-if="monacoFallback" type="warning" effect="plain">Monaco 未加载，已回退为文本框</el-tag>
-        <el-tag v-if="markdownFallback" type="info" effect="plain">使用基础 Markdown 预览</el-tag>
+        <el-tag v-if="monacoFallback" type="warning" effect="plain">
+          {{ t('editor.hints.monacoFallback') }}
+        </el-tag>
+        <el-tag v-if="markdownFallback" type="info" effect="plain">
+          {{ t('editor.hints.markdownFallback') }}
+        </el-tag>
 
         <el-button
           type="success"
@@ -417,7 +423,7 @@ onMounted(async () => {
           :disabled="!selectedChapterId"
           @click="runRecall"
         >
-          执行召回
+          {{ t('editor.actions.runRecall') }}
         </el-button>
 
         <el-button
@@ -427,7 +433,7 @@ onMounted(async () => {
           :disabled="!selectedChapterId || !hasUnsavedChanges"
           @click="saveContent"
         >
-          保存正文
+          {{ t('editor.actions.saveContent') }}
         </el-button>
       </div>
     </section>
@@ -436,7 +442,7 @@ onMounted(async () => {
       <el-card class="chapter-list-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span>章节列表</span>
+            <span>{{ t('editor.labels.chapterList') }}</span>
             <el-tag type="info" effect="plain">{{ chapters.length }}</el-tag>
           </div>
         </template>
@@ -451,11 +457,11 @@ onMounted(async () => {
               @click="selectedChapterId = chapter.id"
             >
               <div class="chapter-item-top">
-                <span class="chapter-index">第 {{ chapter.chapterNumber }} 章</span>
+                <span class="chapter-index">{{ t('editor.labels.chapterNumber', { number: chapter.chapterNumber }) }}</span>
                 <span class="chapter-status">{{ chapter.status }}</span>
               </div>
               <div class="chapter-title">{{ chapter.title }}</div>
-              <div class="chapter-summary">{{ chapter.summary || '暂无摘要' }}</div>
+              <div class="chapter-summary">{{ chapter.summary || t('editor.empty.noSummary') }}</div>
             </button>
           </div>
         </el-skeleton>
@@ -465,11 +471,11 @@ onMounted(async () => {
         <template #header>
           <div class="card-header">
             <div>
-              <div class="editor-title">{{ selectedChapter?.title || '未选择章节' }}</div>
+              <div class="editor-title">{{ selectedChapter?.title || t('editor.empty.noChapterSelected') }}</div>
               <div v-if="chapterDetail" class="editor-meta">
                 <span>{{ chapterDetail.projectName || chapterDetail.projectId }}</span>
-                <span>第 {{ chapterDetail.volumeNumber }} 卷</span>
-                <span>{{ chapterDetail.wordCount }} 字</span>
+                <span>{{ t('editor.labels.volumeNumber', { number: chapterDetail.volumeNumber }) }}</span>
+                <span>{{ t('editor.labels.wordCount', { count: chapterDetail.wordCount }) }}</span>
                 <span>{{ chapterDetail.status }}</span>
                 <span>{{ formatTime(chapterDetail.updatedAt) }}</span>
               </div>
@@ -477,49 +483,55 @@ onMounted(async () => {
 
             <el-input
               v-model="recallQuery"
-              placeholder="可选：自定义召回查询"
+              :placeholder="t('editor.placeholders.recallQuery')"
               clearable
               style="width: 280px"
             />
           </div>
         </template>
 
-        <el-empty v-if="!selectedChapterId" description="请先从左侧选择章节" />
+        <el-empty v-if="!selectedChapterId" :description="t('editor.empty.selectChapterFirst')" />
 
         <template v-else>
           <el-skeleton :rows="10" animated :loading="detailLoading">
             <el-tabs v-model="activeTab" class="editor-tabs">
-              <el-tab-pane label="正文编辑" name="write">
+              <el-tab-pane :label="t('editor.tabs.write')" name="write">
                 <MonacoMarkdownEditor
                   v-model="editorContent"
                   height="58vh"
-                  placeholder="在这里编辑章节正文，支持 Markdown。"
+                  :placeholder="t('editor.placeholders.editorContent')"
                   @fallback="onMonacoFallback"
                 />
               </el-tab-pane>
 
-              <el-tab-pane label="预览" name="preview">
+              <el-tab-pane :label="t('editor.tabs.preview')" name="preview">
                 <div class="preview-pane" v-html="previewHtml"></div>
               </el-tab-pane>
 
-              <el-tab-pane label="召回结果" name="recall">
+              <el-tab-pane :label="t('editor.tabs.recall')" name="recall">
                 <div class="recall-meta">
-                  <el-tag type="info" effect="plain">查询来源：{{ recallQuerySource || '手动输入' }}</el-tag>
+                  <el-tag type="info" effect="plain">
+                    {{ t('editor.labels.recallQuerySource', { source: recallQuerySource || t('editor.labels.manualInput') }) }}
+                  </el-tag>
                 </div>
 
-                <el-empty v-if="!recallResults.length" description="尚未执行召回" />
+                <el-empty v-if="!recallResults.length" :description="t('editor.empty.noRecallResults')" />
 
                 <div v-else class="recall-list">
                   <el-card v-for="item in recallResults" :key="item.chapterId" shadow="hover" class="recall-item">
                     <div class="recall-item-top">
                       <div>
-                        <div class="recall-title">第 {{ item.chapterNumber }} 章 · {{ item.chapterTitle }}</div>
+                        <div class="recall-title">
+                          {{ t('editor.labels.chapterTitle', { number: item.chapterNumber, title: item.chapterTitle }) }}
+                        </div>
                         <div class="recall-reason">{{ item.reason }}</div>
                       </div>
-                      <el-tag type="success" effect="plain">评分 {{ item.score }}</el-tag>
+                      <el-tag type="success" effect="plain">
+                        {{ t('editor.labels.score', { score: item.score }) }}
+                      </el-tag>
                     </div>
 
-                    <p class="recall-summary">{{ item.summary || '暂无摘要' }}</p>
+                    <p class="recall-summary">{{ item.summary || t('editor.empty.noSummary') }}</p>
 
                     <div class="recall-keywords">
                       <el-tag
@@ -535,18 +547,18 @@ onMounted(async () => {
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="历史版本" name="history">
+              <el-tab-pane :label="t('editor.tabs.history')" name="history">
                 <div class="history-toolbar">
                   <el-select
                     v-model="selectedVersionId"
                     :loading="versionsLoading"
-                    placeholder="选择版本"
+                    :placeholder="t('editor.placeholders.selectVersion')"
                     style="width: 320px"
                   >
                     <el-option
                       v-for="item in versions"
                       :key="item.versionId"
-                      :label="`${item.label}${item.isCurrent ? '（当前）' : ''}`"
+                      :label="`${item.label}${item.isCurrent ? t('editor.labels.currentVersionSuffix') : ''}`"
                       :value="item.versionId"
                     />
                   </el-select>
@@ -557,11 +569,11 @@ onMounted(async () => {
                     :disabled="restoreDisabled"
                     @click="restoreSelectedVersion"
                   >
-                    恢复到该版本
+                    {{ t('editor.actions.restoreVersion') }}
                   </el-button>
                 </div>
 
-                <el-empty v-if="!versions.length" description="暂无历史版本" />
+                <el-empty v-if="!versions.length" :description="t('editor.empty.noVersions')" />
 
                 <div v-else class="history-layout">
                   <div class="history-list">
@@ -574,7 +586,9 @@ onMounted(async () => {
                     >
                       <div class="history-item-top">
                         <span>{{ item.label }}</span>
-                        <el-tag v-if="item.isCurrent" type="success" size="small" effect="plain">当前</el-tag>
+                        <el-tag v-if="item.isCurrent" type="success" size="small" effect="plain">
+                          {{ t('editor.labels.current') }}
+                        </el-tag>
                       </div>
                       <div class="history-item-meta">
                         <span>{{ item.fileName }}</span>
@@ -587,35 +601,35 @@ onMounted(async () => {
                   <div class="history-preview">
                     <div class="history-preview-title">
                       <el-icon><Clock /></el-icon>
-                      <span>{{ selectedVersionDetail?.label || '未选择版本' }}</span>
+                      <span>{{ selectedVersionDetail?.label || t('editor.empty.noVersionSelected') }}</span>
                     </div>
-                    <pre class="history-content">{{ selectedVersionDetail?.content || '暂无版本内容' }}</pre>
+                    <pre class="history-content">{{ selectedVersionDetail?.content || t('editor.empty.noVersionContent') }}</pre>
                   </div>
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="版本对比" name="diff">
+              <el-tab-pane :label="t('editor.tabs.diff')" name="diff">
                 <div class="diff-toolbar">
                   <el-select
                     v-model="selectedVersionId"
                     :loading="versionsLoading"
-                    placeholder="选择对比基准版本"
+                    :placeholder="t('editor.placeholders.selectDiffBaseVersion')"
                     style="width: 320px"
                   >
                     <el-option
                       v-for="item in versions"
                       :key="item.versionId"
-                      :label="`${item.label}${item.isCurrent ? '（当前）' : ''}`"
+                      :label="`${item.label}${item.isCurrent ? t('editor.labels.currentVersionSuffix') : ''}`"
                       :value="item.versionId"
                     />
                   </el-select>
 
-                  <el-tag type="info" effect="plain">左侧为基准版本，右侧为当前编辑内容</el-tag>
+                  <el-tag type="info" effect="plain">{{ t('editor.hints.diffBaseVsCurrent') }}</el-tag>
                 </div>
 
                 <div class="diff-hint">
                   <el-alert
-                    :title="diffFallback ? '未加载 diff2html，当前使用轻量行级对比。' : '已加载 diff2html，当前显示双栏差异。'"
+                    :title="diffFallback ? t('editor.hints.diffFallback') : t('editor.hints.diffEnhanced')"
                     type="info"
                     :closable="false"
                     show-icon
@@ -637,7 +651,7 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <el-empty v-else description="当前编辑内容与基准版本没有差异" />
+                <el-empty v-else :description="t('editor.empty.noDiff')" />
               </el-tab-pane>
             </el-tabs>
           </el-skeleton>

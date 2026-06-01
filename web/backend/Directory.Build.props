@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NuGetAudit>false</NuGetAudit>
     <NoWarn>$(NoWarn);1591;CS1591;SKEXP0010;SKEXP0001</NoWarn>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <InvariantGlobalization>false</InvariantGlobalization>

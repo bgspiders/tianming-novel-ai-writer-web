@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
+  Bell,
   ChatDotRound,
   CircleCheck,
   Cpu,
@@ -17,6 +18,8 @@ import {
   Setting,
   Sunny
 } from '@element-plus/icons-vue'
+import { useI18n } from '@/composables/useI18n'
+import type { Locale } from '@/i18n'
 import { useThemeStore } from '@/stores/theme'
 import { useWorkContextStore } from '@/stores/workContext'
 
@@ -24,9 +27,13 @@ const route = useRoute()
 const router = useRouter()
 const themeStore = useThemeStore()
 const workContext = useWorkContextStore()
+const { localeStore, t, setLocale } = useI18n()
 
 const activeMenu = computed(() => route.path)
-const headerTitle = computed(() => (route.meta.title as string) || 'TM Web')
+const headerTitle = computed(() => {
+  const titleKey = route.meta.titleKey as string | undefined
+  return titleKey ? t(titleKey) : t('app.title')
+})
 
 function navigate(index: string) {
   router.push(index)
@@ -51,10 +58,16 @@ const themeIcon = computed(() => {
 })
 
 const themeLabel = computed(() => {
-  if (themeStore.mode === 'system') return 'Follow System'
-  if (themeStore.mode === 'schedule') return 'Scheduled'
+  if (themeStore.mode === 'system') return t('layout.followSystem')
+  if (themeStore.mode === 'schedule') return t('layout.scheduled')
   return themeStore.themeLabel
 })
+
+const sourceLabel = computed(() => t(`layout.source.${themeStore.currentSource}`))
+const localeOptions: Array<{ label: string; value: Locale }> = [
+  { label: '中文', value: 'zh-CN' },
+  { label: 'English', value: 'en' }
+]
 
 const projectDialogVisible = ref(false)
 const volumeDialogVisible = ref(false)
@@ -80,7 +93,7 @@ function openProjectDialog() {
 
 function openVolumeDialog() {
   if (!workContext.selectedProjectId) {
-    ElMessage.warning('Select a project first.')
+    ElMessage.warning(t('layout.messages.selectProjectFirst'))
     return
   }
   volumeForm.volumeNumber = (workContext.volumes.at(-1)?.volumeNumber ?? 0) + 1
@@ -91,7 +104,7 @@ function openVolumeDialog() {
 
 async function submitProject() {
   if (!projectForm.name.trim()) {
-    ElMessage.warning('Project name is required.')
+    ElMessage.warning(t('layout.messages.projectNameRequired'))
     return
   }
   creatingProject.value = true
@@ -101,9 +114,9 @@ async function submitProject() {
       description: projectForm.description.trim() || null
     })
     projectDialogVisible.value = false
-    ElMessage.success('Project created.')
+    ElMessage.success(t('layout.messages.projectCreated'))
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to create project.')
+    ElMessage.error((err as Error).message ?? t('layout.messages.projectCreateFailed'))
   } finally {
     creatingProject.value = false
   }
@@ -111,7 +124,7 @@ async function submitProject() {
 
 async function submitVolume() {
   if (!volumeForm.title.trim()) {
-    ElMessage.warning('Volume title is required.')
+    ElMessage.warning(t('layout.messages.volumeTitleRequired'))
     return
   }
   creatingVolume.value = true
@@ -122,9 +135,9 @@ async function submitVolume() {
       theme: volumeForm.theme.trim() || null
     })
     volumeDialogVisible.value = false
-    ElMessage.success('Volume created.')
+    ElMessage.success(t('layout.messages.volumeCreated'))
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to create volume.')
+    ElMessage.error((err as Error).message ?? t('layout.messages.volumeCreateFailed'))
   } finally {
     creatingVolume.value = false
   }
@@ -137,10 +150,10 @@ async function submitVolume() {
       <div class="brand">
         <span class="brand-dot"></span>
         <div class="brand-copy">
-          <span class="brand-text">TM Web</span>
-          <span class="brand-sub">Stages 4-9</span>
+          <span class="brand-text">{{ t('app.title') }}</span>
+          <span class="brand-sub">{{ t('layout.stageBadge') }}</span>
         </div>
-        <el-tag size="small" effect="dark" type="primary">S9</el-tag>
+        <el-tag size="small" effect="dark" type="primary">{{ t('layout.stageTag') }}</el-tag>
       </div>
 
       <el-menu
@@ -153,79 +166,84 @@ async function submitVolume() {
       >
         <el-menu-item index="/">
           <el-icon><Promotion /></el-icon>
-          <span>Home</span>
+          <span>{{ t('routes.home') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/health">
           <el-icon><Setting /></el-icon>
-          <span>Health Check</span>
+          <span>{{ t('layout.menu.healthCheck') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/ai-test">
           <el-icon><Cpu /></el-icon>
-          <span>AI Streaming</span>
+          <span>{{ t('layout.menu.aiStreaming') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/settings/ai-models">
           <el-icon><MagicStick /></el-icon>
-          <span>AI Models</span>
+          <span>{{ t('routes.aiModels') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/settings/themes">
           <el-icon><Sunny /></el-icon>
-          <span>Theme Studio</span>
+          <span>{{ t('routes.themeStudio') }}</span>
+        </el-menu-item>
+
+        <el-menu-item index="/settings/notifications">
+          <el-icon><Bell /></el-icon>
+          <span>{{ t('routes.notificationCenter') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/editor/chapters">
           <el-icon><Document /></el-icon>
-          <span>Chapter Editor</span>
+          <span>{{ t('routes.chapterEditor') }}</span>
         </el-menu-item>
 
         <el-sub-menu index="design">
           <template #title>
             <el-icon><Edit /></el-icon>
-            <span>Design Modules</span>
+            <span>{{ t('routes.designModules') }}</span>
           </template>
-          <el-menu-item index="/design/world_rules">World Rules</el-menu-item>
-          <el-menu-item index="/design/character_rules">Character Rules</el-menu-item>
-          <el-menu-item index="/design/faction_rules">Faction Rules</el-menu-item>
-          <el-menu-item index="/design/location_rules">Location Rules</el-menu-item>
-          <el-menu-item index="/design/plot_rules">Plot Rules</el-menu-item>
-          <el-menu-item index="/design/creative_materials">Creative Materials</el-menu-item>
-          <el-menu-item index="/design/book_analyses">Book Analyses</el-menu-item>
-          <el-menu-item index="/design/outlines">Outlines</el-menu-item>
-          <el-menu-item index="/design/volume_designs">Volume Designs</el-menu-item>
-          <el-menu-item index="/design/chapter_plans">Chapter Plans</el-menu-item>
-          <el-menu-item index="/design/chapter_blueprints">Chapter Blueprints</el-menu-item>
+          <el-menu-item index="/design/world_rules">{{ t('layout.menu.worldRules') }}</el-menu-item>
+          <el-menu-item index="/design/character_rules">{{ t('layout.menu.characterRules') }}</el-menu-item>
+          <el-menu-item index="/design/faction_rules">{{ t('layout.menu.factionRules') }}</el-menu-item>
+          <el-menu-item index="/design/location_rules">{{ t('layout.menu.locationRules') }}</el-menu-item>
+          <el-menu-item index="/design/plot_rules">{{ t('layout.menu.plotRules') }}</el-menu-item>
+          <el-menu-item index="/design/creative_materials">{{ t('layout.menu.creativeMaterials') }}</el-menu-item>
+          <el-menu-item index="/design/book_analyses">{{ t('layout.menu.bookAnalyses') }}</el-menu-item>
+          <el-menu-item index="/design/outlines">{{ t('layout.menu.outlines') }}</el-menu-item>
+          <el-menu-item index="/design/volume_designs">{{ t('layout.menu.volumeDesigns') }}</el-menu-item>
+          <el-menu-item index="/design/chapter_plans">{{ t('layout.menu.chapterPlans') }}</el-menu-item>
+          <el-menu-item index="/design/chapter_blueprints">{{ t('layout.menu.chapterBlueprints') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="generate">
           <template #title>
             <el-icon><Notebook /></el-icon>
-            <span>Generate</span>
+            <span>{{ t('layout.menu.generate') }}</span>
           </template>
-          <el-menu-item index="/generate">Workbench</el-menu-item>
-          <el-menu-item index="/generate/outlines">Outlines</el-menu-item>
-          <el-menu-item index="/generate/volume_designs">Volume Designs</el-menu-item>
-          <el-menu-item index="/generate/chapter_plans">Chapter Plans</el-menu-item>
-          <el-menu-item index="/generate/chapter_blueprints">Chapter Blueprints</el-menu-item>
-          <el-menu-item index="/generate/chapters">Chapter Drafts</el-menu-item>
-          <el-menu-item index="/generate/gate">Generation Gate</el-menu-item>
+          <el-menu-item index="/generate">{{ t('layout.menu.workbench') }}</el-menu-item>
+          <el-menu-item index="/generate/outlines">{{ t('layout.menu.outlines') }}</el-menu-item>
+          <el-menu-item index="/generate/volume_designs">{{ t('layout.menu.volumeDesigns') }}</el-menu-item>
+          <el-menu-item index="/generate/chapter_plans">{{ t('layout.menu.chapterPlans') }}</el-menu-item>
+          <el-menu-item index="/generate/chapter_blueprints">{{ t('layout.menu.chapterBlueprints') }}</el-menu-item>
+          <el-menu-item index="/generate/chapters">{{ t('layout.menu.chapterDrafts') }}</el-menu-item>
+          <el-menu-item index="/generate/gate">{{ t('layout.menu.generationGate') }}</el-menu-item>
         </el-sub-menu>
 
         <el-menu-item index="/editor">
           <el-icon><Document /></el-icon>
-          <span>Writer Editor</span>
+          <span>{{ t('layout.menu.writerEditor') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/validate">
           <el-icon><CircleCheck /></el-icon>
-          <span>Validation</span>
+          <span>{{ t('layout.menu.validation') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/ai-assistant">
           <el-icon><ChatDotRound /></el-icon>
-          <span>AI Assistant</span>
+          <span>{{ t('routes.aiAssistant') }}</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -235,17 +253,28 @@ async function submitVolume() {
         <div>
           <div class="header-title">{{ headerTitle }}</div>
           <div class="header-sub">
-            {{ themeStore.effectiveTheme.label }} / {{ themeStore.currentSource }}
+            {{ t('layout.currentThemeAndSource', { theme: themeStore.effectiveTheme.label, source: sourceLabel }) }}
           </div>
         </div>
 
         <div class="header-right">
           <div class="work-context">
-            <span class="context-label">Project</span>
+            <el-button
+              v-if="!workContext.projects.length"
+              type="primary"
+              size="small"
+              :icon="Plus"
+              class="primary-project-entry"
+              @click="openProjectDialog"
+            >
+              {{ t('layout.dialogs.newProject') }}
+            </el-button>
+
+            <span class="context-label">{{ t('layout.project') }}</span>
             <el-select
               v-model="workContext.selectedProjectId"
               :loading="workContext.loadingProjects"
-              placeholder="Not selected"
+              :placeholder="t('layout.placeholders.selectProject')"
               size="small"
               filterable
               style="width: 190px"
@@ -257,14 +286,16 @@ async function submitVolume() {
                 :value="project.id"
               />
             </el-select>
-            <el-button text size="small" :icon="Plus" @click="openProjectDialog" />
+            <el-button size="small" :icon="Plus" @click="openProjectDialog">
+              {{ t('layout.dialogs.newProject') }}
+            </el-button>
 
-            <span class="context-label">Volume</span>
+            <span class="context-label">{{ t('layout.volume') }}</span>
             <el-select
               v-model="workContext.selectedVolumeId"
               :disabled="!workContext.selectedProjectId"
               :loading="workContext.loadingVolumes"
-              placeholder="Not selected"
+              :placeholder="t('layout.placeholders.selectVolume')"
               size="small"
               filterable
               clearable
@@ -273,16 +304,30 @@ async function submitVolume() {
               <el-option
                 v-for="volume in workContext.volumes"
                 :key="volume.id"
-                :label="`Vol ${volume.volumeNumber} | ${volume.title}`"
+                :label="t('layout.volumeOption', { number: volume.volumeNumber, title: volume.title })"
                 :value="volume.id"
               />
             </el-select>
             <el-button text size="small" :icon="Plus" @click="openVolumeDialog" />
           </div>
 
+          <el-select
+            :model-value="localeStore.locale"
+            size="small"
+            style="width: 118px"
+            @change="setLocale($event as Locale)"
+          >
+            <el-option
+              v-for="option in localeOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+
           <el-button class="theme-trigger" @click="router.push('/settings/themes')">
             <span class="theme-pill" :style="{ background: themeStore.effectiveTheme.hero }"></span>
-            <span>Theme Studio</span>
+            <span>{{ t('layout.themeStudio') }}</span>
           </el-button>
 
           <el-button text size="small" @click="cycleTheme">
@@ -298,36 +343,36 @@ async function submitVolume() {
     </el-container>
   </el-container>
 
-  <el-dialog v-model="projectDialogVisible" title="New Project" width="420px">
+  <el-dialog v-model="projectDialogVisible" :title="t('layout.dialogs.newProject')" width="420px">
     <el-form :model="projectForm" label-width="80px">
-      <el-form-item label="Name" required>
+      <el-form-item :label="t('layout.dialogs.name')" required>
         <el-input v-model="projectForm.name" @keyup.enter="submitProject" />
       </el-form-item>
-      <el-form-item label="Summary">
+      <el-form-item :label="t('layout.dialogs.summary')">
         <el-input v-model="projectForm.description" type="textarea" :rows="3" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="projectDialogVisible = false">Cancel</el-button>
-      <el-button type="primary" :loading="creatingProject" @click="submitProject">Create</el-button>
+      <el-button @click="projectDialogVisible = false">{{ t('layout.dialogs.cancel') }}</el-button>
+      <el-button type="primary" :loading="creatingProject" @click="submitProject">{{ t('layout.dialogs.create') }}</el-button>
     </template>
   </el-dialog>
 
-  <el-dialog v-model="volumeDialogVisible" title="New Volume" width="420px">
+  <el-dialog v-model="volumeDialogVisible" :title="t('layout.dialogs.newVolume')" width="420px">
     <el-form :model="volumeForm" label-width="90px">
-      <el-form-item label="Number" required>
+      <el-form-item :label="t('layout.dialogs.number')" required>
         <el-input-number v-model="volumeForm.volumeNumber" :min="1" controls-position="right" />
       </el-form-item>
-      <el-form-item label="Title" required>
+      <el-form-item :label="t('layout.dialogs.title')" required>
         <el-input v-model="volumeForm.title" @keyup.enter="submitVolume" />
       </el-form-item>
-      <el-form-item label="Theme">
+      <el-form-item :label="t('layout.dialogs.theme')">
         <el-input v-model="volumeForm.theme" type="textarea" :rows="3" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="volumeDialogVisible = false">Cancel</el-button>
-      <el-button type="primary" :loading="creatingVolume" @click="submitVolume">Create</el-button>
+      <el-button @click="volumeDialogVisible = false">{{ t('layout.dialogs.cancel') }}</el-button>
+      <el-button type="primary" :loading="creatingVolume" @click="submitVolume">{{ t('layout.dialogs.create') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -415,6 +460,10 @@ async function submitVolume() {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.primary-project-entry {
+  margin-right: 10px;
 }
 
 .context-label {

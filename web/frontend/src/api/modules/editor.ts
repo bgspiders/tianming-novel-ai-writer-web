@@ -88,7 +88,7 @@ export async function searchVectorRecall(input: VectorRecallQuery): Promise<Vect
 function toVectorRecallResult(item: EditorSearchResultDto): VectorRecallResult {
   return {
     id: item.chapterId,
-    source: `Chapter ${item.chapterNumber}`,
+    source: `第 ${item.chapterNumber} 章`,
     title: item.title,
     excerpt: item.snippet || item.summary,
     score: item.score,

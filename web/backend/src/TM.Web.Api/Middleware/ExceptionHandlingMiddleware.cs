@@ -67,6 +67,8 @@ public sealed class ExceptionHandlingMiddleware
         {
             problem.Extensions["exceptionType"] = ex.GetType().FullName;
             problem.Extensions["stackTrace"] = ex.StackTrace;
+            problem.Extensions["rootCauseMessage"] = GetInnermostMessage(ex);
+            problem.Extensions["exceptionChain"] = GetExceptionChain(ex);
         }
 
         context.Response.Clear();
@@ -79,5 +81,34 @@ public sealed class ExceptionHandlingMiddleware
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             })
         );
+    }
+
+    private static string GetInnermostMessage(Exception ex)
+    {
+        var current = ex;
+        while (current.InnerException is not null)
+        {
+            current = current.InnerException;
+        }
+
+        return current.Message;
+    }
+
+    private static IReadOnlyList<object> GetExceptionChain(Exception ex)
+    {
+        var chain = new List<object>();
+        Exception? current = ex;
+        while (current is not null)
+        {
+            chain.Add(new
+            {
+                type = current.GetType().FullName,
+                message = current.Message,
+                stackTrace = current.StackTrace
+            });
+            current = current.InnerException;
+        }
+
+        return chain;
     }
 }

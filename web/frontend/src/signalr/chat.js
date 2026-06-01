@@ -8,27 +8,27 @@ class ChatHubClient {
     errorHandlers = new Set();
     runEventHandlers = new Set();
     buildConnection() {
-        const conn = new HubConnectionBuilder()
+        const connection = new HubConnectionBuilder()
             .withUrl('/hubs/chat')
             .withAutomaticReconnect()
             .configureLogging(LogLevel.Warning)
             .build();
-        conn.on('ReceiveToken', (token) => {
-            this.tokenHandlers.forEach((h) => h(token));
+        connection.on('ReceiveToken', (token) => {
+            this.tokenHandlers.forEach((handler) => handler(token));
         });
-        conn.on('Status', (status) => {
-            this.statusHandlers.forEach((h) => h(status));
+        connection.on('Status', (status) => {
+            this.statusHandlers.forEach((handler) => handler(status));
         });
-        conn.on('Completed', (reason) => {
-            this.completedHandlers.forEach((h) => h(reason));
+        connection.on('Completed', (reason) => {
+            this.completedHandlers.forEach((handler) => handler(reason));
         });
-        conn.on('Error', (msg) => {
-            this.errorHandlers.forEach((h) => h(msg));
+        connection.on('Error', (message) => {
+            this.errorHandlers.forEach((handler) => handler(message));
         });
-        conn.on('RunEvent', (event) => {
-            this.runEventHandlers.forEach((h) => h(event));
+        connection.on('RunEvent', (event) => {
+            this.runEventHandlers.forEach((handler) => handler(event));
         });
-        return conn;
+        return connection;
     }
     async ensureStarted() {
         if (this.connection && this.connection.state === HubConnectionState.Connected) {
@@ -57,18 +57,38 @@ class ChatHubClient {
             await this.connection.invoke('LeaveRun', runId);
         }
         catch {
-            // 关闭过程中的失败可忽略
+            // Ignore transient disconnects while leaving a run.
         }
     }
-    onToken(handler) { this.tokenHandlers.add(handler); }
-    offToken(handler) { this.tokenHandlers.delete(handler); }
-    onStatus(handler) { this.statusHandlers.add(handler); }
-    offStatus(handler) { this.statusHandlers.delete(handler); }
-    onCompleted(handler) { this.completedHandlers.add(handler); }
-    offCompleted(handler) { this.completedHandlers.delete(handler); }
-    onError(handler) { this.errorHandlers.add(handler); }
-    offError(handler) { this.errorHandlers.delete(handler); }
-    onRunEvent(handler) { this.runEventHandlers.add(handler); }
-    offRunEvent(handler) { this.runEventHandlers.delete(handler); }
+    onToken(handler) {
+        this.tokenHandlers.add(handler);
+    }
+    offToken(handler) {
+        this.tokenHandlers.delete(handler);
+    }
+    onStatus(handler) {
+        this.statusHandlers.add(handler);
+    }
+    offStatus(handler) {
+        this.statusHandlers.delete(handler);
+    }
+    onCompleted(handler) {
+        this.completedHandlers.add(handler);
+    }
+    offCompleted(handler) {
+        this.completedHandlers.delete(handler);
+    }
+    onError(handler) {
+        this.errorHandlers.add(handler);
+    }
+    offError(handler) {
+        this.errorHandlers.delete(handler);
+    }
+    onRunEvent(handler) {
+        this.runEventHandlers.add(handler);
+    }
+    offRunEvent(handler) {
+        this.runEventHandlers.delete(handler);
+    }
 }
 export const chatHub = new ChatHubClient();

@@ -1,9 +1,28 @@
 <script setup lang="ts">
+import { computed, watchEffect } from 'vue'
+import { ElConfigProvider } from 'element-plus'
+import en from 'element-plus/es/locale/lang/en'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { RouterView } from 'vue-router'
+import { useRoute } from 'vue-router'
+import { buildDocumentTitle, syncDocumentLanguage } from '@/i18n'
+import { useLocaleStore } from '@/stores/locale'
+
+const route = useRoute()
+const localeStore = useLocaleStore()
+
+const elementLocale = computed(() => (localeStore.locale === 'zh-CN' ? zhCn : en))
+
+watchEffect(() => {
+  syncDocumentLanguage(localeStore.locale)
+  document.title = buildDocumentTitle(route.meta?.titleKey as string | undefined, localeStore.locale)
+})
 </script>
 
 <template>
-  <RouterView />
+  <el-config-provider :locale="elementLocale">
+    <RouterView />
+  </el-config-provider>
 </template>
 
 <style>

@@ -18,6 +18,7 @@ public record AiApiKeyCreateDto(
     int RotationOrder = 0);
 
 public record AiApiKeyUpdateDto(
+    string ProviderId,
     string Name,
     string? PlainKey,
     bool IsEnabled,

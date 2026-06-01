@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using TM.Web.Application.Dtos;
 using TM.Web.Application.Services;
+using TM.Web.Infrastructure.Persistence;
+using TM.Web.Application.Security;
 
 namespace TM.Web.Api.Controllers;
 
@@ -9,10 +12,14 @@ namespace TM.Web.Api.Controllers;
 public sealed class AiTestController : ControllerBase
 {
     private readonly IAiCompletionService _ai;
+    private readonly AppDbContext _db;
+    private readonly IKeyProtector _keyProtector;
 
-    public AiTestController(IAiCompletionService ai)
+    public AiTestController(IAiCompletionService ai, AppDbContext db, IKeyProtector keyProtector)
     {
         _ai = ai;
+        _db = db;
+        _keyProtector = keyProtector;
     }
 
     /// <summary>
@@ -27,6 +34,20 @@ public sealed class AiTestController : ControllerBase
         [FromBody] AiTestRequest request,
         CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(request.ApiKey) && !string.IsNullOrWhiteSpace(request.ConfigId))
+        {
+            var keyEntity = await _db.AiApiKeys
+                .Where(k => k.ProviderId == request.ConfigId && k.IsEnabled)
+                .OrderBy(k => k.RotationOrder)
+                .ThenBy(k => k.Name)
+                .FirstOrDefaultAsync(ct);
+
+            if (keyEntity is not null)
+            {
+                request.ApiKey = _keyProtector.Decrypt(keyEntity.EncryptedKey, keyEntity.Iv);
+            }
+        }
+
         var result = await _ai.StreamAsync(request, ct);
         return Ok(result);
     }

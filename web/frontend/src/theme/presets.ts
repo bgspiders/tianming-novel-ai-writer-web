@@ -1,3 +1,4 @@
+import { translate } from '@/i18n'
 import { buildThemeTokens, type ThemeTokens } from './utils'
 
 export type ThemeId =
@@ -28,11 +29,17 @@ export interface ThemePreset {
   tokens: ThemeTokens
 }
 
+const THEME_LOCALE = 'zh-CN'
+
+function tPreset(key: string) {
+  return translate(key, THEME_LOCALE)
+}
+
 const presets: ThemePreset[] = [
   {
     id: 'light',
-    label: 'Light',
-    description: 'Clean neutral workspace.',
+    label: tPreset('themePreset.light.label'),
+    description: tPreset('themePreset.light.description'),
     category: 'light',
     dark: false,
     hero: 'linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%)',
@@ -55,8 +62,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'green',
-    label: 'Paper Green',
-    description: 'Warm reading palette with soft contrast.',
+    label: tPreset('themePreset.green.label'),
+    description: tPreset('themePreset.green.description'),
     category: 'focus',
     dark: false,
     hero: 'linear-gradient(135deg, #f5eddc 0%, #ddd0bc 100%)',
@@ -79,8 +86,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'dark',
-    label: 'Dark',
-    description: 'Balanced dark interface for long sessions.',
+    label: tPreset('themePreset.dark.label'),
+    description: tPreset('themePreset.dark.description'),
     category: 'dark',
     dark: true,
     hero: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
@@ -103,8 +110,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'arctic',
-    label: 'Arctic',
-    description: 'Ice-blue daylight palette.',
+    label: tPreset('themePreset.arctic.label'),
+    description: tPreset('themePreset.arctic.description'),
     category: 'light',
     dark: false,
     hero: 'linear-gradient(135deg, #f0f7ff 0%, #bdd0e7 100%)',
@@ -127,8 +134,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'forest',
-    label: 'Forest',
-    description: 'Muted green palette for low-fatigue reading.',
+    label: tPreset('themePreset.forest.label'),
+    description: tPreset('themePreset.forest.description'),
     category: 'focus',
     dark: false,
     hero: 'linear-gradient(135deg, #f1f8f2 0%, #b8d4ba 100%)',
@@ -151,8 +158,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'violet',
-    label: 'Violet',
-    description: 'Luminous violet with soft contrast.',
+    label: tPreset('themePreset.violet.label'),
+    description: tPreset('themePreset.violet.description'),
     category: 'seasonal',
     dark: false,
     hero: 'linear-gradient(135deg, #f8f0ff 0%, #d0bbe5 100%)',
@@ -175,8 +182,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'business',
-    label: 'Business',
-    description: 'Conservative office-friendly neutrals.',
+    label: tPreset('themePreset.business.label'),
+    description: tPreset('themePreset.business.description'),
     category: 'light',
     dark: false,
     hero: 'linear-gradient(135deg, #f7f7f7 0%, #d0d8e0 100%)',
@@ -199,8 +206,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'minimal-black',
-    label: 'Minimal Black',
-    description: 'Flat dark palette with restrained highlights.',
+    label: tPreset('themePreset.minimalBlack.label'),
+    description: tPreset('themePreset.minimalBlack.description'),
     category: 'dark',
     dark: true,
     hero: 'linear-gradient(135deg, #1a1a1a 0%, #121212 100%)',
@@ -223,8 +230,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'modern-blue',
-    label: 'Modern Blue',
-    description: 'Deep blue product aesthetic.',
+    label: tPreset('themePreset.modernBlue.label'),
+    description: tPreset('themePreset.modernBlue.description'),
     category: 'dark',
     dark: true,
     hero: 'linear-gradient(135deg, #112240 0%, #0a1628 100%)',
@@ -247,8 +254,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'warm-orange',
-    label: 'Warm Orange',
-    description: 'Warm beige with editorial contrast.',
+    label: tPreset('themePreset.warmOrange.label'),
+    description: tPreset('themePreset.warmOrange.description'),
     category: 'seasonal',
     dark: false,
     hero: 'linear-gradient(135deg, #fff7e6 0%, #ffe4c0 100%)',
@@ -271,8 +278,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'pink',
-    label: 'Pink',
-    description: 'Soft rose palette with high readability.',
+    label: tPreset('themePreset.pink.label'),
+    description: tPreset('themePreset.pink.description'),
     category: 'seasonal',
     dark: false,
     hero: 'linear-gradient(135deg, #fff0f6 0%, #ffd6e5 100%)',
@@ -295,8 +302,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'tech-cyan',
-    label: 'Tech Cyan',
-    description: 'Cold-tech dark palette.',
+    label: tPreset('themePreset.techCyan.label'),
+    description: tPreset('themePreset.techCyan.description'),
     category: 'dark',
     dark: true,
     hero: 'linear-gradient(135deg, #0d2137 0%, #0a1929 100%)',
@@ -319,8 +326,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'sunset',
-    label: 'Sunset',
-    description: 'Warm dusk palette.',
+    label: tPreset('themePreset.sunset.label'),
+    description: tPreset('themePreset.sunset.description'),
     category: 'seasonal',
     dark: false,
     hero: 'linear-gradient(135deg, #fff4ec 0%, #ffdfc8 100%)',
@@ -343,8 +350,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'morandi',
-    label: 'Morandi',
-    description: 'Muted designer palette.',
+    label: tPreset('themePreset.morandi.label'),
+    description: tPreset('themePreset.morandi.description'),
     category: 'focus',
     dark: false,
     hero: 'linear-gradient(135deg, #f5f4f2 0%, #d5d0ca 100%)',
@@ -367,8 +374,8 @@ const presets: ThemePreset[] = [
   },
   {
     id: 'high-contrast',
-    label: 'High Contrast',
-    description: 'Accessibility-first high contrast palette.',
+    label: tPreset('themePreset.highContrast.label'),
+    description: tPreset('themePreset.highContrast.description'),
     category: 'focus',
     dark: true,
     hero: 'linear-gradient(135deg, #000000 0%, #1f2937 100%)',

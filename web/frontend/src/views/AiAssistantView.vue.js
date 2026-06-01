@@ -1,11 +1,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ChatLineRound, Delete, Plus, Promotion, Refresh } from '@element-plus/icons-vue';
+import { useI18n } from '@/composables/useI18n';
 import { useWorkContextStore } from '@/stores/workContext';
 import { chatHub } from '@/signalr/chat';
 import { createChatSession, deleteChatSession, executeChatPlan, listChatMessages, listChatSessions, sendChatMessage, updateChatSession } from '@/api/modules/chatAssistant';
 import { listKeys, listModels, listProviders } from '@/api/modules/ai';
 const workContext = useWorkContextStore();
+const { t } = useI18n();
 const sessions = ref([]);
 const messages = ref([]);
 const selectedSessionId = ref('');
@@ -32,12 +34,10 @@ const executingMessageId = ref('');
 const currentRunId = ref('');
 const titleDraft = ref('');
 const runEvents = ref([]);
-const selectedSession = computed(() => sessions.value.find((s) => s.id === selectedSessionId.value) ?? null);
-const enabledModels = computed(() => models.value.filter((m) => m.isEnabled));
-const enabledKeys = computed(() => keys.value.filter((k) => k.isEnabled));
-const liveToolCalls = computed(() => {
-    return runEvents.value.flatMap((event, eventIndex) => toolCallsFromRunEvent(event, eventIndex));
-});
+const selectedSession = computed(() => sessions.value.find((item) => item.id === selectedSessionId.value) ?? null);
+const enabledModels = computed(() => models.value.filter((item) => item.isEnabled));
+const enabledKeys = computed(() => keys.value.filter((item) => item.isEnabled));
+const liveToolCalls = computed(() => runEvents.value.flatMap((event, eventIndex) => toolCallsFromRunEvent(event, eventIndex)));
 const liveTraceSummary = computed(() => {
     for (let index = runEvents.value.length - 1; index >= 0; index -= 1) {
         const summary = traceSummaryFromRunEvent(runEvents.value[index]);
@@ -69,10 +69,10 @@ const visibleMessages = computed(() => {
 });
 function modeLabel(value) {
     if (value === 'plan')
-        return 'Plan';
+        return t('aiAssistant.mode.plan');
     if (value === 'edit')
-        return 'Edit';
-    return 'Agent';
+        return t('aiAssistant.mode.edit');
+    return t('aiAssistant.mode.agent');
 }
 function formatTime(value) {
     return value ? new Date(value).toLocaleString() : '-';
@@ -167,10 +167,7 @@ function normalizeToolCall(value, key, fallbackTitle, fallbackStatus) {
 }
 function payloadToolCalls(message) {
     const payload = parseToolPayload(message.toolPayload);
-    const calls = [
-        ...(payload?.executionTrace ?? []),
-        ...(payload?.toolCalls ?? [])
-    ];
+    const calls = [...(payload?.executionTrace ?? []), ...(payload?.toolCalls ?? [])];
     return calls
         .map((call, index) => normalizeToolCall(call, `${message.id}-tool-${index}`))
         .filter((call) => !!call);
@@ -198,6 +195,9 @@ function toolCallsFromRunEvent(event, eventIndex) {
     return values
         .map((value, index) => normalizeToolCall(value, `run-${eventIndex}-tool-${index}`, event.message, fallbackStatus))
         .filter((call) => !!call);
+}
+function isPlanBusinessStep(call) {
+    return call.pluginName?.toLowerCase() === 'plan' && call.functionName?.toLowerCase() === 'preparestep';
 }
 function normalizeTraceSummary(value) {
     if (!isRecord(value))
@@ -234,12 +234,14 @@ function traceSummaryFromRunEvent(event) {
 function summarizeToolCalls(calls) {
     if (calls.length === 0)
         return null;
-    const completedSteps = calls.filter((call) => call.status === 'completed').length;
-    const failedSteps = calls.filter((call) => call.status === 'failed').length;
-    const failedStepSummaries = calls
+    const businessCalls = calls.filter(isPlanBusinessStep);
+    const summaryCalls = businessCalls.length > 0 ? businessCalls : calls;
+    const completedSteps = summaryCalls.filter((call) => call.status === 'completed').length;
+    const failedSteps = summaryCalls.filter((call) => call.status === 'failed').length;
+    const failedStepSummaries = summaryCalls
         .filter((call) => call.status === 'failed')
         .map((call) => call.errorMessage || call.title || toolCallName(call));
-    const totalDurationSeconds = calls.reduce((total, call) => {
+    const totalDurationSeconds = summaryCalls.reduce((total, call) => {
         if (typeof call.durationSeconds === 'number')
             return total + call.durationSeconds;
         if (typeof call.durationMs === 'number')
@@ -247,7 +249,7 @@ function summarizeToolCalls(calls) {
         return total;
     }, 0);
     return {
-        totalSteps: calls.length,
+        totalSteps: summaryCalls.length,
         completedSteps,
         failedSteps,
         totalDurationSeconds: totalDurationSeconds > 0 ? totalDurationSeconds : null,
@@ -278,16 +280,16 @@ function canExecutePlan(message) {
 }
 function toolCallStatusLabel(status) {
     if (status === 'pending')
-        return '等待';
+        return t('aiAssistant.status.pending');
     if (status === 'running')
-        return '运行中';
+        return t('aiAssistant.status.running');
     if (status === 'completed')
-        return '完成';
+        return t('aiAssistant.status.completed');
     if (status === 'failed')
-        return '失败';
+        return t('aiAssistant.status.failed');
     if (status === 'cancelled')
-        return '已取消';
-    return status || '未知';
+        return t('aiAssistant.status.cancelled');
+    return status || t('aiAssistant.status.unknown');
 }
 function toolCallStatusTag(status) {
     if (status === 'completed')
@@ -305,7 +307,7 @@ function toolCallName(call) {
     const fn = call.functionName?.trim();
     if (plugin && fn)
         return `${plugin}.${fn}`;
-    return plugin || fn || call.title || '工具调用';
+    return plugin || fn || call.title || t('aiAssistant.labels.toolCall');
 }
 function formatToolValue(value) {
     if (value == null || value === '')
@@ -340,47 +342,46 @@ function formatTraceSummary(summary) {
         return summary.summaryText;
     const parts = [];
     if (typeof summary.totalSteps === 'number')
-        parts.push(`共 ${summary.totalSteps} 步`);
+        parts.push(t('aiAssistant.labels.steps', { count: summary.totalSteps }));
     if (typeof summary.completedSteps === 'number')
-        parts.push(`${summary.completedSteps} 完成`);
+        parts.push(t('aiAssistant.labels.completedSteps', { count: summary.completedSteps }));
     if (typeof summary.failedSteps === 'number' && summary.failedSteps > 0)
-        parts.push(`${summary.failedSteps} 失败`);
+        parts.push(t('aiAssistant.labels.failedSteps', { count: summary.failedSteps }));
     if (typeof summary.totalDurationSeconds === 'number' && summary.totalDurationSeconds > 0) {
-        parts.push(`耗时 ${summary.totalDurationSeconds.toFixed(1)}s`);
+        parts.push(`${summary.totalDurationSeconds.toFixed(1)}s`);
     }
-    return parts.join(' · ');
+    return parts.join(' / ');
 }
 function shouldShowRawContent(message) {
     return !payloadMeta(message)?.hideRawContentInBubble;
 }
 function normalizationLabel(value) {
     if (value === 'singleChapterMerged')
-        return '单章合并';
+        return t('aiAssistant.normalization.singleChapterMerged');
     if (value === 'chapterRangeSplit')
-        return '章节范围拆分';
+        return t('aiAssistant.normalization.chapterRangeSplit');
     if (value === 'multiChapterPreserved')
-        return '多章保留';
+        return t('aiAssistant.normalization.multiChapterPreserved');
     return value || '';
 }
 function directiveLabel(kind) {
     if (kind === 'continue')
-        return '续写';
+        return t('aiAssistant.directive.continue');
     if (kind === 'rewrite')
-        return '重写';
-    return kind || '指令';
+        return t('aiAssistant.directive.rewrite');
+    return kind || t('aiAssistant.directive.default');
 }
 function targetPanelLabel(value) {
     if (value === 'ExecutionPlan')
-        return '执行计划';
+        return t('aiAssistant.targetPanel.ExecutionPlan');
     if (value === 'ExecutionPanel')
-        return '执行面板';
+        return t('aiAssistant.targetPanel.ExecutionPanel');
     return value || '';
 }
 function splitStreaming(raw) {
     const pairs = [
         ['<thinking>', '</thinking>'],
         ['<think>', '</think>'],
-        ['【思考】', '【/思考】'],
         ['[thinking]', '[/thinking]']
     ];
     for (const [open, close] of pairs) {
@@ -395,28 +396,28 @@ function splitStreaming(raw) {
     }
     return { content: raw, thinking: '' };
 }
-async function refreshSessions() {
-    loading.value = true;
-    try {
-        sessions.value = await listChatSessions(workContext.selectedProjectId || null);
-        if (!sessions.value.some((s) => s.id === selectedSessionId.value)) {
-            selectedSessionId.value = sessions.value[0]?.id ?? '';
-        }
-        await refreshMessages();
-    }
-    catch (err) {
-        ElMessage.error(err.message || '加载会话失败');
-    }
-    finally {
-        loading.value = false;
-    }
-}
 async function refreshMessages() {
     if (!selectedSessionId.value) {
         messages.value = [];
         return;
     }
     messages.value = await listChatMessages(selectedSessionId.value);
+}
+async function refreshSessions() {
+    loading.value = true;
+    try {
+        sessions.value = await listChatSessions(workContext.selectedProjectId || null);
+        if (!sessions.value.some((item) => item.id === selectedSessionId.value)) {
+            selectedSessionId.value = sessions.value[0]?.id ?? '';
+        }
+        await refreshMessages();
+    }
+    catch (err) {
+        ElMessage.error(err.message || t('aiAssistant.messages.loadSessionsFailed'));
+    }
+    finally {
+        loading.value = false;
+    }
 }
 async function createSession(nextMode = mode.value) {
     try {
@@ -432,7 +433,7 @@ async function createSession(nextMode = mode.value) {
         messages.value = [];
     }
     catch (err) {
-        ElMessage.error(err.message || '创建会话失败');
+        ElMessage.error(err.message || t('aiAssistant.messages.createSessionFailed'));
     }
 }
 async function saveSessionSettings() {
@@ -446,11 +447,11 @@ async function saveSessionSettings() {
             providerId: selectedProviderId.value || null,
             modelCode: selectedModel.value || null
         });
-        sessions.value = sessions.value.map((s) => s.id === updated.id ? updated : s);
-        ElMessage.success('会话设置已保存');
+        sessions.value = sessions.value.map((item) => (item.id === updated.id ? updated : item));
+        ElMessage.success(t('aiAssistant.messages.saveSessionSuccess'));
     }
     catch (err) {
-        ElMessage.error(err.message || '保存会话设置失败');
+        ElMessage.error(err.message || t('aiAssistant.messages.saveSessionFailed'));
     }
     finally {
         savingSession.value = false;
@@ -458,26 +459,26 @@ async function saveSessionSettings() {
 }
 async function removeSession(session) {
     try {
-        await ElMessageBox.confirm(`删除会话「${session.title}」?`, '确认', { type: 'warning' });
+        await ElMessageBox.confirm(t('aiAssistant.messages.deleteConfirm', { title: session.title }), t('layout.dialogs.confirm'), { type: 'warning' });
     }
     catch {
         return;
     }
     try {
         await deleteChatSession(session.id);
-        sessions.value = sessions.value.filter((s) => s.id !== session.id);
+        sessions.value = sessions.value.filter((item) => item.id !== session.id);
         if (selectedSessionId.value === session.id) {
             selectedSessionId.value = sessions.value[0]?.id ?? '';
             await refreshMessages();
         }
     }
     catch (err) {
-        ElMessage.error(err.message || '删除会话失败');
+        ElMessage.error(err.message || t('aiAssistant.messages.deleteFailed'));
     }
 }
 async function refreshAiConfig() {
-    providers.value = (await listProviders()).filter((p) => p.isEnabled);
-    if (!providers.value.some((p) => p.id === selectedProviderId.value)) {
+    providers.value = (await listProviders()).filter((item) => item.isEnabled);
+    if (!providers.value.some((item) => item.id === selectedProviderId.value)) {
         selectedProviderId.value = providers.value[0]?.id ?? '';
     }
     await refreshProviderAssets();
@@ -494,12 +495,14 @@ async function refreshProviderAssets() {
     ]);
     models.value = nextModels;
     keys.value = nextKeys;
-    const provider = providers.value.find((p) => p.id === selectedProviderId.value);
-    endpoint.value = provider?.defaultEndpoint || endpoint.value;
-    if (!enabledModels.value.some((m) => m.code === selectedModel.value)) {
+    const provider = providers.value.find((item) => item.id === selectedProviderId.value);
+    if (provider?.defaultEndpoint) {
+        endpoint.value = provider.defaultEndpoint;
+    }
+    if (!enabledModels.value.some((item) => item.code === selectedModel.value)) {
         selectedModel.value = enabledModels.value[0]?.code ?? '';
     }
-    if (!enabledKeys.value.some((k) => k.id === selectedKeyId.value)) {
+    if (!enabledKeys.value.some((item) => item.id === selectedKeyId.value)) {
         selectedKeyId.value = '';
     }
 }
@@ -530,19 +533,19 @@ async function send() {
     if (!selectedSessionId.value)
         return;
     if (!input.value.trim()) {
-        ElMessage.warning('请输入消息');
+        ElMessage.warning(t('aiAssistant.messages.enterMessage'));
         return;
     }
     if (!endpoint.value || !selectedModel.value) {
-        ElMessage.warning('请选择 Endpoint / Model');
+        ElMessage.warning(t('aiAssistant.messages.endpointModelRequired'));
         return;
     }
     if (useSavedKey.value && !selectedProviderId.value) {
-        ElMessage.warning('请选择 Provider');
+        ElMessage.warning(t('aiAssistant.messages.selectProviderFirst'));
         return;
     }
     if (!useSavedKey.value && !tempKey.value.trim()) {
-        ElMessage.warning('请输入临时 API Key');
+        ElMessage.warning(t('aiAssistant.messages.tempKeyRequired'));
         return;
     }
     const text = input.value.trim();
@@ -552,50 +555,28 @@ async function send() {
     streamingRaw.value = '';
     runEvents.value = [];
     errorMessage.value = '';
-    status.value = 'starting';
     sending.value = true;
     const runId = crypto.randomUUID();
     currentRunId.value = runId;
-    messages.value.push({
-        id: `local-${runId}`,
-        chatSessionId: selectedSessionId.value,
-        role: 'user',
-        content: text,
-        summary: null,
-        thinkingContent: null,
-        analysisBlocksJson: null,
-        toolPayload: null,
-        inputTokens: null,
-        outputTokens: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    });
     try {
         await chatHub.joinRun(runId);
-        if (selectedSession.value?.mode !== mode.value) {
-            const updated = await updateChatSession(selectedSessionId.value, { mode: mode.value });
-            sessions.value = sessions.value.map((s) => s.id === updated.id ? updated : s);
-        }
-        await sendChatMessage(selectedSessionId.value, {
+        const result = await sendChatMessage(selectedSessionId.value, {
             runId,
             content: text,
             endpoint: endpoint.value,
             model: selectedModel.value,
             providerId: useSavedKey.value ? selectedProviderId.value : null,
             apiKeyId: useSavedKey.value ? (selectedKeyId.value || null) : null,
-            apiKey: useSavedKey.value ? null : tempKey.value,
-            temperature: 0.7,
-            maxTokens: 4096
+            apiKey: useSavedKey.value ? null : tempKey.value.trim()
         });
-        streamingText.value = '';
-        streamingRaw.value = '';
-        streamingThinking.value = '';
+        status.value = `completed (${result.finishReason})`;
+        await refreshMessages();
         await refreshSessions();
     }
     catch (err) {
         status.value = 'error';
-        errorMessage.value = err.message || '发送失败';
-        ElMessage.error(err.message || '发送失败');
+        errorMessage.value = err.message || t('aiAssistant.messages.sendFailed');
+        ElMessage.error(errorMessage.value);
     }
     finally {
         sending.value = false;
@@ -604,10 +585,10 @@ async function send() {
     }
 }
 async function executePlan(message) {
-    if (!selectedSessionId.value || !canExecutePlan(message))
+    if (!selectedSessionId.value)
         return;
-    if (sending.value || executingMessageId.value) {
-        ElMessage.warning('当前已有任务运行中');
+    if (executingMessageId.value) {
+        ElMessage.warning(t('aiAssistant.messages.executingAnother'));
         return;
     }
     const runId = crypto.randomUUID();
@@ -622,15 +603,17 @@ async function executePlan(message) {
     try {
         await chatHub.joinRun(runId);
         const result = await executeChatPlan(selectedSessionId.value, message.id, { runId });
-        messages.value = messages.value.map((item) => item.id === result.message.id ? result.message : item);
+        messages.value = messages.value.map((item) => (item.id === result.message.id ? result.message : item));
         await refreshMessages();
         await refreshSessions();
         status.value = `completed (${result.finishReason})`;
-        ElMessage.success(result.finishReason === 'failed' ? '计划执行完成，存在失败步骤' : '计划执行完成');
+        ElMessage.success(result.finishReason === 'failed'
+            ? t('aiAssistant.messages.executeFinishedWithFailures')
+            : t('aiAssistant.messages.executeCompleted'));
     }
     catch (err) {
         status.value = 'error';
-        errorMessage.value = err.message || '执行计划失败';
+        errorMessage.value = err.message || t('aiAssistant.messages.executeFailed');
         ElMessage.error(errorMessage.value);
     }
     finally {
@@ -711,6 +694,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
     ...{ class: "panel-head" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+(__VLS_ctx.t('aiAssistant.title'));
 const __VLS_0 = {}.ElButton;
 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
 // @ts-ignore
@@ -735,6 +719,7 @@ const __VLS_7 = {
     }
 };
 __VLS_3.slots.default;
+(__VLS_ctx.t('aiAssistant.actions.newSession'));
 var __VLS_3;
 const __VLS_8 = {}.ElSegmented;
 /** @type {[typeof __VLS_components.ElSegmented, typeof __VLS_components.elSegmented, ]} */ ;
@@ -742,18 +727,18 @@ const __VLS_8 = {}.ElSegmented;
 const __VLS_9 = __VLS_asFunctionalComponent(__VLS_8, new __VLS_8({
     modelValue: (__VLS_ctx.mode),
     options: ([
-        { label: 'Agent', value: 'agent' },
-        { label: 'Plan', value: 'plan' },
-        { label: 'Edit', value: 'edit' }
+        { label: __VLS_ctx.t('aiAssistant.mode.agent'), value: 'agent' },
+        { label: __VLS_ctx.t('aiAssistant.mode.plan'), value: 'plan' },
+        { label: __VLS_ctx.t('aiAssistant.mode.edit'), value: 'edit' }
     ]),
     block: true,
 }));
 const __VLS_10 = __VLS_9({
     modelValue: (__VLS_ctx.mode),
     options: ([
-        { label: 'Agent', value: 'agent' },
-        { label: 'Plan', value: 'plan' },
-        { label: 'Edit', value: 'edit' }
+        { label: __VLS_ctx.t('aiAssistant.mode.agent'), value: 'agent' },
+        { label: __VLS_ctx.t('aiAssistant.mode.plan'), value: 'plan' },
+        { label: __VLS_ctx.t('aiAssistant.mode.edit'), value: 'edit' }
     ]),
     block: true,
 }, ...__VLS_functionalComponentArgsRest(__VLS_9));
@@ -809,10 +794,10 @@ if (__VLS_ctx.sessions.length === 0) {
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({
-        description: "暂无会话",
+        description: (__VLS_ctx.t('aiAssistant.empty.sessions')),
     }));
     const __VLS_22 = __VLS_21({
-        description: "暂无会话",
+        description: (__VLS_ctx.t('aiAssistant.empty.sessions')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_21));
 }
 __VLS_asFunctionalElement(__VLS_intrinsicElements.main, __VLS_intrinsicElements.main)({
@@ -823,7 +808,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.header, __VLS_intrinsicElement
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h1, __VLS_intrinsicElements.h1)({});
-(__VLS_ctx.selectedSession?.title ?? 'AI 助手');
+(__VLS_ctx.selectedSession?.title ?? __VLS_ctx.t('aiAssistant.title'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
 (__VLS_ctx.modeLabel(__VLS_ctx.mode));
 (__VLS_ctx.status);
@@ -835,43 +820,43 @@ const __VLS_24 = {}.ElSwitch;
 // @ts-ignore
 const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
     modelValue: (__VLS_ctx.useSavedKey),
-    activeText: "保存 Key",
-    inactiveText: "临时 Key",
+    activeText: (__VLS_ctx.t('aiAssistant.switch.savedKey')),
+    inactiveText: (__VLS_ctx.t('aiAssistant.switch.temporaryKey')),
 }));
 const __VLS_26 = __VLS_25({
     modelValue: (__VLS_ctx.useSavedKey),
-    activeText: "保存 Key",
-    inactiveText: "临时 Key",
+    activeText: (__VLS_ctx.t('aiAssistant.switch.savedKey')),
+    inactiveText: (__VLS_ctx.t('aiAssistant.switch.temporaryKey')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_25));
 const __VLS_28 = {}.ElSelect;
 /** @type {[typeof __VLS_components.ElSelect, typeof __VLS_components.elSelect, typeof __VLS_components.ElSelect, typeof __VLS_components.elSelect, ]} */ ;
 // @ts-ignore
 const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({
     modelValue: (__VLS_ctx.selectedProviderId),
-    placeholder: "Provider",
+    placeholder: (__VLS_ctx.t('aiAssistant.placeholders.provider')),
     filterable: true,
     ...{ style: {} },
 }));
 const __VLS_30 = __VLS_29({
     modelValue: (__VLS_ctx.selectedProviderId),
-    placeholder: "Provider",
+    placeholder: (__VLS_ctx.t('aiAssistant.placeholders.provider')),
     filterable: true,
     ...{ style: {} },
 }, ...__VLS_functionalComponentArgsRest(__VLS_29));
 __VLS_31.slots.default;
-for (const [p] of __VLS_getVForSourceType((__VLS_ctx.providers))) {
+for (const [provider] of __VLS_getVForSourceType((__VLS_ctx.providers))) {
     const __VLS_32 = {}.ElOption;
     /** @type {[typeof __VLS_components.ElOption, typeof __VLS_components.elOption, ]} */ ;
     // @ts-ignore
     const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
-        key: (p.id),
-        label: (p.name),
-        value: (p.id),
+        key: (provider.id),
+        label: (provider.name),
+        value: (provider.id),
     }));
     const __VLS_34 = __VLS_33({
-        key: (p.id),
-        label: (p.name),
-        value: (p.id),
+        key: (provider.id),
+        label: (provider.name),
+        value: (provider.id),
     }, ...__VLS_functionalComponentArgsRest(__VLS_33));
 }
 var __VLS_31;
@@ -881,32 +866,32 @@ if (__VLS_ctx.useSavedKey) {
     // @ts-ignore
     const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({
         modelValue: (__VLS_ctx.selectedKeyId),
-        placeholder: "自动轮换",
+        placeholder: (__VLS_ctx.t('aiAssistant.placeholders.key')),
         clearable: true,
         filterable: true,
         ...{ style: {} },
     }));
     const __VLS_38 = __VLS_37({
         modelValue: (__VLS_ctx.selectedKeyId),
-        placeholder: "自动轮换",
+        placeholder: (__VLS_ctx.t('aiAssistant.placeholders.key')),
         clearable: true,
         filterable: true,
         ...{ style: {} },
     }, ...__VLS_functionalComponentArgsRest(__VLS_37));
     __VLS_39.slots.default;
-    for (const [k] of __VLS_getVForSourceType((__VLS_ctx.enabledKeys))) {
+    for (const [key] of __VLS_getVForSourceType((__VLS_ctx.enabledKeys))) {
         const __VLS_40 = {}.ElOption;
         /** @type {[typeof __VLS_components.ElOption, typeof __VLS_components.elOption, ]} */ ;
         // @ts-ignore
         const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
-            key: (k.id),
-            label: (`${k.name}${k.maskedTail ? ` · ${k.maskedTail}` : ''}`),
-            value: (k.id),
+            key: (key.id),
+            label: (`${key.name}${key.maskedTail ? ` / ${key.maskedTail}` : ''}`),
+            value: (key.id),
         }));
         const __VLS_42 = __VLS_41({
-            key: (k.id),
-            label: (`${k.name}${k.maskedTail ? ` · ${k.maskedTail}` : ''}`),
-            value: (k.id),
+            key: (key.id),
+            label: (`${key.name}${key.maskedTail ? ` / ${key.maskedTail}` : ''}`),
+            value: (key.id),
         }, ...__VLS_functionalComponentArgsRest(__VLS_41));
     }
     var __VLS_39;
@@ -919,14 +904,14 @@ else {
         modelValue: (__VLS_ctx.tempKey),
         type: "password",
         showPassword: true,
-        placeholder: "API Key",
+        placeholder: (__VLS_ctx.t('aiAssistant.placeholders.apiKey')),
         ...{ style: {} },
     }));
     const __VLS_46 = __VLS_45({
         modelValue: (__VLS_ctx.tempKey),
         type: "password",
         showPassword: true,
-        placeholder: "API Key",
+        placeholder: (__VLS_ctx.t('aiAssistant.placeholders.apiKey')),
         ...{ style: {} },
     }, ...__VLS_functionalComponentArgsRest(__VLS_45));
 }
@@ -935,32 +920,32 @@ const __VLS_48 = {}.ElSelect;
 // @ts-ignore
 const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
     modelValue: (__VLS_ctx.selectedModel),
-    placeholder: "Model",
+    placeholder: (__VLS_ctx.t('aiAssistant.placeholders.model')),
     filterable: true,
     allowCreate: true,
     ...{ style: {} },
 }));
 const __VLS_50 = __VLS_49({
     modelValue: (__VLS_ctx.selectedModel),
-    placeholder: "Model",
+    placeholder: (__VLS_ctx.t('aiAssistant.placeholders.model')),
     filterable: true,
     allowCreate: true,
     ...{ style: {} },
 }, ...__VLS_functionalComponentArgsRest(__VLS_49));
 __VLS_51.slots.default;
-for (const [m] of __VLS_getVForSourceType((__VLS_ctx.enabledModels))) {
+for (const [model] of __VLS_getVForSourceType((__VLS_ctx.enabledModels))) {
     const __VLS_52 = {}.ElOption;
     /** @type {[typeof __VLS_components.ElOption, typeof __VLS_components.elOption, ]} */ ;
     // @ts-ignore
     const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({
-        key: (m.id),
-        label: (m.code),
-        value: (m.code),
+        key: (model.id),
+        label: (model.code),
+        value: (model.code),
     }));
     const __VLS_54 = __VLS_53({
-        key: (m.id),
-        label: (m.code),
-        value: (m.code),
+        key: (model.id),
+        label: (model.code),
+        value: (model.code),
     }, ...__VLS_functionalComponentArgsRest(__VLS_53));
 }
 var __VLS_51;
@@ -991,11 +976,11 @@ if (__VLS_ctx.selectedSession) {
     // @ts-ignore
     const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({
         modelValue: (__VLS_ctx.titleDraft),
-        placeholder: "会话标题",
+        placeholder: (__VLS_ctx.t('aiAssistant.placeholders.sessionTitle')),
     }));
     const __VLS_66 = __VLS_65({
         modelValue: (__VLS_ctx.titleDraft),
-        placeholder: "会话标题",
+        placeholder: (__VLS_ctx.t('aiAssistant.placeholders.sessionTitle')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_65));
     const __VLS_68 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -1015,6 +1000,7 @@ if (__VLS_ctx.selectedSession) {
         onClick: (__VLS_ctx.saveSessionSettings)
     };
     __VLS_71.slots.default;
+    (__VLS_ctx.t('aiAssistant.actions.saveSettings'));
     var __VLS_71;
 }
 const __VLS_76 = {}.ElInput;
@@ -1022,11 +1008,11 @@ const __VLS_76 = {}.ElInput;
 // @ts-ignore
 const __VLS_77 = __VLS_asFunctionalComponent(__VLS_76, new __VLS_76({
     modelValue: (__VLS_ctx.endpoint),
-    placeholder: "Endpoint, 如 https://api.openai.com/v1",
+    placeholder: (__VLS_ctx.t('aiAssistant.placeholders.endpoint')),
 }));
 const __VLS_78 = __VLS_77({
     modelValue: (__VLS_ctx.endpoint),
-    placeholder: "Endpoint, 如 https://api.openai.com/v1",
+    placeholder: (__VLS_ctx.t('aiAssistant.placeholders.endpoint')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_77));
 if (__VLS_ctx.errorMessage) {
     const __VLS_80 = {}.ElAlert;
@@ -1085,8 +1071,9 @@ if (__VLS_ctx.liveToolCalls.length > 0 || __VLS_ctx.hasLiveExecutionEvents) {
         ...{ class: "execution-head" },
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    (__VLS_ctx.t('aiAssistant.labels.executionTrace'));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-    (__VLS_ctx.liveToolCalls.length > 0 ? `${__VLS_ctx.liveToolCalls.length} 个工具调用` : '等待工具调用详情');
+    (__VLS_ctx.liveToolCalls.length > 0 ? __VLS_ctx.t('aiAssistant.labels.rows', { count: __VLS_ctx.liveToolCalls.length }) : __VLS_ctx.t('aiAssistant.labels.waitingToolDetails'));
     if (__VLS_ctx.liveTraceSummary) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "execution-summary" },
@@ -1095,7 +1082,7 @@ if (__VLS_ctx.liveToolCalls.length > 0 || __VLS_ctx.hasLiveExecutionEvents) {
         (__VLS_ctx.formatTraceSummary(__VLS_ctx.liveTraceSummary));
         if (__VLS_ctx.liveTraceSummary.failedStepSummaries?.length) {
             __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-            (__VLS_ctx.liveTraceSummary.failedStepSummaries.join('；'));
+            (__VLS_ctx.liveTraceSummary.failedStepSummaries.join(' / '));
         }
     }
     if (__VLS_ctx.liveToolCalls.length === 0) {
@@ -1103,10 +1090,10 @@ if (__VLS_ctx.liveToolCalls.length > 0 || __VLS_ctx.hasLiveExecutionEvents) {
         /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
         // @ts-ignore
         const __VLS_89 = __VLS_asFunctionalComponent(__VLS_88, new __VLS_88({
-            description: "执行器事件已收到，暂无工具调用详情",
+            description: (__VLS_ctx.t('aiAssistant.empty.toolDetails')),
         }));
         const __VLS_90 = __VLS_89({
-            description: "执行器事件已收到，暂无工具调用详情",
+            description: (__VLS_ctx.t('aiAssistant.empty.toolDetails')),
         }, ...__VLS_functionalComponentArgsRest(__VLS_89));
     }
     else {
@@ -1170,12 +1157,14 @@ if (__VLS_ctx.liveToolCalls.length > 0 || __VLS_ctx.hasLiveExecutionEvents) {
                 if (__VLS_ctx.formatToolValue(call.arguments)) {
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+                    (__VLS_ctx.t('aiAssistant.labels.arguments'));
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
                     (__VLS_ctx.formatToolValue(call.arguments));
                 }
                 if (__VLS_ctx.formatToolValue(call.result)) {
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+                    (__VLS_ctx.t('aiAssistant.labels.result'));
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
                     (__VLS_ctx.formatToolValue(call.result));
                 }
@@ -1184,6 +1173,7 @@ if (__VLS_ctx.liveToolCalls.length > 0 || __VLS_ctx.hasLiveExecutionEvents) {
                         ...{ class: "tool-call-error" },
                     });
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+                    (__VLS_ctx.t('aiAssistant.labels.error'));
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
                     (call.errorMessage);
                 }
@@ -1199,10 +1189,10 @@ if (__VLS_ctx.visibleMessages.length === 0) {
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_97 = __VLS_asFunctionalComponent(__VLS_96, new __VLS_96({
-        description: "开始一次对话",
+        description: (__VLS_ctx.t('aiAssistant.empty.messages')),
     }));
     const __VLS_98 = __VLS_97({
-        description: "开始一次对话",
+        description: (__VLS_ctx.t('aiAssistant.empty.messages')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_97));
 }
 for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
@@ -1245,11 +1235,11 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
         /** @type {[typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, ]} */ ;
         // @ts-ignore
         const __VLS_113 = __VLS_asFunctionalComponent(__VLS_112, new __VLS_112({
-            title: "thinking",
+            title: (__VLS_ctx.t('aiAssistant.thinking')),
             name: (message.id),
         }));
         const __VLS_114 = __VLS_113({
-            title: "thinking",
+            title: (__VLS_ctx.t('aiAssistant.thinking')),
             name: (message.id),
         }, ...__VLS_functionalComponentArgsRest(__VLS_113));
         __VLS_115.slots.default;
@@ -1306,6 +1296,7 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
                 type: "danger",
             }, ...__VLS_functionalComponentArgsRest(__VLS_121));
             __VLS_123.slots.default;
+            (__VLS_ctx.t('aiAssistant.labels.executionRequired'));
             var __VLS_123;
         }
         if (__VLS_ctx.payloadMeta(message)?.normalization) {
@@ -1337,8 +1328,7 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
                 type: "warning",
             }, ...__VLS_functionalComponentArgsRest(__VLS_129));
             __VLS_131.slots.default;
-            (__VLS_ctx.payloadMeta(message)?.chapterRange?.start);
-            (__VLS_ctx.payloadMeta(message)?.chapterRange?.end);
+            (__VLS_ctx.t('aiAssistant.labels.chapters', { start: __VLS_ctx.payloadMeta(message)?.chapterRange?.start, end: __VLS_ctx.payloadMeta(message)?.chapterRange?.end }));
             var __VLS_131;
         }
         if (__VLS_ctx.payloadMeta(message)?.directive) {
@@ -1395,6 +1385,7 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
                 }
             };
             __VLS_139.slots.default;
+            (__VLS_ctx.t('aiAssistant.actions.executePlan'));
             var __VLS_139;
         }
         for (const [step] of __VLS_getVForSourceType((__VLS_ctx.planSteps(message)))) {
@@ -1425,7 +1416,7 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
                     type: "info",
                 }, ...__VLS_functionalComponentArgsRest(__VLS_145));
                 __VLS_147.slots.default;
-                (step.chapterNumber);
+                (__VLS_ctx.t('aiAssistant.labels.chapter', { value: step.chapterNumber }));
                 var __VLS_147;
             }
             if (step.continueFromChapterId) {
@@ -1439,7 +1430,7 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
                     size: "small",
                 }, ...__VLS_functionalComponentArgsRest(__VLS_149));
                 __VLS_151.slots.default;
-                (step.continueFromChapterId);
+                (__VLS_ctx.t('aiAssistant.labels.continue', { value: step.continueFromChapterId }));
                 var __VLS_151;
             }
             if (step.rewriteTargetChapterId) {
@@ -1455,7 +1446,7 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
                     type: "warning",
                 }, ...__VLS_functionalComponentArgsRest(__VLS_153));
                 __VLS_155.slots.default;
-                (step.rewriteTargetChapterId);
+                (__VLS_ctx.t('aiAssistant.labels.rewrite', { value: step.rewriteTargetChapterId }));
                 var __VLS_155;
             }
             if (step.detail) {
@@ -1472,8 +1463,9 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
             ...{ class: "execution-head" },
         });
         __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+        (__VLS_ctx.t('aiAssistant.labels.executionTraceWithTools'));
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-        (__VLS_ctx.payloadToolCalls(message).length);
+        (__VLS_ctx.t('aiAssistant.labels.rows', { count: __VLS_ctx.payloadToolCalls(message).length }));
         if (__VLS_ctx.payloadTraceSummary(message)) {
             __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: "execution-summary" },
@@ -1482,7 +1474,7 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
             (__VLS_ctx.formatTraceSummary(__VLS_ctx.payloadTraceSummary(message)));
             if (__VLS_ctx.payloadTraceSummary(message)?.failedStepSummaries?.length) {
                 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-                (__VLS_ctx.payloadTraceSummary(message)?.failedStepSummaries?.join('；'));
+                (__VLS_ctx.payloadTraceSummary(message)?.failedStepSummaries?.join(' / '));
             }
         }
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -1539,12 +1531,14 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
                 if (__VLS_ctx.formatToolValue(call.arguments)) {
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+                    (__VLS_ctx.t('aiAssistant.labels.arguments'));
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
                     (__VLS_ctx.formatToolValue(call.arguments));
                 }
                 if (__VLS_ctx.formatToolValue(call.result)) {
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+                    (__VLS_ctx.t('aiAssistant.labels.result'));
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
                     (__VLS_ctx.formatToolValue(call.result));
                 }
@@ -1553,6 +1547,7 @@ for (const [message] of __VLS_getVForSourceType((__VLS_ctx.visibleMessages))) {
                         ...{ class: "tool-call-error" },
                     });
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+                    (__VLS_ctx.t('aiAssistant.labels.error'));
                     __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
                     (call.errorMessage);
                 }
@@ -1577,7 +1572,7 @@ const __VLS_161 = __VLS_asFunctionalComponent(__VLS_160, new __VLS_160({
     type: "textarea",
     rows: (4),
     resize: "none",
-    placeholder: "输入任务、规划请求或要编辑的文本...",
+    placeholder: (__VLS_ctx.t('aiAssistant.placeholders.composer')),
 }));
 const __VLS_162 = __VLS_161({
     ...{ 'onKeydown': {} },
@@ -1586,7 +1581,7 @@ const __VLS_162 = __VLS_161({
     type: "textarea",
     rows: (4),
     resize: "none",
-    placeholder: "输入任务、规划请求或要编辑的文本...",
+    placeholder: (__VLS_ctx.t('aiAssistant.placeholders.composer')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_161));
 let __VLS_164;
 let __VLS_165;
@@ -1620,6 +1615,7 @@ const __VLS_176 = {
     onClick: (__VLS_ctx.send)
 };
 __VLS_172.slots.default;
+(__VLS_ctx.t('aiAssistant.actions.send'));
 var __VLS_172;
 /** @type {__VLS_StyleScopedClasses['assistant-page']} */ ;
 /** @type {__VLS_StyleScopedClasses['session-panel']} */ ;
@@ -1680,6 +1676,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             Plus: Plus,
             Promotion: Promotion,
             Refresh: Refresh,
+            t: t,
             sessions: sessions,
             selectedSessionId: selectedSessionId,
             providers: providers,

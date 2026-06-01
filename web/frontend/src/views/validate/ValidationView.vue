@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
 import { useWorkContextStore } from '@/stores/workContext'
 import {
   getFactSnapshot,
@@ -14,6 +16,8 @@ import {
 } from '@/api/modules/validation'
 
 const workContext = useWorkContextStore()
+const router = useRouter()
+const { t } = useI18n()
 
 const loading = ref(false)
 const running = ref(false)
@@ -24,9 +28,13 @@ const updatingReportId = ref('')
 
 const selectedVolumeNumber = computed(() => workContext.selectedVolume?.volumeNumber ?? null)
 const targetLabel = computed(() => {
-  if (!workContext.selectedProject) return 'No project selected'
+  if (!workContext.selectedProject) return t('validationWorkbench.target.noProjectSelected')
   if (!workContext.selectedVolume) return workContext.selectedProject.name
-  return `${workContext.selectedProject.name} / Volume ${workContext.selectedVolume.volumeNumber} / ${workContext.selectedVolume.title}`
+  return t('validationWorkbench.target.volume', {
+    project: workContext.selectedProject.name,
+    number: workContext.selectedVolume.volumeNumber,
+    title: workContext.selectedVolume.title
+  })
 })
 
 function resultType(result: string) {
@@ -35,11 +43,28 @@ function resultType(result: string) {
   return 'warning'
 }
 
+function resultLabel(result: string) {
+  if (result === 'passed') return t('validationWorkbench.result.passed')
+  if (result === 'failed') return t('validationWorkbench.result.failed')
+  return t('validationWorkbench.result.warning')
+}
+
 function statusType(status: string) {
   if (status === 'validated') return 'success'
   if (status === 'needs_fix') return 'danger'
   if (status === 'drafted') return 'warning'
   return 'info'
+}
+
+function statusLabel(status: string | null | undefined) {
+  if (!status) return '-'
+  if (status === 'validated') return t('validationWorkbench.chapterStatus.validated')
+  if (status === 'needs_fix') return t('validationWorkbench.chapterStatus.needsFix')
+  if (status === 'drafted') return t('validationWorkbench.chapterStatus.drafted')
+  if (status === 'planned') return t('validationWorkbench.chapterStatus.planned')
+  if (status === 'blueprinted') return t('validationWorkbench.chapterStatus.blueprinted')
+  if (status === 'archived') return t('validationWorkbench.chapterStatus.archived')
+  return status
 }
 
 function formatTime(value: string) {
@@ -59,23 +84,101 @@ const factOverviewCards = computed(() => {
   const overview = facts.value?.overview
   if (!overview) return []
   return [
-    { label: 'Chapters', value: overview.chapterCount, hint: 'Covered in the current snapshot' },
-    { label: 'Character States', value: overview.characterStateCount, hint: `${overview.characterStatePointCount} state points` },
-    { label: 'Character Rules', value: overview.characterDescriptionCount, hint: 'Design character rules' },
-    { label: 'Conflict Progress', value: overview.conflictProgressCount, hint: `${overview.conflictProgressPointCount} progress points` },
-    { label: 'Faction States', value: overview.factionStateCount, hint: `${overview.factionStatePointCount} state points` },
-    { label: 'Location States', value: overview.locationStateCount, hint: `${overview.locationStatePointCount} state points` },
-    { label: 'Location Rules', value: overview.locationDescriptionCount, hint: 'Design location rules' },
-    { label: 'World Constraints', value: overview.worldRuleConstraintCount, hint: 'Hard rules and special laws' },
-    { label: 'Character Locations', value: overview.characterLocationCount, hint: `${overview.characterMovementCount} movements` },
-    { label: 'Item States', value: overview.itemStateCount, hint: `${overview.itemStatePointCount} state points` },
     {
-      label: 'Foreshadowing',
-      value: overview.foreshadowingCount,
-      hint: `${overview.unresolvedForeshadowingCount} unresolved / ${overview.overdueForeshadowingCount} overdue`
+      key: 'chapters',
+      label: t('validationWorkbench.factOverview.chapters.label'),
+      value: overview.chapterCount,
+      hint: t('validationWorkbench.factOverview.chapters.hint')
     },
-    { label: 'Plot Points', value: overview.plotPointCount, hint: `${overview.timelineCount} timeline items` },
-    { label: 'Volume Archives', value: overview.volumeArchiveCount, hint: 'Archived fact snapshots' }
+    {
+      key: 'characterStates',
+      label: t('validationWorkbench.factOverview.characterStates.label'),
+      value: overview.characterStateCount,
+      hint: t('validationWorkbench.factOverview.characterStates.hint', {
+        count: overview.characterStatePointCount
+      })
+    },
+    {
+      key: 'characterRules',
+      label: t('validationWorkbench.factOverview.characterRules.label'),
+      value: overview.characterDescriptionCount,
+      hint: t('validationWorkbench.factOverview.characterRules.hint')
+    },
+    {
+      key: 'conflictProgress',
+      label: t('validationWorkbench.factOverview.conflictProgress.label'),
+      value: overview.conflictProgressCount,
+      hint: t('validationWorkbench.factOverview.conflictProgress.hint', {
+        count: overview.conflictProgressPointCount
+      })
+    },
+    {
+      key: 'factionStates',
+      label: t('validationWorkbench.factOverview.factionStates.label'),
+      value: overview.factionStateCount,
+      hint: t('validationWorkbench.factOverview.factionStates.hint', {
+        count: overview.factionStatePointCount
+      })
+    },
+    {
+      key: 'locationStates',
+      label: t('validationWorkbench.factOverview.locationStates.label'),
+      value: overview.locationStateCount,
+      hint: t('validationWorkbench.factOverview.locationStates.hint', {
+        count: overview.locationStatePointCount
+      })
+    },
+    {
+      key: 'locationRules',
+      label: t('validationWorkbench.factOverview.locationRules.label'),
+      value: overview.locationDescriptionCount,
+      hint: t('validationWorkbench.factOverview.locationRules.hint')
+    },
+    {
+      key: 'worldConstraints',
+      label: t('validationWorkbench.factOverview.worldConstraints.label'),
+      value: overview.worldRuleConstraintCount,
+      hint: t('validationWorkbench.factOverview.worldConstraints.hint')
+    },
+    {
+      key: 'characterLocations',
+      label: t('validationWorkbench.factOverview.characterLocations.label'),
+      value: overview.characterLocationCount,
+      hint: t('validationWorkbench.factOverview.characterLocations.hint', {
+        count: overview.characterMovementCount
+      })
+    },
+    {
+      key: 'itemStates',
+      label: t('validationWorkbench.factOverview.itemStates.label'),
+      value: overview.itemStateCount,
+      hint: t('validationWorkbench.factOverview.itemStates.hint', {
+        count: overview.itemStatePointCount
+      })
+    },
+    {
+      key: 'foreshadowing',
+      label: t('validationWorkbench.factOverview.foreshadowing.label'),
+      value: overview.foreshadowingCount,
+      hint: t('validationWorkbench.factOverview.foreshadowing.hint', {
+        unresolved: overview.unresolvedForeshadowingCount,
+        overdue: overview.overdueForeshadowingCount
+      })
+    },
+    {
+      key: 'plotPoints',
+      label: t('validationWorkbench.factOverview.plotPoints.label'),
+      value: overview.plotPointCount,
+      hint: t('validationWorkbench.factOverview.plotPoints.hint', {
+        count: overview.timelineCount
+      })
+    },
+    {
+      key: 'volumeArchives',
+      label: t('validationWorkbench.factOverview.volumeArchives.label'),
+      value: overview.volumeArchiveCount,
+      hint: t('validationWorkbench.factOverview.volumeArchives.hint')
+    }
   ]
 })
 
@@ -99,7 +202,7 @@ async function refresh() {
     reports.value = reportRows
     facts.value = factSnapshot
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to load validation data.')
+    ElMessage.error((err as Error).message || t('validationWorkbench.messages.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -107,7 +210,7 @@ async function refresh() {
 
 async function runCurrentValidation() {
   if (!workContext.selectedProjectId) {
-    ElMessage.warning('Select a project first.')
+    ElMessage.warning(t('validationWorkbench.messages.selectProjectFirst'))
     return
   }
 
@@ -117,10 +220,10 @@ async function runCurrentValidation() {
       projectId: workContext.selectedProjectId,
       volumeNumber: selectedVolumeNumber.value
     })
-    ElMessage.success('Validation completed.')
+    ElMessage.success(t('validationWorkbench.messages.runSuccess'))
     await refresh()
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Validation failed.')
+    ElMessage.error((err as Error).message || t('validationWorkbench.messages.runFailed'))
   } finally {
     running.value = false
   }
@@ -132,15 +235,40 @@ async function markChapterStatus(report: ValidationReport, status: 'needs_fix' |
     await updateValidationReportChapterStatus(
       report.id,
       status,
-      status === 'needs_fix' ? 'Marked from validation report for follow-up.' : 'Marked as validated from validation report.'
+      status === 'needs_fix'
+        ? t('validationWorkbench.messages.markNeedsFixReason')
+        : t('validationWorkbench.messages.markValidatedReason')
     )
-    ElMessage.success(status === 'needs_fix' ? 'Chapter marked for fixes.' : 'Chapter marked as validated.')
+    ElMessage.success(
+      status === 'needs_fix'
+        ? t('validationWorkbench.messages.markNeedsFixSuccess')
+        : t('validationWorkbench.messages.markValidatedSuccess')
+    )
     await refresh()
   } catch (err) {
-    ElMessage.error((err as Error).message || 'Failed to update chapter status.')
+    ElMessage.error((err as Error).message || t('validationWorkbench.messages.updateStatusFailed'))
   } finally {
     updatingReportId.value = ''
   }
+}
+
+async function openFixChapter(report: ValidationReport) {
+  if (!report.chapterId) return
+  const repairSummary = report.items
+    .filter((item) => item.result !== 'passed')
+    .slice(0, 3)
+    .map((item) => `${item.name}：${item.suggestion || item.details}`)
+    .join('；')
+
+  await router.push({
+    path: '/generate/chapters',
+    query: {
+      chapterId: report.chapterId,
+      validationReportId: report.id,
+      rewriteMode: 'validation_fix',
+      repairSummary
+    }
+  })
 }
 
 watch(() => [workContext.selectedProjectId, workContext.selectedVolumeId], refresh)
@@ -151,19 +279,18 @@ onMounted(refresh)
   <div class="validation-page">
     <section class="hero">
       <div>
-        <p class="eyebrow">Stage 5 / Validation</p>
-        <h1>Validation Workbench</h1>
-        <p class="subtitle">
-          Run consistency checks for the current project or volume, review validation summaries,
-          and inspect the persisted fact snapshot.
-        </p>
+        <p class="eyebrow">{{ t('validationWorkbench.eyebrow') }}</p>
+        <h1>{{ t('validationWorkbench.title') }}</h1>
+        <p class="subtitle">{{ t('validationWorkbench.subtitle') }}</p>
       </div>
       <el-card shadow="never" class="action-card">
-        <span class="context-label">Current Target</span>
+        <span class="context-label">{{ t('validationWorkbench.currentTarget') }}</span>
         <strong>{{ targetLabel }}</strong>
         <div class="actions">
-          <el-button :loading="loading" @click="refresh">Refresh</el-button>
-          <el-button type="primary" :loading="running" @click="runCurrentValidation">Run Validation</el-button>
+          <el-button :loading="loading" @click="refresh">{{ t('validationWorkbench.actions.refresh') }}</el-button>
+          <el-button type="primary" :loading="running" @click="runCurrentValidation">
+            {{ t('validationWorkbench.actions.runValidation') }}
+          </el-button>
         </div>
       </el-card>
     </section>
@@ -172,20 +299,28 @@ onMounted(refresh)
       <el-col :span="8">
         <el-card shadow="never" class="panel">
           <template #header>
-            <div class="panel-title">Validation Summaries</div>
+            <div class="panel-title">{{ t('validationWorkbench.panels.summaries') }}</div>
           </template>
-          <el-empty v-if="summaries.length === 0" description="No validation summaries yet." />
+          <el-empty v-if="summaries.length === 0" :description="t('validationWorkbench.empty.summaries')" />
           <div v-for="summary in summaries" :key="summary.id" class="summary-card">
             <div class="summary-head">
-              <span>{{ summary.targetVolumeNumber === 0 ? 'Project Scope' : `Volume ${summary.targetVolumeNumber}` }}</span>
-              <el-tag :type="resultType(summary.overallResult)">{{ summary.overallResult }}</el-tag>
+              <span>
+                {{
+                  summary.targetVolumeNumber === 0
+                    ? t('validationWorkbench.projectScope')
+                    : t('validationWorkbench.volumeScope', { number: summary.targetVolumeNumber })
+                }}
+              </span>
+              <el-tag :type="resultType(summary.overallResult)">{{ resultLabel(summary.overallResult) }}</el-tag>
             </div>
-            <div class="meta">Validated at: {{ formatTime(summary.lastValidatedAt) }}</div>
+            <div class="meta">
+              {{ t('validationWorkbench.validatedAt') }}: {{ formatTime(summary.lastValidatedAt) }}
+            </div>
             <el-collapse>
-              <el-collapse-item title="Module Results" :name="`${summary.id}-modules`">
+              <el-collapse-item :title="t('validationWorkbench.moduleResults')" :name="`${summary.id}-modules`">
                 <pre>{{ parseJsonText(summary.moduleResults) }}</pre>
               </el-collapse-item>
-              <el-collapse-item title="Problem Items" :name="`${summary.id}-problems`">
+              <el-collapse-item :title="t('validationWorkbench.problemItems')" :name="`${summary.id}-problems`">
                 <pre>{{ parseJsonText(summary.problemItems) }}</pre>
               </el-collapse-item>
             </el-collapse>
@@ -196,31 +331,41 @@ onMounted(refresh)
       <el-col :span="16">
         <el-card shadow="never" class="panel">
           <template #header>
-            <div class="panel-title">Chapter Reports</div>
+            <div class="panel-title">{{ t('validationWorkbench.panels.reports') }}</div>
           </template>
           <el-table v-loading="loading" :data="reports" row-key="id" border>
-            <el-table-column label="Chapter" min-width="180">
+            <el-table-column :label="t('validationWorkbench.columns.chapter')" min-width="180">
               <template #default="{ row }">
-                Chapter {{ row.chapterNumber || '-' }} / {{ row.chapterTitle || row.chapterId }}
+                {{
+                  row.chapterNumber
+                    ? t('validationWorkbench.chapterDisplay', {
+                        number: row.chapterNumber,
+                        title: row.chapterTitle || row.chapterId
+                      })
+                    : row.chapterTitle || row.chapterId
+                }}
               </template>
             </el-table-column>
-            <el-table-column prop="summary" label="Summary" min-width="180" />
-            <el-table-column label="Result" width="110">
+            <el-table-column prop="summary" :label="t('validationWorkbench.columns.summary')" min-width="180" />
+            <el-table-column :label="t('validationWorkbench.columns.result')" width="110">
               <template #default="{ row }">
-                <el-tag :type="resultType(row.result)">{{ row.result }}</el-tag>
+                <el-tag :type="resultType(row.result)">{{ resultLabel(row.result) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="Chapter Status" width="120">
+            <el-table-column :label="t('validationWorkbench.columns.chapterStatus')" width="120">
               <template #default="{ row }">
-                <el-tag :type="statusType(row.chapterStatus)">{{ row.chapterStatus || '-' }}</el-tag>
+                <el-tag :type="statusType(row.chapterStatus)">{{ statusLabel(row.chapterStatus) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="Validated At" width="180">
+            <el-table-column :label="t('validationWorkbench.columns.validatedAt')" width="180">
               <template #default="{ row }">{{ formatTime(row.validatedAt) }}</template>
             </el-table-column>
-            <el-table-column label="Actions" width="220" fixed="right">
+            <el-table-column :label="t('validationWorkbench.columns.actions')" width="220" fixed="right">
               <template #default="{ row }">
                 <div class="fix-actions">
+                  <el-button size="small" plain type="primary" @click="openFixChapter(row)">
+                    {{ t('validationWorkbench.actions.goFixChapter') }}
+                  </el-button>
                   <el-button
                     size="small"
                     type="danger"
@@ -229,7 +374,7 @@ onMounted(refresh)
                     :disabled="row.chapterStatus === 'needs_fix'"
                     @click="markChapterStatus(row, 'needs_fix')"
                   >
-                    Mark Needs Fix
+                    {{ t('validationWorkbench.actions.markNeedsFix') }}
                   </el-button>
                   <el-button
                     size="small"
@@ -239,7 +384,7 @@ onMounted(refresh)
                     :disabled="row.chapterStatus === 'validated'"
                     @click="markChapterStatus(row, 'validated')"
                   >
-                    Mark Validated
+                    {{ t('validationWorkbench.actions.markValidated') }}
                   </el-button>
                 </div>
               </template>
@@ -247,12 +392,16 @@ onMounted(refresh)
             <el-table-column type="expand">
               <template #default="{ row }">
                 <el-table :data="row.items" size="small" border>
-                  <el-table-column prop="name" label="Check" width="150" />
-                  <el-table-column prop="details" label="Details" min-width="220" />
-                  <el-table-column prop="suggestion" label="Suggestion" min-width="220" />
-                  <el-table-column label="Result" width="100">
+                  <el-table-column prop="name" :label="t('validationWorkbench.columns.check')" width="150" />
+                  <el-table-column prop="details" :label="t('validationWorkbench.columns.details')" min-width="220" />
+                  <el-table-column
+                    prop="suggestion"
+                    :label="t('validationWorkbench.columns.suggestion')"
+                    min-width="220"
+                  />
+                  <el-table-column :label="t('validationWorkbench.columns.result')" width="100">
                     <template #default="{ row: item }">
-                      <el-tag :type="resultType(item.result)">{{ item.result }}</el-tag>
+                      <el-tag :type="resultType(item.result)">{{ resultLabel(item.result) }}</el-tag>
                     </template>
                   </el-table-column>
                 </el-table>
@@ -265,11 +414,11 @@ onMounted(refresh)
 
     <el-card shadow="never" class="panel">
       <template #header>
-        <div class="panel-title">Fact Snapshot Overview</div>
+        <div class="panel-title">{{ t('validationWorkbench.panels.factOverview') }}</div>
       </template>
-      <el-empty v-if="!facts" description="No fact snapshot available." />
+      <el-empty v-if="!facts" :description="t('validationWorkbench.empty.factOverview')" />
       <div v-else class="fact-overview">
-        <div v-for="card in factOverviewCards" :key="card.label" class="fact-metric">
+        <div v-for="card in factOverviewCards" :key="card.key" class="fact-metric">
           <span>{{ card.label }}</span>
           <strong>{{ card.value }}</strong>
           <small>{{ card.hint }}</small>
@@ -279,9 +428,12 @@ onMounted(refresh)
 
     <el-card shadow="never" class="panel">
       <template #header>
-        <div class="panel-title">Tracking Summary</div>
+        <div class="panel-title">{{ t('validationWorkbench.panels.trackingSummary') }}</div>
       </template>
-      <el-empty v-if="!facts || facts.sections.length === 0" description="No tracking summary available." />
+      <el-empty
+        v-if="!facts || facts.sections.length === 0"
+        :description="t('validationWorkbench.empty.trackingSummary')"
+      />
       <el-collapse v-else>
         <el-collapse-item
           v-for="section in facts.sections"
@@ -291,13 +443,23 @@ onMounted(refresh)
         >
           <p class="section-summary">{{ section.summary }}</p>
           <el-table :data="section.items" size="small" border>
-            <el-table-column prop="name" label="Name" min-width="150" />
-            <el-table-column prop="status" label="Status" width="130" />
-            <el-table-column label="Chapter" width="120">
-              <template #default="{ row }">{{ row.chapterNumber ? `Chapter ${row.chapterNumber}` : '-' }}</template>
+            <el-table-column prop="name" :label="t('validationWorkbench.columns.name')" min-width="150" />
+            <el-table-column prop="status" :label="t('validationWorkbench.columns.status')" width="130" />
+            <el-table-column :label="t('validationWorkbench.columns.chapter')" width="120">
+              <template #default="{ row }">
+                {{
+                  row.chapterNumber
+                    ? t('validationWorkbench.chapterOnly', { number: row.chapterNumber })
+                    : '-'
+                }}
+              </template>
             </el-table-column>
-            <el-table-column prop="detail" label="Detail" min-width="240" />
-            <el-table-column prop="importance" label="Importance" width="110" />
+            <el-table-column prop="detail" :label="t('validationWorkbench.columns.detail')" min-width="240" />
+            <el-table-column
+              prop="importance"
+              :label="t('validationWorkbench.columns.importance')"
+              width="110"
+            />
           </el-table>
         </el-collapse-item>
       </el-collapse>
@@ -307,16 +469,20 @@ onMounted(refresh)
       <el-col :span="14">
         <el-card shadow="never" class="panel">
           <template #header>
-            <div class="panel-title">Timeline Snapshot</div>
+            <div class="panel-title">{{ t('validationWorkbench.panels.timeline') }}</div>
           </template>
           <el-table :data="facts?.timelines ?? []" row-key="id" border>
-            <el-table-column label="Chapter" width="140">
-              <template #default="{ row }">Chapter {{ row.chapterNumber }}</template>
+            <el-table-column :label="t('validationWorkbench.columns.chapter')" width="140">
+              <template #default="{ row }">{{ t('validationWorkbench.chapterOnly', { number: row.chapterNumber }) }}</template>
             </el-table-column>
-            <el-table-column prop="timePeriod" label="Time Period" width="160" />
-            <el-table-column prop="elapsedTime" label="Elapsed" width="150" />
-            <el-table-column prop="keyTimeEvent" label="Key Event" min-width="240" />
-            <el-table-column prop="importance" label="Importance" width="110" />
+            <el-table-column prop="timePeriod" :label="t('validationWorkbench.columns.timePeriod')" width="160" />
+            <el-table-column prop="elapsedTime" :label="t('validationWorkbench.columns.elapsed')" width="150" />
+            <el-table-column prop="keyTimeEvent" :label="t('validationWorkbench.columns.keyEvent')" min-width="240" />
+            <el-table-column
+              prop="importance"
+              :label="t('validationWorkbench.columns.importance')"
+              width="110"
+            />
           </el-table>
         </el-card>
       </el-col>
@@ -324,17 +490,19 @@ onMounted(refresh)
       <el-col :span="10">
         <el-card shadow="never" class="panel">
           <template #header>
-            <div class="panel-title">Volume Archives</div>
+            <div class="panel-title">{{ t('validationWorkbench.panels.archives') }}</div>
           </template>
-          <el-empty v-if="!facts || facts.volumeArchives.length === 0" description="No archives yet." />
+          <el-empty v-if="!facts || facts.volumeArchives.length === 0" :description="t('validationWorkbench.empty.archives')" />
           <el-collapse v-else>
             <el-collapse-item
               v-for="archive in facts.volumeArchives"
               :key="archive.id"
-              :title="`Volume ${archive.volumeNumber} / ${formatTime(archive.archivedAt)}`"
+              :title="t('validationWorkbench.archiveTitle', { number: archive.volumeNumber, time: formatTime(archive.archivedAt) })"
               :name="archive.id"
             >
-              <div class="meta">Last Chapter ID: {{ archive.lastChapterId || '-' }}</div>
+              <div class="meta">
+                {{ t('validationWorkbench.lastChapterId') }}: {{ archive.lastChapterId || '-' }}
+              </div>
               <pre>{{ parseJsonText(archive.snapshotPayload) }}</pre>
             </el-collapse-item>
           </el-collapse>

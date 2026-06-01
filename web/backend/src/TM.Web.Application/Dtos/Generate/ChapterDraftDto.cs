@@ -10,6 +10,8 @@ public sealed class ChapterDraftRequest
 
     public string ChapterId { get; set; } = string.Empty;
 
+    public string? ConfigId { get; set; }
+
     public string Endpoint { get; set; } = string.Empty;
 
     public string? ProviderId { get; set; }
@@ -29,6 +31,10 @@ public sealed class ChapterDraftRequest
     public int? MaxTokens { get; set; }
 
     public int MaxRewriteAttempts { get; set; } = 2;
+
+    public string? ValidationReportId { get; set; }
+
+    public bool RerunValidationAfterSave { get; set; }
 
     public bool SaveToChapter { get; set; } = true;
 }

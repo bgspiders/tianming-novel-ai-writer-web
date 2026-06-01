@@ -37,3 +37,13 @@ public interface IAiApiKeyService
     /// <summary>按 RotationOrder 取下一个可用 Key 的明文，并更新 LastUsedAt（用于阶段 4+ 章节生成流程）。</summary>
     Task<string?> RotateNextPlainKeyAsync(string providerId, CancellationToken ct = default);
 }
+
+public interface IAiProviderConfigService
+{
+    Task<IReadOnlyList<AiProviderConfigDto>> ListAsync(CancellationToken ct = default);
+    Task<AiProviderConfigDto?> GetAsync(string providerId, CancellationToken ct = default);
+    Task<AiProviderConfigDto> CreateAsync(AiProviderConfigUpsertDto input, CancellationToken ct = default);
+    Task<AiProviderConfigDto> UpdateAsync(string providerId, AiProviderConfigUpsertDto input, CancellationToken ct = default);
+    Task DeleteAsync(string providerId, CancellationToken ct = default);
+    Task<AiRemoteModelDiscoveryResultDto> DiscoverModelsAsync(AiRemoteModelDiscoveryRequestDto input, CancellationToken ct = default);
+}

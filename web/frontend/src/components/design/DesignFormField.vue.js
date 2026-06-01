@@ -262,7 +262,7 @@ else if (__VLS_ctx.field.type === 'tags') {
         filterable: true,
         allowCreate: true,
         defaultFirstOption: true,
-        placeholder: (__VLS_ctx.field.placeholder ?? '回车添加'),
+        placeholder: (__VLS_ctx.field.placeholder ?? '按回车添加'),
         ...{ style: {} },
     }));
     const __VLS_59 = __VLS_58({
@@ -271,7 +271,7 @@ else if (__VLS_ctx.field.type === 'tags') {
         filterable: true,
         allowCreate: true,
         defaultFirstOption: true,
-        placeholder: (__VLS_ctx.field.placeholder ?? '回车添加'),
+        placeholder: (__VLS_ctx.field.placeholder ?? '按回车添加'),
         ...{ style: {} },
     }, ...__VLS_functionalComponentArgsRest(__VLS_58));
     __VLS_60.slots.default;

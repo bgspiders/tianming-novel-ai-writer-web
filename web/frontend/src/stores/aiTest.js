@@ -2,10 +2,11 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 const FORM_KEY = 'tm.aiTest.form';
 const DEFAULT_FORM = {
+    configId: '',
     endpoint: 'https://api.openai.com/v1',
     apiKey: '',
     model: 'gpt-4o-mini',
-    prompt: '用一句话介绍你自己。',
+    prompt: 'Introduce yourself in one sentence.',
     systemPrompt: '',
     temperature: 0.7,
     maxTokens: 1024
@@ -16,19 +17,18 @@ export const useAiTestStore = defineStore('aiTest', () => {
     const status = ref('idle');
     const error = ref('');
     const isStreaming = ref(false);
-    // 上次成功填写过的 endpoint/model（不含 apiKey，apiKey 不持久化）
     function loadFromStorage() {
         try {
             const raw = localStorage.getItem(FORM_KEY);
-            if (!raw)
+            if (!raw) {
                 return;
+            }
             const saved = JSON.parse(raw);
-            // 不还原 apiKey
             const { apiKey: _apiKey, ...rest } = saved;
             form.value = { ...DEFAULT_FORM, ...rest, apiKey: '' };
         }
         catch {
-            // 忽略损坏的本地数据
+            // Ignore invalid persisted data.
         }
     }
     function saveToStorage() {

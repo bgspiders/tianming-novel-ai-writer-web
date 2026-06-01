@@ -1,78 +1,123 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
+import { packageGenerationContext, type PackageContextResult } from '@/api/modules/generation'
 import { useWorkContextStore } from '@/stores/workContext'
 
 const workContext = useWorkContextStore()
+const { t } = useI18n()
+const packaging = ref(false)
+const packageResult = ref<PackageContextResult | null>(null)
 
 const cards = computed(() => [
   {
-    title: 'Outlines',
+    title: t('generationWorkbench.cards.outlines.title'),
     path: '/generate/outlines',
     icon: 'O',
-    desc: 'Define story scope, themes, and the top-level structure.',
+    desc: t('generationWorkbench.cards.outlines.desc'),
     ready: true
   },
   {
-    title: 'Volumes',
+    title: t('generationWorkbench.cards.volumes.title'),
     path: '/generate/volume_designs',
     icon: 'V',
-    desc: 'Organize volume goals, pacing, and chapter allocation.',
+    desc: t('generationWorkbench.cards.volumes.desc'),
     ready: true
   },
   {
-    title: 'Chapter Plans',
+    title: t('generationWorkbench.cards.chapterPlans.title'),
     path: '/generate/chapter_plans',
     icon: 'P',
-    desc: 'Draft target outcomes, conflict beats, and delivery points.',
+    desc: t('generationWorkbench.cards.chapterPlans.desc'),
     ready: true
   },
   {
-    title: 'Blueprints',
+    title: t('generationWorkbench.cards.blueprints.title'),
     path: '/generate/chapter_blueprints',
     icon: 'B',
-    desc: 'Prepare scene order, POV, and required details per chapter.',
+    desc: t('generationWorkbench.cards.blueprints.desc'),
     ready: true
   },
   {
-    title: 'Draft Chapters',
+    title: t('generationWorkbench.cards.package.title'),
+    path: '/generate',
+    icon: '包',
+    desc: t('generationWorkbench.cards.package.desc'),
+    ready: true
+  },
+  {
+    title: t('generationWorkbench.cards.preview.title'),
     path: '/generate/chapters',
-    icon: 'C',
-    desc: 'Stream chapter drafts and persist the result to the server.',
+    icon: '阅',
+    desc: t('generationWorkbench.cards.preview.desc'),
     ready: true
   },
   {
-    title: 'Generation Gate',
+    title: t('generationWorkbench.cards.draftChapters.title'),
+    path: '/generate/chapters',
+    icon: '写',
+    desc: t('generationWorkbench.cards.draftChapters.desc'),
+    ready: true
+  },
+  {
+    title: t('generationWorkbench.cards.gate.title'),
     path: '/generate/gate',
     icon: 'G',
-    desc: 'Review generation records, retries, and gate outcomes.',
+    desc: t('generationWorkbench.cards.gate.desc'),
     ready: true
   }
 ])
+
+async function runPackaging() {
+  if (!workContext.selectedProjectId) {
+    ElMessage.warning(t('generationWorkbench.messages.selectProjectFirst'))
+    return
+  }
+
+  packaging.value = true
+  try {
+    packageResult.value = await packageGenerationContext(
+      workContext.selectedProjectId,
+      workContext.selectedProject?.currentSourceBookId ?? null
+    )
+    ElMessage.success(
+      t('generationWorkbench.messages.packageSuccess', {
+        version: packageResult.value.version,
+        files: packageResult.value.fileCount
+      })
+    )
+  } catch (err) {
+    ElMessage.error((err as Error).message || t('generationWorkbench.messages.packageFailed'))
+  } finally {
+    packaging.value = false
+  }
+}
 </script>
 
 <template>
   <div class="generation-workbench">
     <section class="hero">
       <div>
-        <p class="eyebrow">Stage 4 / Generate</p>
-        <h1>Generation Workbench</h1>
-        <p class="subtitle">
-          Move from outlines to chapter drafts, then inspect generation records and gate results
-          within the current project and volume context.
-        </p>
+        <p class="eyebrow">{{ t('generationWorkbench.eyebrow') }}</p>
+        <h1>{{ t('generationWorkbench.title') }}</h1>
+        <p class="subtitle">{{ t('generationWorkbench.subtitle') }}</p>
       </div>
       <el-card shadow="never" class="context-card">
         <div class="context-row">
-          <span>Project</span>
-          <strong>{{ workContext.selectedProject?.name ?? 'Not selected' }}</strong>
+          <span>{{ t('generationWorkbench.context.project') }}</span>
+          <strong>{{ workContext.selectedProject?.name ?? t('generationWorkbench.context.notSelected') }}</strong>
         </div>
         <div class="context-row">
-          <span>Volume</span>
+          <span>{{ t('generationWorkbench.context.volume') }}</span>
           <strong>
             {{
               workContext.selectedVolume
-                ? `Volume ${workContext.selectedVolume.volumeNumber} / ${workContext.selectedVolume.title}`
-                : 'Not selected'
+                ? t('generationWorkbench.context.volumeLabel', {
+                    number: workContext.selectedVolume.volumeNumber,
+                    title: workContext.selectedVolume.title
+                  })
+                : t('generationWorkbench.context.notSelected')
             }}
           </strong>
         </div>
@@ -80,15 +125,42 @@ const cards = computed(() => [
     </section>
 
     <div class="card-grid">
-      <router-link v-for="card in cards" :key="card.path" :to="card.path" class="module-card">
+      <component
+        :is="card.ready && card.path ? 'router-link' : 'div'"
+        v-for="card in cards"
+        :key="card.title"
+        :to="card.ready && card.path ? card.path : undefined"
+        class="module-card"
+        :class="{ disabled: !card.ready }"
+      >
         <span class="card-icon">{{ card.icon }}</span>
         <span class="card-title">{{ card.title }}</span>
         <span class="card-desc">{{ card.desc }}</span>
         <el-tag size="small" :type="card.ready ? 'success' : 'warning'">
-          {{ card.ready ? 'Ready' : 'Pending' }}
+          {{ card.ready ? t('generationWorkbench.cardStatus.ready') : t('generationWorkbench.cardStatus.pending') }}
         </el-tag>
-      </router-link>
+      </component>
     </div>
+
+    <el-card shadow="never" class="package-panel">
+      <div class="package-head">
+        <div>
+          <div class="package-title">{{ t('generationWorkbench.cards.package.title') }}</div>
+          <div class="package-desc">{{ t('generationWorkbench.cards.package.desc') }}</div>
+        </div>
+        <el-button type="primary" :loading="packaging" @click="runPackaging">
+          {{ t('generationWorkbench.actions.packageNow') }}
+        </el-button>
+      </div>
+
+      <el-empty v-if="!packageResult" :description="t('generationWorkbench.empty.package')" :image-size="72" />
+      <div v-else class="package-meta">
+        <div>{{ t('generationWorkbench.labels.packageVersion', { value: packageResult.version }) }}</div>
+        <div>{{ t('generationWorkbench.labels.packageFiles', { value: packageResult.fileCount }) }}</div>
+        <div>{{ t('generationWorkbench.labels.packageModules', { value: packageResult.enabledModuleCount }) }}</div>
+        <div>{{ t('generationWorkbench.labels.packageTime', { value: new Date(packageResult.publishedAt).toLocaleString() }) }}</div>
+      </div>
+    </el-card>
   </div>
 </template>
 
@@ -144,6 +216,31 @@ h1 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
+.package-panel {
+  border-radius: 18px;
+  background: #fffef8;
+}
+.package-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.package-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f332f;
+}
+.package-desc {
+  color: #6b7773;
+  line-height: 1.6;
+  margin-top: 6px;
+}
+.package-meta {
+  display: grid;
+  gap: 8px;
+  color: #3d4c49;
+}
 .module-card {
   min-height: 150px;
   padding: 20px;
@@ -160,6 +257,14 @@ h1 {
 .module-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 14px 30px rgba(55, 75, 68, 0.12);
+}
+.module-card.disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+.module-card.disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 .card-icon {
   width: 36px;
@@ -184,6 +289,11 @@ h1 {
   .hero,
   .card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .package-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

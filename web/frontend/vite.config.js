@@ -5,6 +5,7 @@ const BACKEND = 'http://localhost:38721';
 export default defineConfig({
     plugins: [vue()],
     resolve: {
+        extensions: ['.ts', '.tsx', '.mjs', '.js', '.mts', '.jsx', '.json', '.vue'],
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url))
         }

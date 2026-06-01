@@ -16,7 +16,7 @@ public class CategoryService : ICategoryService
 
     public async Task<IReadOnlyList<CategoryDto>> ListAsync(string moduleType, string? sourceBookId, string? projectId = null, CancellationToken ct = default)
     {
-        sourceBookId = await _db.ResolveWriteSourceBookIdAsync(projectId, sourceBookId, ct);
+        sourceBookId = await _db.ResolveReadSourceBookIdAsync(projectId, sourceBookId, ct);
         var rows = await Query(moduleType, sourceBookId).OrderBy(c => c.SortOrder).ThenBy(c => c.Name).ToListAsync(ct);
         var counts = await CountItemsByCategoryAsync(moduleType, sourceBookId, ct);
         return rows.Select(c => ToDto(c, counts.GetValueOrDefault(c.Id))).ToList();
@@ -24,7 +24,7 @@ public class CategoryService : ICategoryService
 
     public async Task<IReadOnlyList<CategoryTreeNodeDto>> GetTreeAsync(string moduleType, string? sourceBookId, string? projectId = null, CancellationToken ct = default)
     {
-        sourceBookId = await _db.ResolveWriteSourceBookIdAsync(projectId, sourceBookId, ct);
+        sourceBookId = await _db.ResolveReadSourceBookIdAsync(projectId, sourceBookId, ct);
         var rows = await Query(moduleType, sourceBookId).ToListAsync(ct);
         var counts = await CountItemsByCategoryAsync(moduleType, sourceBookId, ct);
 

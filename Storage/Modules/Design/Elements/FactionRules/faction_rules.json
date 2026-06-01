@@ -1,0 +1,40 @@
+[
+  {
+    "Id": "fac_tide_corp",
+    "Name": "潮汐财团",
+    "Category": "反派势力",
+    "CategoryId": "",
+    "IsEnabled": true,
+    "SourceBookId": "sb_neon_tide",
+    "CreatedAt": "2026-06-01T09:00:00+08:00",
+    "UpdatedAt": "2026-06-01T09:00:00+08:00",
+    "FactionType": "财阀宗门联合体",
+    "Goal": "垄断第七次大潮的主节点，把下城区改造成灵潮蓄能池。",
+    "StrengthTerritory": "掌握上城区三座主潮汐塔和大部分商业灵脉接口。",
+    "Leader": "裴闻川",
+    "CoreMembers": "节点工程师、契约修士、商业安保队",
+    "MemberTraits": "重视效率与契约，习惯把底层居民视作消耗品。",
+    "Allies": "部分城主府官员",
+    "Enemies": "下城互助会、离线符箓传承者",
+    "NeutralCompetitors": "黑潮走私团"
+  },
+  {
+    "Id": "fac_lower_aid",
+    "Name": "下城互助会",
+    "Category": "盟友势力",
+    "CategoryId": "",
+    "IsEnabled": true,
+    "SourceBookId": "sb_neon_tide",
+    "CreatedAt": "2026-06-01T09:00:00+08:00",
+    "UpdatedAt": "2026-06-01T09:00:00+08:00",
+    "FactionType": "民间自救组织",
+    "Goal": "保护浮桥棚户区居民免受灵潮债务与节点拆迁侵害。",
+    "StrengthTerritory": "控制下城区维修网络与旧管线地图。",
+    "Leader": "老周",
+    "CoreMembers": "维修工、医师、退役巡潮员",
+    "MemberTraits": "讲义气，信息流通快，但缺乏正面战斗力量。",
+    "Allies": "林砚",
+    "Enemies": "潮汐财团",
+    "NeutralCompetitors": "黑潮走私团"
+  }
+]

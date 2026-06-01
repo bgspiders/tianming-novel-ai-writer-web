@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { buildDocumentTitle } from '@/i18n'
+import { useLocaleStore } from '@/stores/locale'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -9,37 +11,43 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'home',
         component: () => import('@/views/HomeView.vue'),
-        meta: { title: 'Home' }
+        meta: { titleKey: 'routes.home' }
       },
       {
         path: 'health',
         name: 'health',
         component: () => import('@/views/HealthView.vue'),
-        meta: { title: 'Health Check' }
+        meta: { titleKey: 'routes.health' }
       },
       {
         path: 'ai-test',
         name: 'ai-test',
         component: () => import('@/views/AiTestView.vue'),
-        meta: { title: 'AI Streaming Test' }
+        meta: { titleKey: 'routes.aiTest' }
       },
       {
         path: 'settings/ai-models',
         name: 'ai-models',
         component: () => import('@/views/AiModelsView.vue'),
-        meta: { title: 'AI Models' }
+        meta: { titleKey: 'routes.aiModels' }
       },
       {
         path: 'settings/themes',
         name: 'theme-studio',
         component: () => import('@/views/settings/ThemeStudioView.vue'),
-        meta: { title: 'Theme Studio' }
+        meta: { titleKey: 'routes.themeStudio' }
+      },
+      {
+        path: 'settings/notifications',
+        name: 'notification-center',
+        component: () => import('@/views/settings/NotificationCenterView.vue'),
+        meta: { titleKey: 'routes.notificationCenter' }
       },
       {
         path: 'editor/chapters',
         name: 'chapter-editor',
         component: () => import('@/views/editor/EditorChaptersView.vue'),
-        meta: { title: 'Chapter Editor' }
+        meta: { titleKey: 'routes.chapterEditor' }
       },
       {
         path: 'design',
@@ -49,25 +57,25 @@ const routes: RouteRecordRaw[] = [
         path: 'design/:module',
         name: 'design-module',
         component: () => import('@/views/design/DesignView.vue'),
-        meta: { title: 'Design Modules' }
+        meta: { titleKey: 'routes.designModules' }
       },
       {
         path: 'generate',
         name: 'generation-workbench',
         component: () => import('@/views/generate/GenerationWorkbenchView.vue'),
-        meta: { title: 'Generation Workbench' }
+        meta: { titleKey: 'routes.generationWorkbench' }
       },
       {
         path: 'generate/chapters',
         name: 'chapter-generation',
         component: () => import('@/views/generate/ChapterGenerationView.vue'),
-        meta: { title: 'Chapter Generation' }
+        meta: { titleKey: 'routes.chapterGeneration' }
       },
       {
         path: 'generate/gate',
         name: 'generation-gate',
         component: () => import('@/views/generate/GenerationGateView.vue'),
-        meta: { title: 'Generation Gate' }
+        meta: { titleKey: 'routes.generationGate' }
       },
       {
         path: 'generate/volume-designs',
@@ -89,25 +97,25 @@ const routes: RouteRecordRaw[] = [
         path: 'generate/:module(outlines|volume_designs|chapter_plans|chapter_blueprints)',
         name: 'generation-planning-module',
         component: () => import('@/views/design/DesignView.vue'),
-        meta: { title: 'Generation Planning' }
+        meta: { titleKey: 'routes.generationPlanning' }
       },
       {
         path: 'editor',
         name: 'editor',
         component: () => import('@/views/editor/EditorView.vue'),
-        meta: { title: 'Editor Workspace' }
+        meta: { titleKey: 'routes.editorWorkspace' }
       },
       {
         path: 'validate',
         name: 'validation-workbench',
         component: () => import('@/views/validate/ValidationView.vue'),
-        meta: { title: 'Validation Workbench' }
+        meta: { titleKey: 'routes.validationWorkbench' }
       },
       {
         path: 'ai-assistant',
         name: 'ai-assistant',
         component: () => import('@/views/AiAssistantView.vue'),
-        meta: { title: 'AI Assistant' }
+        meta: { titleKey: 'routes.aiAssistant' }
       }
     ]
   },
@@ -124,8 +132,9 @@ const router = createRouter({
 })
 
 router.afterEach((to) => {
-  const title = (to.meta?.title as string | undefined) ?? ''
-  document.title = title ? `${title} | TM Web` : 'TM Web'
+  const localeStore = useLocaleStore()
+  const titleKey = (to.meta?.titleKey as string | undefined) ?? undefined
+  document.title = buildDocumentTitle(titleKey, localeStore.locale)
 })
 
 export default router

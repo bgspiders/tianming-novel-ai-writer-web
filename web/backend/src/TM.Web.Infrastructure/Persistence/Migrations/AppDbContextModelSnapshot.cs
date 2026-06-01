@@ -423,6 +423,25 @@ namespace TM.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("BackgroundAiFinishedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackgroundAiJobId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackgroundAiMessage")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("BackgroundAiRequestedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackgroundAiStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(128)

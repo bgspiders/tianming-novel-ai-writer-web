@@ -2,6 +2,7 @@ import http from '../http'
 
 export interface AiTestRequest {
   runId: string
+  configId?: string | null
   provider?: string
   endpoint: string
   apiKey: string

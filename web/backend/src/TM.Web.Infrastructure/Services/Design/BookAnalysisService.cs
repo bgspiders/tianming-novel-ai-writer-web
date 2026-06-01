@@ -83,6 +83,11 @@ public class BookAnalysisService : IBookAnalysisService
         e.ChapterCount = i.ChapterCount;
         e.TotalWordCount = i.TotalWordCount;
         e.CrawledAt = i.CrawledAt;
+        e.BackgroundAiStatus = string.IsNullOrWhiteSpace(i.BackgroundAiStatus) ? e.BackgroundAiStatus : i.BackgroundAiStatus;
+        e.BackgroundAiJobId = i.BackgroundAiJobId;
+        e.BackgroundAiRequestedAt = i.BackgroundAiRequestedAt;
+        e.BackgroundAiFinishedAt = i.BackgroundAiFinishedAt;
+        e.BackgroundAiMessage = i.BackgroundAiMessage ?? "";
         e.WorldBuildingMethod = i.WorldBuildingMethod ?? "";
         e.PowerSystemDesign = i.PowerSystemDesign ?? "";
         e.EnvironmentDescription = i.EnvironmentDescription ?? "";
@@ -105,6 +110,7 @@ public class BookAnalysisService : IBookAnalysisService
             e.Icon, e.Author, e.Genre, e.SourceUrl,
             e.SourceBookTitle, e.SourceAuthor, e.SourceGenre, e.SourceKeywords, e.SourceSite,
             e.ChapterCount, e.TotalWordCount, e.CrawledAt,
+            e.BackgroundAiStatus, e.BackgroundAiJobId, e.BackgroundAiRequestedAt, e.BackgroundAiFinishedAt, e.BackgroundAiMessage,
             e.WorldBuildingMethod, e.PowerSystemDesign, e.EnvironmentDescription,
             e.FactionDesign, e.WorldviewHighlights,
             e.ProtagonistDesign, e.SupportingRoles, e.CharacterRelations,

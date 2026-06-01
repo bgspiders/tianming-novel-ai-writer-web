@@ -1,24 +1,30 @@
-import { onMounted, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { storeToRefs } from 'pinia';
-import { useAiTestStore } from '@/stores/aiTest';
 import { postTestCompletion } from '@/api/modules/aiTest';
+import { listProviderConfigs } from '@/api/modules/ai';
+import { useI18n } from '@/composables/useI18n';
 import { chatHub } from '@/signalr/chat';
+import { useAiTestStore } from '@/stores/aiTest';
 const store = useAiTestStore();
 const { form, output, status, error, isStreaming } = storeToRefs(store);
+const { t } = useI18n();
 const currentRunId = ref('');
 const metaInfo = ref(null);
+const configs = ref([]);
+const loadingConfigs = ref(false);
+const selectedConfig = computed(() => configs.value.find((item) => item.providerId === form.value.configId) ?? null);
 function onToken(token) {
     store.appendToken(token);
 }
-function onStatus(s) {
-    status.value = s;
+function onStatus(nextStatus) {
+    status.value = nextStatus;
 }
 function onCompleted(reason) {
     status.value = `completed (${reason})`;
 }
-function onError(msg) {
-    error.value = msg;
+function onError(message) {
+    error.value = message;
     status.value = 'error';
 }
 onMounted(() => {
@@ -27,6 +33,7 @@ onMounted(() => {
     chatHub.onStatus(onStatus);
     chatHub.onCompleted(onCompleted);
     chatHub.onError(onError);
+    void refreshConfigs();
 });
 onBeforeUnmount(async () => {
     chatHub.offToken(onToken);
@@ -38,8 +45,9 @@ onBeforeUnmount(async () => {
     }
 });
 async function submit() {
-    if (!form.value.endpoint || !form.value.apiKey || !form.value.model || !form.value.prompt) {
-        ElMessage.warning('请填写完整的 endpoint / apiKey / model / prompt');
+    const hasResolvedKey = Boolean(form.value.apiKey || form.value.configId);
+    if (!form.value.endpoint || !hasResolvedKey || !form.value.model || !form.value.prompt) {
+        ElMessage.warning(t('aiTest.messages.required'));
         return;
     }
     store.reset();
@@ -50,15 +58,17 @@ async function submit() {
     try {
         await chatHub.joinRun(runId);
     }
-    catch (e) {
+    catch (err) {
         isStreaming.value = false;
-        const err = e;
-        ElMessage.error('SignalR 连接失败：' + (err.message ?? '未知错误'));
+        ElMessage.error(t('aiTest.messages.signalrFailed', {
+            message: err.message ?? t('aiTest.messages.unknownError')
+        }));
         return;
     }
     try {
         const result = await postTestCompletion({
             runId,
+            configId: form.value.configId || null,
             endpoint: form.value.endpoint,
             apiKey: form.value.apiKey,
             model: form.value.model,
@@ -75,9 +85,8 @@ async function submit() {
         };
         store.saveToStorage();
     }
-    catch (e) {
-        const err = e;
-        error.value = err.message ?? '请求失败';
+    catch (err) {
+        error.value = err.message ?? t('aiTest.messages.requestFailed');
         ElMessage.error(error.value);
     }
     finally {
@@ -90,6 +99,28 @@ function clearOutput() {
     store.reset();
     metaInfo.value = null;
 }
+async function refreshConfigs() {
+    loadingConfigs.value = true;
+    try {
+        configs.value = (await listProviderConfigs()).filter((item) => item.isEnabled);
+        if (!configs.value.some((item) => item.providerId === form.value.configId)) {
+            form.value.configId = configs.value[0]?.providerId ?? '';
+        }
+    }
+    catch (err) {
+        ElMessage.error(err.message ?? t('aiTest.messages.loadConfigsFailed'));
+    }
+    finally {
+        loadingConfigs.value = false;
+    }
+}
+watch(() => form.value.configId, (configId) => {
+    const config = configs.value.find((item) => item.providerId === configId);
+    if (!config)
+        return;
+    form.value.endpoint = config.defaultEndpoint || form.value.endpoint;
+    form.value.model = config.modelCode || form.value.model;
+});
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
@@ -113,14 +144,14 @@ __VLS_3.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h2, __VLS_intrinsicElements.h2)({
     ...{ class: "title" },
 });
+(__VLS_ctx.t('aiTest.title'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "hint" },
 });
-__VLS_asFunctionalElement(__VLS_intrinsicElements.code, __VLS_intrinsicElements.code)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.code, __VLS_intrinsicElements.code)({});
+(__VLS_ctx.t('aiTest.hint'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.br)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.code, __VLS_intrinsicElements.code)({});
+(__VLS_ctx.t('aiTest.memoryOnly'));
 const __VLS_4 = {}.ElForm;
 /** @type {[typeof __VLS_components.ElForm, typeof __VLS_components.elForm, typeof __VLS_components.ElForm, typeof __VLS_components.elForm, ]} */ ;
 // @ts-ignore
@@ -141,10 +172,10 @@ const __VLS_8 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_9 = __VLS_asFunctionalComponent(__VLS_8, new __VLS_8({
-    label: "Endpoint",
+    label: (__VLS_ctx.t('aiTest.labels.endpoint')),
 }));
 const __VLS_10 = __VLS_9({
-    label: "Endpoint",
+    label: (__VLS_ctx.t('aiTest.labels.endpoint')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_9));
 __VLS_11.slots.default;
 const __VLS_12 = {}.ElInput;
@@ -152,21 +183,21 @@ const __VLS_12 = {}.ElInput;
 // @ts-ignore
 const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({
     modelValue: (__VLS_ctx.form.endpoint),
-    placeholder: "https://api.openai.com/v1",
+    placeholder: (__VLS_ctx.t('aiTest.placeholders.endpoint')),
 }));
 const __VLS_14 = __VLS_13({
     modelValue: (__VLS_ctx.form.endpoint),
-    placeholder: "https://api.openai.com/v1",
+    placeholder: (__VLS_ctx.t('aiTest.placeholders.endpoint')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_13));
 var __VLS_11;
 const __VLS_16 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({
-    label: "API Key",
+    label: (__VLS_ctx.t('aiTest.labels.apiKey')),
 }));
 const __VLS_18 = __VLS_17({
-    label: "API Key",
+    label: (__VLS_ctx.t('aiTest.labels.apiKey')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_17));
 __VLS_19.slots.default;
 const __VLS_20 = {}.ElInput;
@@ -176,23 +207,23 @@ const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({
     modelValue: (__VLS_ctx.form.apiKey),
     type: "password",
     showPassword: true,
-    placeholder: "sk-...",
+    placeholder: (__VLS_ctx.t('aiTest.placeholders.apiKey')),
 }));
 const __VLS_22 = __VLS_21({
     modelValue: (__VLS_ctx.form.apiKey),
     type: "password",
     showPassword: true,
-    placeholder: "sk-...",
+    placeholder: (__VLS_ctx.t('aiTest.placeholders.apiKey')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_21));
 var __VLS_19;
 const __VLS_24 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
-    label: "Model",
+    label: (__VLS_ctx.t('aiTest.labels.model')),
 }));
 const __VLS_26 = __VLS_25({
-    label: "Model",
+    label: (__VLS_ctx.t('aiTest.labels.model')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_25));
 __VLS_27.slots.default;
 const __VLS_28 = {}.ElInput;
@@ -200,21 +231,21 @@ const __VLS_28 = {}.ElInput;
 // @ts-ignore
 const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({
     modelValue: (__VLS_ctx.form.model),
-    placeholder: "gpt-4o-mini / deepseek-chat / ...",
+    placeholder: (__VLS_ctx.t('aiTest.placeholders.model')),
 }));
 const __VLS_30 = __VLS_29({
     modelValue: (__VLS_ctx.form.model),
-    placeholder: "gpt-4o-mini / deepseek-chat / ...",
+    placeholder: (__VLS_ctx.t('aiTest.placeholders.model')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_29));
 var __VLS_27;
 const __VLS_32 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
-    label: "System Prompt",
+    label: (__VLS_ctx.t('aiTest.labels.systemPrompt')),
 }));
 const __VLS_34 = __VLS_33({
-    label: "System Prompt",
+    label: (__VLS_ctx.t('aiTest.labels.systemPrompt')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_33));
 __VLS_35.slots.default;
 const __VLS_36 = {}.ElInput;
@@ -224,23 +255,23 @@ const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({
     modelValue: (__VLS_ctx.form.systemPrompt),
     type: "textarea",
     rows: (2),
-    placeholder: "可选",
+    placeholder: (__VLS_ctx.t('aiTest.placeholders.systemPrompt')),
 }));
 const __VLS_38 = __VLS_37({
     modelValue: (__VLS_ctx.form.systemPrompt),
     type: "textarea",
     rows: (2),
-    placeholder: "可选",
+    placeholder: (__VLS_ctx.t('aiTest.placeholders.systemPrompt')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_37));
 var __VLS_35;
 const __VLS_40 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
-    label: "User Prompt",
+    label: (__VLS_ctx.t('aiTest.labels.userPrompt')),
 }));
 const __VLS_42 = __VLS_41({
-    label: "User Prompt",
+    label: (__VLS_ctx.t('aiTest.labels.userPrompt')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_41));
 __VLS_43.slots.default;
 const __VLS_44 = {}.ElInput;
@@ -261,10 +292,10 @@ const __VLS_48 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
-    label: "Temperature",
+    label: (__VLS_ctx.t('aiTest.labels.temperature')),
 }));
 const __VLS_50 = __VLS_49({
-    label: "Temperature",
+    label: (__VLS_ctx.t('aiTest.labels.temperature')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_49));
 __VLS_51.slots.default;
 const __VLS_52 = {}.ElInputNumber;
@@ -287,10 +318,10 @@ const __VLS_56 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_57 = __VLS_asFunctionalComponent(__VLS_56, new __VLS_56({
-    label: "Max Tokens",
+    label: (__VLS_ctx.t('aiTest.labels.maxTokens')),
 }));
 const __VLS_58 = __VLS_57({
-    label: "Max Tokens",
+    label: (__VLS_ctx.t('aiTest.labels.maxTokens')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_57));
 __VLS_59.slots.default;
 const __VLS_60 = {}.ElInputNumber;
@@ -345,7 +376,7 @@ const __VLS_79 = {
     onClick: (__VLS_ctx.submit)
 };
 __VLS_75.slots.default;
-(__VLS_ctx.isStreaming ? '生成中…' : '发送');
+(__VLS_ctx.isStreaming ? __VLS_ctx.t('aiTest.actions.running') : __VLS_ctx.t('aiTest.actions.send'));
 var __VLS_75;
 const __VLS_80 = {}.ElButton;
 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -365,6 +396,7 @@ const __VLS_87 = {
     onClick: (__VLS_ctx.clearOutput)
 };
 __VLS_83.slots.default;
+(__VLS_ctx.t('aiTest.actions.clear'));
 var __VLS_83;
 var __VLS_71;
 var __VLS_67;
@@ -389,7 +421,7 @@ const __VLS_94 = __VLS_93({
     type: (__VLS_ctx.status === 'error' ? 'danger' : 'info'),
 }, ...__VLS_functionalComponentArgsRest(__VLS_93));
 __VLS_95.slots.default;
-(__VLS_ctx.status);
+(__VLS_ctx.t('aiTest.status.label', { status: __VLS_ctx.status }));
 var __VLS_95;
 if (__VLS_ctx.metaInfo) {
     const __VLS_96 = {}.ElTag;
@@ -404,10 +436,12 @@ if (__VLS_ctx.metaInfo) {
         type: "success",
     }, ...__VLS_functionalComponentArgsRest(__VLS_97));
     __VLS_99.slots.default;
+    (__VLS_ctx.t('aiTest.status.chunks'));
     (__VLS_ctx.metaInfo.chunkCount);
+    (__VLS_ctx.t('aiTest.status.chars'));
     (__VLS_ctx.metaInfo.charCount);
     (__VLS_ctx.metaInfo.elapsedMs);
-    (__VLS_ctx.metaInfo.finishReason);
+    (__VLS_ctx.metaInfo.finishReason || __VLS_ctx.t('aiTest.status.completed'));
     var __VLS_99;
 }
 if (__VLS_ctx.error) {
@@ -440,11 +474,11 @@ else {
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_105 = __VLS_asFunctionalComponent(__VLS_104, new __VLS_104({
-        description: "尚未生成内容",
+        description: (__VLS_ctx.t('aiTest.status.noOutput')),
         imageSize: (80),
     }));
     const __VLS_106 = __VLS_105({
-        description: "尚未生成内容",
+        description: (__VLS_ctx.t('aiTest.status.noOutput')),
         imageSize: (80),
     }, ...__VLS_functionalComponentArgsRest(__VLS_105));
 }
@@ -464,6 +498,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             status: status,
             error: error,
             isStreaming: isStreaming,
+            t: t,
             metaInfo: metaInfo,
             submit: submit,
             clearOutput: clearOutput,

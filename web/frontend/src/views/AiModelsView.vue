@@ -1,162 +1,235 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Edit, Plus, Promotion } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus, RefreshRight } from '@element-plus/icons-vue'
+import { useI18n } from '@/composables/useI18n'
 import {
-  createKey,
-  createModel,
-  createProvider,
-  deleteKey,
-  deleteModel,
-  deleteProvider,
-  listKeys,
-  listModels,
-  listProviders,
-  testKey,
-  updateKey,
-  updateModel,
-  updateProvider,
-  type AiApiKey,
-  type AiApiKeyCreate,
-  type AiApiKeyTestInput,
-  type AiApiKeyTestResult,
-  type AiApiKeyUpdate,
-  type AiModel,
-  type AiModelUpsert,
-  type AiProvider,
-  type AiProviderUpsert
+  createProviderConfig,
+  deleteProviderConfig,
+  discoverRemoteModels,
+  listProviderConfigs,
+  type AiProviderConfig,
+  type AiProviderConfigUpsert,
+  type AiRemoteModelOption,
+  updateProviderConfig
 } from '@/api/modules/ai'
 
-type CapabilityKey =
-  | 'streaming'
-  | 'developerMessage'
-  | 'arrayContent'
-  | 'serviceTier'
-  | 'thinking'
-  | 'vision'
-  | 'tools'
+const { t } = useI18n()
 
-const CAPABILITY_OPTIONS: Array<{ key: CapabilityKey; label: string; hint: string }> = [
-  { key: 'streaming', label: 'Streaming', hint: 'Supports SSE or token streaming.' },
-  { key: 'developerMessage', label: 'Developer Role', hint: 'Supports system and developer roles.' },
-  { key: 'arrayContent', label: 'Array Content', hint: 'Supports array-based message content.' },
-  { key: 'serviceTier', label: 'Service Tier', hint: 'Supports a service tier parameter.' },
-  { key: 'thinking', label: 'Thinking', hint: 'Supports reasoning or thinking controls.' },
-  { key: 'vision', label: 'Vision', hint: 'Accepts image or multimodal input.' },
-  { key: 'tools', label: 'Tools', hint: 'Supports function calling or tools.' }
+type PlatformOption = {
+  code: string
+  name: string
+  endpoint: string
+  hint: string
+}
+
+const platformOptions: PlatformOption[] = [
+  { code: 'openai', name: 'OpenAI', endpoint: 'https://api.openai.com/v1', hint: 'OpenAI 官方兼容接口' },
+  { code: 'anthropic', name: 'Anthropic', endpoint: 'https://api.anthropic.com/v1', hint: 'Claude OpenAI 兼容接入' },
+  { code: 'gemini', name: 'Google Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', hint: 'Gemini OpenAI 兼容入口' },
+  { code: 'deepseek', name: 'DeepSeek', endpoint: 'https://api.deepseek.com/v1', hint: 'DeepSeek 官方接口' },
+  { code: 'moonshot', name: 'Moonshot', endpoint: 'https://api.moonshot.cn/v1', hint: 'Moonshot 官方接口' },
+  { code: 'custom', name: '自定义兼容平台', endpoint: 'https://api.openai.com/v1', hint: '任何 OpenAI 兼容 /v1/models 平台' }
 ]
 
-function parseCapabilities(value: string): Record<string, boolean> {
-  try {
-    const parsed = JSON.parse(value) as Record<string, unknown>
-    return Object.fromEntries(
-      CAPABILITY_OPTIONS.map((opt) => [opt.key, Boolean(parsed[opt.key])])
-    ) as Record<string, boolean>
-  } catch {
-    return Object.fromEntries(CAPABILITY_OPTIONS.map((opt) => [opt.key, false])) as Record<string, boolean>
-  }
+function defaultEndpointFor(platformCode: string) {
+  return platformOptions.find((item) => item.code === platformCode)?.endpoint ?? 'https://api.openai.com/v1'
 }
 
-function serializeCapabilities(value: Record<string, boolean>): string {
-  return JSON.stringify(
-    Object.fromEntries(Object.entries(value).filter(([, enabled]) => enabled)),
-    null,
-    0
-  )
-}
+const configs = ref<AiProviderConfig[]>([])
+const loading = ref(false)
+const selectedConfigId = ref('')
 
-const providers = ref<AiProvider[]>([])
-const selectedProviderId = ref('')
-const loadingProviders = ref(false)
-const tab = ref<'models' | 'keys'>('models')
+const editorVisible = ref(false)
+const editorMode = ref<'create' | 'edit'>('create')
+const editorProviderId = ref('')
+const saving = ref(false)
+const discoveringModels = ref(false)
 
-const selectedProvider = computed(() =>
-  providers.value.find((provider) => provider.id === selectedProviderId.value) ?? null
-)
-
-async function refreshProviders(keepSelection = true) {
-  loadingProviders.value = true
-  try {
-    providers.value = await listProviders()
-    if (!keepSelection || !providers.value.some((provider) => provider.id === selectedProviderId.value)) {
-      selectedProviderId.value = providers.value[0]?.id ?? ''
-    }
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to load providers.')
-  } finally {
-    loadingProviders.value = false
-  }
-}
-
-const providerDialogVisible = ref(false)
-const providerDialogMode = ref<'create' | 'edit'>('create')
-const providerEditId = ref('')
-const providerForm = ref<AiProviderUpsert>({
-  code: '',
+const editorForm = ref<AiProviderConfigUpsert>({
+  platformCode: 'openai',
   name: '',
-  defaultEndpoint: '',
-  iconUrl: '',
+  defaultEndpoint: defaultEndpointFor('openai'),
   notes: '',
   isEnabled: true,
-  sortOrder: 0
+  sortOrder: 0,
+  modelCode: '',
+  modelName: '',
+  plainKey: '',
+  apiKeyName: 'Default'
 })
 
-function openCreateProvider() {
-  providerDialogMode.value = 'create'
-  providerEditId.value = ''
-  providerForm.value = {
-    code: '',
+const remoteModels = ref<AiRemoteModelOption[]>([])
+const modelKeyword = ref('')
+
+const filteredRemoteModels = computed(() => {
+  const keyword = modelKeyword.value.trim().toLowerCase()
+  if (!keyword) return remoteModels.value
+  return remoteModels.value.filter((item) =>
+    item.id.toLowerCase().includes(keyword) || item.name.toLowerCase().includes(keyword)
+  )
+})
+
+const selectedConfig = computed(() =>
+  configs.value.find((item) => item.providerId === selectedConfigId.value) ?? null
+)
+
+async function refreshConfigs(keepSelection = true) {
+  loading.value = true
+  try {
+    configs.value = await listProviderConfigs()
+    if (!keepSelection || !configs.value.some((item) => item.providerId === selectedConfigId.value)) {
+      selectedConfigId.value = configs.value[0]?.providerId ?? ''
+    }
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('aiModels.messages.providersLoadFailed'))
+  } finally {
+    loading.value = false
+  }
+}
+
+function resetEditor() {
+  editorProviderId.value = ''
+  editorForm.value = {
+    platformCode: 'openai',
     name: '',
-    defaultEndpoint: '',
-    iconUrl: '',
+    defaultEndpoint: defaultEndpointFor('openai'),
     notes: '',
     isEnabled: true,
-    sortOrder: providers.value.length
+    sortOrder: configs.value.length,
+    modelCode: '',
+    modelName: '',
+    plainKey: '',
+    apiKeyName: 'Default'
   }
-  providerDialogVisible.value = true
+  remoteModels.value = []
+  modelKeyword.value = ''
 }
 
-function openEditProvider(provider: AiProvider) {
-  providerDialogMode.value = 'edit'
-  providerEditId.value = provider.id
-  providerForm.value = {
-    code: provider.code,
-    name: provider.name,
-    defaultEndpoint: provider.defaultEndpoint,
-    iconUrl: provider.iconUrl,
-    notes: provider.notes,
-    isEnabled: provider.isEnabled,
-    sortOrder: provider.sortOrder
-  }
-  providerDialogVisible.value = true
+function openCreate() {
+  editorMode.value = 'create'
+  resetEditor()
+  editorVisible.value = true
 }
 
-async function saveProvider() {
-  try {
-    if (providerDialogMode.value === 'create') {
-      await createProvider(providerForm.value)
-      ElMessage.success('Provider created.')
-    } else {
-      await updateProvider(providerEditId.value, providerForm.value)
-      ElMessage.success('Provider updated.')
+function openEdit(config: AiProviderConfig) {
+  editorMode.value = 'edit'
+  editorProviderId.value = config.providerId
+  editorForm.value = {
+    platformCode: config.platformCode || 'custom',
+    name: config.name,
+    defaultEndpoint: config.defaultEndpoint || defaultEndpointFor(config.platformCode || 'custom'),
+    notes: config.notes || '',
+    isEnabled: config.isEnabled,
+    sortOrder: config.sortOrder,
+    modelCode: config.modelCode || '',
+    modelName: config.modelName || config.modelCode || '',
+    plainKey: '',
+    apiKeyName: config.apiKeyName || 'Default'
+  }
+  remoteModels.value = config.modelCode
+    ? [{ id: config.modelCode, name: config.modelName || config.modelCode, ownedBy: null }]
+    : []
+  modelKeyword.value = ''
+  editorVisible.value = true
+}
+
+watch(
+  () => editorForm.value.platformCode,
+  (platformCode, previous) => {
+    if (!platformCode || platformCode === previous) return
+    if (!editorForm.value.defaultEndpoint || editorForm.value.defaultEndpoint === defaultEndpointFor(previous || 'openai')) {
+      editorForm.value.defaultEndpoint = defaultEndpointFor(platformCode)
     }
-    providerDialogVisible.value = false
-    await refreshProviders()
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to save provider.')
   }
-}
+)
 
-async function removeProvider(provider: AiProvider) {
-  if (provider.isBuiltIn) {
-    ElMessage.warning('Built-in providers cannot be deleted.')
+async function discoverModels() {
+  if (!editorForm.value.platformCode) {
+    ElMessage.warning(t('aiModels.config.form.platformRequired'))
+    return
+  }
+  if (!editorForm.value.defaultEndpoint) {
+    ElMessage.warning(t('aiModels.config.form.endpointRequired'))
+    return
+  }
+  if (editorMode.value === 'create' && !editorForm.value.plainKey?.trim()) {
+    ElMessage.warning(t('aiModels.config.form.keyRequired'))
     return
   }
 
+  discoveringModels.value = true
+  try {
+    const result = await discoverRemoteModels({
+      providerId: editorMode.value === 'edit' ? editorProviderId.value : null,
+      platformCode: editorForm.value.platformCode,
+      endpoint: editorForm.value.defaultEndpoint,
+      apiKey: editorForm.value.plainKey?.trim() || null
+    })
+    remoteModels.value = result.models
+    editorForm.value.defaultEndpoint = result.resolvedEndpoint
+    if (!remoteModels.value.some((item) => item.id === editorForm.value.modelCode)) {
+      editorForm.value.modelCode = remoteModels.value[0]?.id ?? ''
+      editorForm.value.modelName = remoteModels.value[0]?.name ?? ''
+    }
+    ElMessage.success(t('aiModels.messages.modelsDiscovered', { count: remoteModels.value.length }))
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('aiModels.messages.modelsDiscoverFailed'))
+  } finally {
+    discoveringModels.value = false
+  }
+}
+
+function applyModel(model: AiRemoteModelOption) {
+  editorForm.value.modelCode = model.id
+  editorForm.value.modelName = model.name
+}
+
+async function saveConfig() {
+  if (!editorForm.value.platformCode) {
+    ElMessage.warning(t('aiModels.config.form.platformRequired'))
+    return
+  }
+  if (!editorForm.value.name.trim()) {
+    ElMessage.warning(t('aiModels.config.form.nameRequired'))
+    return
+  }
+  if (!editorForm.value.defaultEndpoint?.trim()) {
+    ElMessage.warning(t('aiModels.config.form.endpointRequired'))
+    return
+  }
+  if (!editorForm.value.modelCode.trim()) {
+    ElMessage.warning(t('aiModels.config.form.modelRequired'))
+    return
+  }
+  if (editorMode.value === 'create' && !editorForm.value.plainKey?.trim()) {
+    ElMessage.warning(t('aiModels.config.form.keyRequired'))
+    return
+  }
+
+  saving.value = true
+  try {
+    if (editorMode.value === 'create') {
+      await createProviderConfig(editorForm.value)
+      ElMessage.success(t('aiModels.messages.providerCreated'))
+    } else {
+      await updateProviderConfig(editorProviderId.value, editorForm.value)
+      ElMessage.success(t('aiModels.messages.providerUpdated'))
+    }
+    editorVisible.value = false
+    await refreshConfigs()
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('aiModels.messages.providerSaveFailed'))
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeConfig(config: AiProviderConfig) {
   try {
     await ElMessageBox.confirm(
-      `Delete provider "${provider.name}"? Related models and API keys will be removed as well.`,
-      'Confirm',
+      t('aiModels.messages.providerDeleteConfirm', { name: config.name }),
+      t('layout.dialogs.confirm'),
       { type: 'warning' }
     )
   } catch {
@@ -164,576 +237,211 @@ async function removeProvider(provider: AiProvider) {
   }
 
   try {
-    await deleteProvider(provider.id)
-    ElMessage.success('Provider deleted.')
-    await refreshProviders(false)
+    await deleteProviderConfig(config.providerId)
+    ElMessage.success(t('aiModels.messages.providerDeleted'))
+    await refreshConfigs(false)
   } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to delete provider.')
+    ElMessage.error((err as Error).message ?? t('aiModels.messages.providerDeleteFailed'))
   }
 }
 
-const models = ref<AiModel[]>([])
-const loadingModels = ref(false)
-
-async function refreshModels() {
-  if (!selectedProviderId.value) {
-    models.value = []
-    return
-  }
-
-  loadingModels.value = true
-  try {
-    models.value = await listModels(selectedProviderId.value)
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to load models.')
-  } finally {
-    loadingModels.value = false
-  }
-}
-
-const modelDialogVisible = ref(false)
-const modelDialogMode = ref<'create' | 'edit'>('create')
-const modelEditId = ref('')
-const modelForm = ref<AiModelUpsert>({
-  code: '',
-  name: '',
-  description: '',
-  contextWindow: null,
-  maxOutputTokens: null,
-  capabilities: '{}',
-  inputPricePerMillion: null,
-  outputPricePerMillion: null,
-  isEnabled: true,
-  sortOrder: 0
+onMounted(() => {
+  refreshConfigs()
 })
-const capabilityChecks = ref<Record<string, boolean>>(parseCapabilities(modelForm.value.capabilities ?? '{}'))
-
-function openCreateModel() {
-  modelDialogMode.value = 'create'
-  modelEditId.value = ''
-  modelForm.value = {
-    code: '',
-    name: '',
-    description: '',
-    contextWindow: null,
-    maxOutputTokens: null,
-    capabilities: '{"streaming":true}',
-    inputPricePerMillion: null,
-    outputPricePerMillion: null,
-    isEnabled: true,
-    sortOrder: models.value.length
-  }
-  capabilityChecks.value = parseCapabilities(modelForm.value.capabilities ?? '{}')
-  modelDialogVisible.value = true
-}
-
-function openEditModel(model: AiModel) {
-  modelDialogMode.value = 'edit'
-  modelEditId.value = model.id
-  modelForm.value = {
-    code: model.code,
-    name: model.name,
-    description: model.description,
-    contextWindow: model.contextWindow,
-    maxOutputTokens: model.maxOutputTokens,
-    capabilities: model.capabilities,
-    inputPricePerMillion: model.inputPricePerMillion,
-    outputPricePerMillion: model.outputPricePerMillion,
-    isEnabled: model.isEnabled,
-    sortOrder: model.sortOrder
-  }
-  capabilityChecks.value = parseCapabilities(modelForm.value.capabilities ?? '{}')
-  modelDialogVisible.value = true
-}
-
-watch(
-  capabilityChecks,
-  (value) => {
-    modelForm.value.capabilities = serializeCapabilities(value)
-  },
-  { deep: true }
-)
-
-async function saveModel() {
-  if (!selectedProviderId.value) return
-
-  try {
-    modelForm.value.capabilities = serializeCapabilities(capabilityChecks.value)
-    if (modelDialogMode.value === 'create') {
-      await createModel(selectedProviderId.value, modelForm.value)
-      ElMessage.success('Model created.')
-    } else {
-      await updateModel(selectedProviderId.value, modelEditId.value, modelForm.value)
-      ElMessage.success('Model updated.')
-    }
-    modelDialogVisible.value = false
-    await refreshModels()
-    await refreshProviders()
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to save model.')
-  }
-}
-
-async function removeModel(model: AiModel) {
-  try {
-    await ElMessageBox.confirm(`Delete model "${model.name}"?`, 'Confirm', { type: 'warning' })
-  } catch {
-    return
-  }
-
-  try {
-    await deleteModel(selectedProviderId.value, model.id)
-    ElMessage.success('Model deleted.')
-    await refreshModels()
-    await refreshProviders()
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to delete model.')
-  }
-}
-
-const keys = ref<AiApiKey[]>([])
-const loadingKeys = ref(false)
-
-async function refreshKeys() {
-  if (!selectedProviderId.value) {
-    keys.value = []
-    return
-  }
-
-  loadingKeys.value = true
-  try {
-    keys.value = await listKeys(selectedProviderId.value)
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to load API keys.')
-  } finally {
-    loadingKeys.value = false
-  }
-}
-
-const keyDialogVisible = ref(false)
-const keyDialogMode = ref<'create' | 'edit'>('create')
-const keyEditId = ref('')
-const keyForm = ref<AiApiKeyCreate & AiApiKeyUpdate>({
-  providerId: '',
-  name: '',
-  plainKey: '',
-  isEnabled: true,
-  rotationOrder: 0
-})
-
-function openCreateKey() {
-  keyDialogMode.value = 'create'
-  keyEditId.value = ''
-  keyForm.value = {
-    providerId: selectedProviderId.value,
-    name: '',
-    plainKey: '',
-    isEnabled: true,
-    rotationOrder: keys.value.length
-  }
-  keyDialogVisible.value = true
-}
-
-function openEditKey(key: AiApiKey) {
-  keyDialogMode.value = 'edit'
-  keyEditId.value = key.id
-  keyForm.value = {
-    providerId: key.providerId,
-    name: key.name,
-    plainKey: '',
-    isEnabled: key.isEnabled,
-    rotationOrder: key.rotationOrder
-  }
-  keyDialogVisible.value = true
-}
-
-async function saveKey() {
-  try {
-    if (keyDialogMode.value === 'create') {
-      if (!keyForm.value.plainKey) {
-        ElMessage.warning('Please provide an API key value.')
-        return
-      }
-
-      await createKey({
-        providerId: keyForm.value.providerId,
-        name: keyForm.value.name,
-        plainKey: keyForm.value.plainKey,
-        isEnabled: keyForm.value.isEnabled,
-        rotationOrder: keyForm.value.rotationOrder
-      })
-      ElMessage.success('API key created.')
-    } else {
-      await updateKey(keyEditId.value, {
-        name: keyForm.value.name,
-        plainKey: keyForm.value.plainKey || null,
-        isEnabled: keyForm.value.isEnabled,
-        rotationOrder: keyForm.value.rotationOrder
-      })
-      ElMessage.success('API key updated.')
-    }
-
-    keyDialogVisible.value = false
-    await refreshKeys()
-    await refreshProviders()
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to save API key.')
-  }
-}
-
-async function removeKey(key: AiApiKey) {
-  try {
-    await ElMessageBox.confirm(`Delete API key "${key.name}"?`, 'Confirm', { type: 'warning' })
-  } catch {
-    return
-  }
-
-  try {
-    await deleteKey(key.id)
-    ElMessage.success('API key deleted.')
-    await refreshKeys()
-    await refreshProviders()
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to delete API key.')
-  }
-}
-
-const testDialogVisible = ref(false)
-const testingKeyId = ref('')
-const testRunning = ref(false)
-const testForm = ref<AiApiKeyTestInput>({
-  endpoint: '',
-  modelCode: '',
-  prompt: 'Introduce yourself in one sentence.'
-})
-const testResult = ref<AiApiKeyTestResult | null>(null)
-
-function openTest(key: AiApiKey) {
-  testingKeyId.value = key.id
-  testForm.value = {
-    endpoint: selectedProvider.value?.defaultEndpoint ?? '',
-    modelCode: models.value[0]?.code ?? '',
-    prompt: 'Introduce yourself in one sentence.'
-  }
-  testResult.value = null
-  testDialogVisible.value = true
-}
-
-async function runTest() {
-  if (!testForm.value.endpoint || !testForm.value.modelCode) {
-    ElMessage.warning('Please provide endpoint and model code.')
-    return
-  }
-
-  testRunning.value = true
-  testResult.value = null
-  try {
-    testResult.value = await testKey(testingKeyId.value, testForm.value)
-    if (testResult.value.ok) {
-      ElMessage.success(`Connection test passed: ${testResult.value.outputChars ?? 0} chars / ${testResult.value.elapsedMs ?? 0}ms`)
-    } else {
-      ElMessage.error(`Connection test failed: ${testResult.value.error ?? 'Unknown error'}`)
-    }
-  } catch (err) {
-    ElMessage.error((err as Error).message ?? 'Failed to run connection test.')
-  } finally {
-    testRunning.value = false
-  }
-}
-
-watch(selectedProviderId, () => {
-  refreshModels()
-  refreshKeys()
-})
-
-onMounted(refreshProviders)
 </script>
 
 <template>
   <div class="ai-models">
-    <el-card shadow="never">
-      <div class="header">
-        <h2 class="title">AI Model Management</h2>
-        <p class="hint">
-          Manage providers, models, and encrypted API keys. Keys are stored server-side and can be tested
-          against any configured endpoint and model code.
-        </p>
+    <el-card shadow="never" class="hero-card">
+      <div class="hero-row">
+        <div>
+          <h2 class="title">{{ t('aiModels.title') }}</h2>
+          <p class="hint">{{ t('aiModels.hint') }}</p>
+        </div>
+        <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('aiModels.provider.create') }}</el-button>
       </div>
     </el-card>
 
     <div class="layout">
-      <el-card shadow="never" class="provider-panel">
+      <el-card shadow="never" class="config-list-panel">
         <template #header>
           <div class="panel-head">
-            <span>Providers</span>
-            <el-button type="primary" :icon="Plus" size="small" @click="openCreateProvider">New</el-button>
+            <span>{{ t('aiModels.provider.title') }}</span>
+            <el-button text :icon="RefreshRight" @click="refreshConfigs(false)" />
           </div>
         </template>
 
-        <div v-loading="loadingProviders" class="provider-list">
-          <div
-            v-for="provider in providers"
-            :key="provider.id"
-            :class="['provider-item', { active: provider.id === selectedProviderId }]"
-            @click="selectedProviderId = provider.id"
+        <div v-loading="loading" class="config-list">
+          <button
+            v-for="config in configs"
+            :key="config.providerId"
+            type="button"
+            :class="['config-item', { active: config.providerId === selectedConfigId }]"
+            @click="selectedConfigId = config.providerId"
           >
-            <div class="provider-row">
-              <span class="provider-name">{{ provider.name }}</span>
-              <el-tag v-if="provider.isBuiltIn" size="small" type="info" effect="plain">Built-in</el-tag>
-              <el-tag v-if="!provider.isEnabled" size="small" type="warning">Disabled</el-tag>
+            <div class="config-item-top">
+              <div>
+                <div class="config-name">{{ config.name }}</div>
+                <div class="config-code">{{ config.platformCode }} / {{ config.providerCode }}</div>
+              </div>
+              <el-tag :type="config.isEnabled ? 'success' : 'info'" size="small" effect="plain">
+                {{ config.isEnabled ? t('aiModels.status.enabled') : t('aiModels.status.disabled') }}
+              </el-tag>
             </div>
-            <div class="provider-meta">
-              <span class="code">{{ provider.code }}</span>
-              <span class="counts">{{ provider.modelCount }} models | {{ provider.keyCount }} keys</span>
+            <div class="config-meta">
+              <span>{{ config.modelCode || '--' }}</span>
+              <span>{{ config.hasKey ? (config.apiKeyMaskedTail || '--') : t('aiModels.config.empty.noKey') }}</span>
             </div>
-            <div class="provider-actions">
-              <el-button size="small" :icon="Edit" link @click.stop="openEditProvider(provider)">Edit</el-button>
-              <el-button
-                size="small"
-                :icon="Delete"
-                link
-                type="danger"
-                :disabled="provider.isBuiltIn"
-                @click.stop="removeProvider(provider)"
-              >
-                Delete
-              </el-button>
-            </div>
-          </div>
+          </button>
 
-          <el-empty v-if="!loadingProviders && providers.length === 0" description="No providers yet" />
+          <el-empty v-if="!loading && configs.length === 0" :description="t('aiModels.provider.empty')" />
         </div>
       </el-card>
 
       <el-card shadow="never" class="detail-panel">
         <template #header>
           <div class="panel-head">
-            <span>{{ selectedProvider?.name || 'Select a provider' }}</span>
-            <span v-if="selectedProvider?.defaultEndpoint" class="default-endpoint">
-              {{ selectedProvider.defaultEndpoint }}
-            </span>
+            <span>{{ selectedConfig?.name || t('aiModels.provider.selectedEmpty') }}</span>
+            <div v-if="selectedConfig" class="detail-actions">
+              <el-button text :icon="Edit" @click="openEdit(selectedConfig)">{{ t('aiModels.actions.edit') }}</el-button>
+              <el-button text type="danger" :icon="Delete" @click="removeConfig(selectedConfig)">{{ t('aiModels.actions.delete') }}</el-button>
+            </div>
           </div>
         </template>
 
-        <div v-if="selectedProvider">
-          <el-tabs v-model="tab">
-            <el-tab-pane label="Models" name="models">
-              <div class="tab-toolbar">
-                <el-button type="primary" :icon="Plus" size="small" @click="openCreateModel">New Model</el-button>
+        <template v-if="selectedConfig">
+          <div class="detail-grid">
+            <div class="detail-card">
+              <div class="detail-label">{{ t('aiModels.config.fields.platform') }}</div>
+              <div class="detail-value">{{ selectedConfig.platformCode }}</div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-label">{{ t('aiModels.config.fields.endpoint') }}</div>
+              <div class="detail-mono">{{ selectedConfig.defaultEndpoint || '--' }}</div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-label">{{ t('aiModels.config.fields.model') }}</div>
+              <div class="detail-value">{{ selectedConfig.modelName || selectedConfig.modelCode || '--' }}</div>
+              <div class="detail-sub">{{ selectedConfig.modelCode || '--' }}</div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-label">{{ t('aiModels.config.fields.key') }}</div>
+              <div class="detail-value">{{ selectedConfig.apiKeyMaskedTail || t('aiModels.config.empty.noKey') }}</div>
+              <div class="detail-sub">
+                {{ selectedConfig.keyLastUsedAt ? new Date(selectedConfig.keyLastUsedAt).toLocaleString() : t('aiModels.config.empty.neverUsed') }}
               </div>
+            </div>
+          </div>
 
-              <el-table v-loading="loadingModels" :data="models" stripe size="small">
-                <el-table-column prop="code" label="Code" min-width="180" />
-                <el-table-column prop="name" label="Name" min-width="160" />
-                <el-table-column prop="contextWindow" label="Context" width="100" align="right" />
-                <el-table-column prop="maxOutputTokens" label="Max Output" width="110" align="right" />
-                <el-table-column label="Status" width="90">
-                  <template #default="{ row }">
-                    <el-tag :type="row.isEnabled ? 'success' : 'info'" size="small">
-                      {{ row.isEnabled ? 'Enabled' : 'Disabled' }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="Actions" width="140" align="center">
-                  <template #default="{ row }">
-                    <el-button size="small" :icon="Edit" link @click="openEditModel(row)">Edit</el-button>
-                    <el-button size="small" :icon="Delete" link type="danger" @click="removeModel(row)">Delete</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </el-tab-pane>
+          <el-alert
+            v-if="selectedConfig.notes"
+            type="info"
+            show-icon
+            :closable="false"
+            class="notes-alert"
+            :title="selectedConfig.notes"
+          />
+        </template>
 
-            <el-tab-pane label="API Keys" name="keys">
-              <div class="tab-toolbar">
-                <el-button type="primary" :icon="Plus" size="small" @click="openCreateKey">Add Key</el-button>
-              </div>
-
-              <el-table v-loading="loadingKeys" :data="keys" stripe size="small">
-                <el-table-column prop="name" label="Name" min-width="160" />
-                <el-table-column label="Tail" width="120">
-                  <template #default="{ row }">
-                    <span class="masked">{{ row.maskedTail || '--' }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="rotationOrder" label="Order" width="80" align="right" />
-                <el-table-column label="Last Used" width="180">
-                  <template #default="{ row }">
-                    <span class="muted">{{ row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : '--' }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="Status" width="90">
-                  <template #default="{ row }">
-                    <el-tag :type="row.isEnabled ? 'success' : 'info'" size="small">
-                      {{ row.isEnabled ? 'Enabled' : 'Disabled' }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="Actions" width="220" align="center">
-                  <template #default="{ row }">
-                    <el-button size="small" :icon="Promotion" link type="primary" @click="openTest(row)">Test</el-button>
-                    <el-button size="small" :icon="Edit" link @click="openEditKey(row)">Edit</el-button>
-                    <el-button size="small" :icon="Delete" link type="danger" @click="removeKey(row)">Delete</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </el-tab-pane>
-          </el-tabs>
-        </div>
-
-        <el-empty v-else description="Select a provider from the left panel" />
+        <el-empty v-else :description="t('aiModels.provider.selectedEmpty')" />
       </el-card>
     </div>
 
     <el-dialog
-      v-model="providerDialogVisible"
-      :title="providerDialogMode === 'create' ? 'New Provider' : 'Edit Provider'"
-      width="520px"
+      v-model="editorVisible"
+      :title="editorMode === 'create' ? t('aiModels.config.create') : t('aiModels.config.edit')"
+      width="860px"
+      :close-on-click-modal="false"
     >
-      <el-form :model="providerForm" label-width="120px" label-position="right">
-        <el-form-item label="Code" required>
-          <el-input v-model="providerForm.code" placeholder="openai / anthropic" />
-        </el-form-item>
-        <el-form-item label="Name" required>
-          <el-input v-model="providerForm.name" />
-        </el-form-item>
-        <el-form-item label="Default Endpoint">
-          <el-input v-model="providerForm.defaultEndpoint" placeholder="https://api.openai.com/v1" />
-        </el-form-item>
-        <el-form-item label="Icon URL">
-          <el-input v-model="providerForm.iconUrl" />
-        </el-form-item>
-        <el-form-item label="Notes">
-          <el-input v-model="providerForm.notes" type="textarea" :rows="2" />
-        </el-form-item>
-        <el-form-item label="Enabled">
-          <el-switch v-model="providerForm.isEnabled" />
-        </el-form-item>
-        <el-form-item label="Sort Order">
-          <el-input-number v-model="providerForm.sortOrder" :min="0" />
-        </el-form-item>
-      </el-form>
+      <div class="editor-shell">
+        <el-form :model="editorForm" label-width="110px" label-position="right" class="editor-form">
+          <el-form-item :label="t('aiModels.config.form.platform')" required>
+            <el-select v-model="editorForm.platformCode" style="width: 100%">
+              <el-option
+                v-for="platform in platformOptions"
+                :key="platform.code"
+                :label="`${platform.name} · ${platform.hint}`"
+                :value="platform.code"
+              />
+            </el-select>
+          </el-form-item>
 
-      <template #footer>
-        <el-button @click="providerDialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="saveProvider">Save</el-button>
-      </template>
-    </el-dialog>
+          <el-form-item :label="t('aiModels.config.form.name')" required>
+            <el-input v-model="editorForm.name" :placeholder="t('aiModels.config.placeholders.name')" />
+          </el-form-item>
 
-    <el-dialog
-      v-model="modelDialogVisible"
-      :title="modelDialogMode === 'create' ? 'New Model' : 'Edit Model'"
-      width="640px"
-    >
-      <el-form :model="modelForm" label-width="130px" label-position="right">
-        <el-form-item label="Model Code" required>
-          <el-input v-model="modelForm.code" placeholder="gpt-4o-mini" />
-        </el-form-item>
-        <el-form-item label="Display Name" required>
-          <el-input v-model="modelForm.name" />
-        </el-form-item>
-        <el-form-item label="Description">
-          <el-input v-model="modelForm.description" type="textarea" :rows="2" />
-        </el-form-item>
-        <el-form-item label="Context Window">
-          <el-input-number v-model="modelForm.contextWindow" :min="1" />
-        </el-form-item>
-        <el-form-item label="Max Output Tokens">
-          <el-input-number v-model="modelForm.maxOutputTokens" :min="1" />
-        </el-form-item>
-        <el-form-item label="Capabilities">
-          <div class="capability-grid">
-            <el-checkbox
-              v-for="option in CAPABILITY_OPTIONS"
-              :key="option.key"
-              v-model="capabilityChecks[option.key]"
-            >
-              <div class="capability-item">
-                <span>{{ option.label }}</span>
-                <small>{{ option.hint }}</small>
-              </div>
-            </el-checkbox>
+          <el-form-item :label="t('aiModels.config.form.endpoint')" required>
+            <el-input v-model="editorForm.defaultEndpoint" :placeholder="defaultEndpointFor(editorForm.platformCode)" />
+          </el-form-item>
+
+          <el-form-item :label="t('aiModels.config.form.apiKey')" :required="editorMode === 'create'">
+            <el-input
+              v-model="editorForm.plainKey"
+              type="password"
+              show-password
+              :placeholder="editorMode === 'edit' ? t('aiModels.config.placeholders.keepExistingKey') : 'sk-...'"
+            />
+          </el-form-item>
+
+          <el-form-item :label="t('aiModels.config.form.apiKeyName')">
+            <el-input v-model="editorForm.apiKeyName" :placeholder="t('aiModels.config.placeholders.keyName')" />
+          </el-form-item>
+
+          <el-form-item :label="t('aiModels.config.form.notes')">
+            <el-input v-model="editorForm.notes" type="textarea" :rows="2" :placeholder="t('aiModels.config.placeholders.notes')" />
+          </el-form-item>
+
+          <el-form-item :label="t('aiModels.config.form.sortOrder')">
+            <el-input-number v-model="editorForm.sortOrder" :min="0" />
+          </el-form-item>
+
+          <el-form-item :label="t('aiModels.config.form.enabled')">
+            <el-switch v-model="editorForm.isEnabled" />
+          </el-form-item>
+        </el-form>
+
+        <div class="model-pane">
+          <div class="model-pane-head">
+            <div>
+              <div class="model-pane-title">{{ t('aiModels.config.modelSection.title') }}</div>
+              <div class="model-pane-hint">{{ t('aiModels.config.modelSection.hint') }}</div>
+            </div>
+            <el-button type="primary" :loading="discoveringModels" :icon="RefreshRight" @click="discoverModels">
+              {{ t('aiModels.config.modelSection.fetch') }}
+            </el-button>
           </div>
-        </el-form-item>
-        <el-form-item label="Input Price / 1M">
-          <el-input-number v-model="modelForm.inputPricePerMillion" :precision="4" :step="0.1" />
-        </el-form-item>
-        <el-form-item label="Output Price / 1M">
-          <el-input-number v-model="modelForm.outputPricePerMillion" :precision="4" :step="0.1" />
-        </el-form-item>
-        <el-form-item label="Enabled">
-          <el-switch v-model="modelForm.isEnabled" />
-        </el-form-item>
-      </el-form>
+
+          <div class="model-toolbar">
+            <el-input v-model="modelKeyword" :placeholder="t('aiModels.config.placeholders.searchModel')" clearable />
+          </div>
+
+          <div class="selected-model">
+            <span class="detail-label">{{ t('aiModels.config.form.selectedModel') }}</span>
+            <div class="selected-model-value">
+              <strong>{{ editorForm.modelName || editorForm.modelCode || '--' }}</strong>
+              <span class="detail-sub">{{ editorForm.modelCode || t('aiModels.config.empty.noModel') }}</span>
+            </div>
+          </div>
+
+          <div class="model-list">
+            <button
+              v-for="model in filteredRemoteModels"
+              :key="model.id"
+              type="button"
+              :class="['model-item', { active: model.id === editorForm.modelCode }]"
+              @click="applyModel(model)"
+            >
+              <div class="model-name">{{ model.name }}</div>
+              <div class="model-id">{{ model.id }}</div>
+            </button>
+            <el-empty v-if="filteredRemoteModels.length === 0" :description="t('aiModels.config.empty.noDiscoveredModels')" />
+          </div>
+        </div>
+      </div>
 
       <template #footer>
-        <el-button @click="modelDialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="saveModel">Save</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-      v-model="keyDialogVisible"
-      :title="keyDialogMode === 'create' ? 'Add API Key' : 'Edit API Key'"
-      width="520px"
-    >
-      <el-form :model="keyForm" label-width="120px" label-position="right">
-        <el-form-item label="Name" required>
-          <el-input v-model="keyForm.name" placeholder="Primary / Backup 1" />
-        </el-form-item>
-        <el-form-item label="API Key" :required="keyDialogMode === 'create'">
-          <el-input
-            v-model="keyForm.plainKey"
-            type="password"
-            show-password
-            :placeholder="keyDialogMode === 'edit' ? 'Leave blank to keep the existing key' : 'sk-...'"
-          />
-        </el-form-item>
-        <el-form-item label="Enabled">
-          <el-switch v-model="keyForm.isEnabled" />
-        </el-form-item>
-        <el-form-item label="Rotation Order">
-          <el-input-number v-model="keyForm.rotationOrder" :min="0" />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="keyDialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="saveKey">Save</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="testDialogVisible" title="API Key Connection Test" width="520px">
-      <el-form :model="testForm" label-width="110px" label-position="right">
-        <el-form-item label="Endpoint" required>
-          <el-input v-model="testForm.endpoint" placeholder="https://api.openai.com/v1" />
-        </el-form-item>
-        <el-form-item label="Model Code" required>
-          <el-input v-model="testForm.modelCode" placeholder="gpt-4o-mini" />
-        </el-form-item>
-        <el-form-item label="Prompt">
-          <el-input v-model="testForm.prompt" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-
-      <el-alert
-        v-if="testResult?.ok"
-        type="success"
-        show-icon
-        :closable="false"
-        :title="`Passed | ${testResult.outputChars ?? 0} chars | ${testResult.elapsedMs ?? 0}ms`"
-      />
-      <el-alert
-        v-else-if="testResult && !testResult.ok"
-        type="error"
-        show-icon
-        :closable="false"
-        :title="testResult.error || 'Failed'"
-        :description="`Elapsed ${testResult.elapsedMs ?? 0}ms`"
-      />
-
-      <template #footer>
-        <el-button @click="testDialogVisible = false">Close</el-button>
-        <el-button type="primary" :loading="testRunning" @click="runTest">Run Test</el-button>
+        <el-button @click="editorVisible = false">{{ t('aiModels.actions.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="saveConfig">{{ t('aiModels.actions.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -744,126 +452,272 @@ onMounted(refreshProviders)
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 1280px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
-.header .title {
-  margin: 0 0 6px;
-  color: var(--tm-fg-primary);
-  font-size: 20px;
-  font-weight: 600;
+.hero-card {
+  border-radius: 20px;
+  overflow: hidden;
 }
 
-.header .hint {
+.hero-card :deep(.el-card__body) {
+  background:
+    radial-gradient(circle at top right, rgba(225, 90, 62, 0.12), transparent 32%),
+    linear-gradient(135deg, rgba(12, 30, 58, 0.96), rgba(24, 58, 87, 0.92));
+  color: #f7f5ef;
+  padding: 22px 24px;
+}
+
+.hero-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.title {
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.hint {
   margin: 0;
-  color: var(--tm-fg-secondary);
+  max-width: 760px;
+  color: rgba(247, 245, 239, 0.78);
   font-size: 13px;
+  line-height: 1.7;
 }
 
 .layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 340px 1fr;
   gap: 16px;
+}
+
+.config-list-panel,
+.detail-panel {
+  border-radius: 18px;
 }
 
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
-.default-endpoint {
-  color: var(--tm-fg-secondary);
-  font-family: 'SF Mono', Menlo, monospace;
-  font-size: 12px;
-}
-
-.provider-list {
+.config-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
+  min-height: 360px;
 }
 
-.provider-item {
-  padding: 10px 12px;
-  border: 1px solid var(--tm-border);
-  border-radius: 6px;
+.config-item {
+  width: 100%;
+  border: 1px solid rgba(21, 74, 117, 0.12);
+  background: linear-gradient(180deg, #ffffff, #f7fbff);
+  border-radius: 16px;
+  padding: 14px 16px;
+  text-align: left;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.provider-item:hover,
-.provider-item.active {
-  background: var(--tm-bg-elevated);
+.config-item:hover,
+.config-item.active {
+  transform: translateY(-1px);
+  border-color: rgba(33, 97, 154, 0.35);
+  box-shadow: 0 10px 24px rgba(18, 54, 91, 0.08);
 }
 
-.provider-item.active {
-  border-color: var(--tm-primary);
-}
-
-.provider-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.provider-name {
-  flex: 1;
-  color: var(--tm-fg-primary);
-  font-weight: 500;
-}
-
-.provider-meta {
+.config-item-top {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 4px;
-  color: var(--tm-fg-secondary);
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.config-name {
+  color: #192436;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.config-code {
+  margin-top: 4px;
+  color: #617089;
+  font-family: 'SF Mono', Menlo, monospace;
   font-size: 12px;
 }
 
-.provider-meta .code,
-.masked {
-  font-family: 'SF Mono', Menlo, monospace;
-}
-
-.provider-actions {
+.config-meta {
   display: flex;
-  gap: 4px;
-  margin-top: 4px;
+  justify-content: space-between;
+  gap: 12px;
+  color: #51627b;
+  font-size: 12px;
 }
 
-.tab-toolbar {
+.detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-card {
+  border: 1px solid rgba(25, 69, 112, 0.1);
+  border-radius: 16px;
+  padding: 16px;
+  background: linear-gradient(180deg, #ffffff, #fbfcfe);
+}
+
+.detail-label {
+  color: #6c7a8c;
+  font-size: 12px;
   margin-bottom: 8px;
 }
 
-.muted,
-.masked {
-  color: var(--tm-fg-secondary);
+.detail-value {
+  color: #1a2434;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.detail-sub,
+.detail-mono {
+  color: #60718a;
   font-size: 12px;
+  margin-top: 6px;
 }
 
-.capability-grid {
+.detail-mono {
+  font-family: 'SF Mono', Menlo, monospace;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.notes-alert {
+  margin-top: 14px;
+}
+
+.editor-shell {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 12px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
 }
 
-.capability-item {
+.editor-form {
+  padding-right: 6px;
+}
+
+.model-pane {
+  border: 1px solid rgba(24, 66, 109, 0.12);
+  border-radius: 18px;
+  padding: 16px;
+  background:
+    linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(255, 255, 255, 0.98)),
+    radial-gradient(circle at top, rgba(76, 128, 196, 0.08), transparent 50%);
+}
+
+.model-pane-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.model-pane-title {
+  color: #182438;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.model-pane-hint {
+  margin-top: 4px;
+  color: #6a7890;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.model-toolbar {
+  margin: 14px 0 12px;
+}
+
+.selected-model {
+  border: 1px dashed rgba(34, 95, 146, 0.28);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: rgba(236, 244, 255, 0.7);
+}
+
+.selected-model-value {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
-.capability-item small {
-  color: var(--tm-fg-secondary);
-  font-size: 12px;
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
-@media (max-width: 960px) {
-  .layout {
+.model-item {
+  width: 100%;
+  border: 1px solid rgba(28, 82, 127, 0.12);
+  border-radius: 14px;
+  padding: 11px 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.model-item:hover,
+.model-item.active {
+  border-color: rgba(31, 93, 147, 0.38);
+  background: rgba(235, 244, 255, 0.9);
+}
+
+.model-name {
+  color: #1a2433;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.model-id {
+  margin-top: 4px;
+  color: #6d7b8e;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+}
+
+@media (max-width: 980px) {
+  .layout,
+  .editor-shell {
     grid-template-columns: 1fr;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

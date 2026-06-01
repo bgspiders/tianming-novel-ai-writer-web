@@ -113,5 +113,7 @@ public class BookAnalysisConfiguration : IEntityTypeConfiguration<BookAnalysis>
         b.Property(x => x.SourceBookTitle).HasMaxLength(256);
         b.Property(x => x.SourceAuthor).HasMaxLength(128);
         b.Property(x => x.SourceSite).HasMaxLength(128);
+        b.Property(x => x.BackgroundAiStatus).HasMaxLength(32);
+        b.Property(x => x.BackgroundAiJobId).HasMaxLength(64);
     }
 }

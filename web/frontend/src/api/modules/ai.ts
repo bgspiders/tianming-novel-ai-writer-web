@@ -72,6 +72,7 @@ export interface AiApiKeyCreate {
 }
 
 export interface AiApiKeyUpdate {
+  providerId: string
   name: string
   plainKey?: string | null
   isEnabled: boolean
@@ -89,6 +90,52 @@ export interface AiApiKeyTestResult {
   error: string | null
   outputChars: number | null
   elapsedMs: number | null
+}
+
+export interface AiProviderConfig {
+  providerId: string
+  platformCode: string
+  providerCode: string
+  name: string
+  defaultEndpoint: string | null
+  notes: string | null
+  isEnabled: boolean
+  sortOrder: number
+  modelId: string | null
+  modelCode: string | null
+  modelName: string | null
+  apiKeyId: string | null
+  apiKeyName: string | null
+  apiKeyMaskedTail: string | null
+  hasKey: boolean
+  keyLastUsedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AiProviderConfigUpsert {
+  platformCode: string
+  name: string
+  defaultEndpoint?: string | null
+  notes?: string | null
+  isEnabled?: boolean
+  sortOrder?: number
+  modelCode: string
+  modelName?: string | null
+  plainKey?: string | null
+  apiKeyName?: string
+}
+
+export interface AiRemoteModelOption {
+  id: string
+  name: string
+  ownedBy: string | null
+}
+
+export interface AiRemoteModelDiscoveryResult {
+  platformCode: string
+  resolvedEndpoint: string
+  models: AiRemoteModelOption[]
 }
 
 // --- Providers ---
@@ -158,5 +205,34 @@ export async function deleteKey(id: string): Promise<void> {
 
 export async function testKey(id: string, input: AiApiKeyTestInput): Promise<AiApiKeyTestResult> {
   const { data } = await http.post<AiApiKeyTestResult>(`/api/ai-keys/${id}/test`, input)
+  return data
+}
+
+export async function listProviderConfigs(): Promise<AiProviderConfig[]> {
+  const { data } = await http.get<AiProviderConfig[]>('/api/ai-provider-configs')
+  return data
+}
+
+export async function createProviderConfig(input: AiProviderConfigUpsert): Promise<AiProviderConfig> {
+  const { data } = await http.post<AiProviderConfig>('/api/ai-provider-configs', input)
+  return data
+}
+
+export async function updateProviderConfig(providerId: string, input: AiProviderConfigUpsert): Promise<AiProviderConfig> {
+  const { data } = await http.put<AiProviderConfig>(`/api/ai-provider-configs/${providerId}`, input)
+  return data
+}
+
+export async function deleteProviderConfig(providerId: string): Promise<void> {
+  await http.delete(`/api/ai-provider-configs/${providerId}`)
+}
+
+export async function discoverRemoteModels(input: {
+  providerId?: string | null
+  platformCode: string
+  endpoint?: string | null
+  apiKey?: string | null
+}): Promise<AiRemoteModelDiscoveryResult> {
+  const { data } = await http.post<AiRemoteModelDiscoveryResult>('/api/ai-provider-configs/discover-models', input)
   return data
 }

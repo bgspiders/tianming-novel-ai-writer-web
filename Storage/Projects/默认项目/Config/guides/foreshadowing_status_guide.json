@@ -1,0 +1,68 @@
+{
+  "Module": "ForeshadowingStatusGuide",
+  "SourceBookId": "sb_neon_tide",
+  "Summary": {
+    "Total": 2,
+    "Setup": 2,
+    "Payoff": 0,
+    "Pending": 2,
+    "CompletionRate": "0%"
+  },
+  "ByTier": {
+    "Tier-1": {
+      "Total": 1,
+      "Completed": 0,
+      "Pending": 1
+    },
+    "Tier-2": {
+      "Total": 1,
+      "Completed": 0,
+      "Pending": 1
+    }
+  },
+  "PendingList": [
+    {
+      "Id": "fs_offline_alarm",
+      "Tier": "Tier-1",
+      "Name": "离线警报来源",
+      "SetupChapter": "vol1_ch1",
+      "PlannedPayoff": "vol1_ch12",
+      "Status": "pending",
+      "Urgency": "high"
+    },
+    {
+      "Id": "fs_missing_three_seconds",
+      "Tier": "Tier-2",
+      "Name": "缺失三秒日志",
+      "SetupChapter": "vol1_ch2",
+      "PlannedPayoff": "vol1_ch6",
+      "Status": "pending",
+      "Urgency": "normal"
+    }
+  ],
+  "OverdueList": [],
+  "Foreshadowings": {
+    "fs_offline_alarm": {
+      "Name": "离线警报来源",
+      "Tier": "Tier-1",
+      "IsSetup": true,
+      "IsResolved": false,
+      "IsOverdue": false,
+      "ExpectedSetupChapter": "vol1_ch1",
+      "ExpectedPayoffChapter": "vol1_ch12",
+      "ActualSetupChapter": "vol1_ch1",
+      "ActualPayoffChapter": ""
+    },
+    "fs_missing_three_seconds": {
+      "Name": "缺失三秒日志",
+      "Tier": "Tier-2",
+      "IsSetup": true,
+      "IsResolved": false,
+      "IsOverdue": false,
+      "ExpectedSetupChapter": "vol1_ch2",
+      "ExpectedPayoffChapter": "vol1_ch6",
+      "ActualSetupChapter": "vol1_ch2",
+      "ActualPayoffChapter": ""
+    }
+  }
+}
