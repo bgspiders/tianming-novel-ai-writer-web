@@ -9,6 +9,7 @@ using TM.Web.Application.Security;
 using TM.Web.Application.Services;
 using TM.Web.Infrastructure.Persistence;
 using TM.Web.Infrastructure.Security;
+using TM.Web.Infrastructure.Services.Auth;
 using TM.Web.Infrastructure.Services.Ai;
 using TM.Web.Infrastructure.Services.Chat;
 using TM.Web.Infrastructure.Services.Core;
@@ -96,6 +97,7 @@ builder.Services.AddScoped<IAiApiKeyService, AiApiKeyService>();
 builder.Services.AddScoped<IAiProviderConfigService, AiProviderConfigService>();
 builder.Services.AddScoped<IDataImportService, DataImportService>();
 builder.Services.AddScoped<INotificationHistoryService, NotificationHistoryService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ISourceBookService, SourceBookService>();
@@ -150,6 +152,7 @@ using (var scope = app.Services.CreateScope())
     // Do not mix EnsureCreated with migrations, or old SQLite files can drift
     // away from the migration history and miss later columns.
     await db.Database.MigrateAsync();
+    await AuthSchemaCompatibility.EnsureAuthTablesAsync(db);
     await AiProviderSeeder.SeedAsync(db);
 }
 
@@ -184,6 +187,7 @@ if (importPathIndex >= 0 && importPathIndex + 1 < args.Length)
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<AuthRequiredMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

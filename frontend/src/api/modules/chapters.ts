@@ -153,6 +153,24 @@ export interface ChapterBatchGenerationRequest {
   maxRewriteAttempts?: number
   validationReportId?: string | null
   rerunValidationAfterSave?: boolean
+  previewItems?: ChapterBatchGenerationPreviewItem[]
+}
+
+export interface ChapterBatchGenerationPreviewRequest {
+  projectId: string
+  volumeId: string
+  startChapterNumber: number
+  count: number
+  createMissing: boolean
+}
+
+export interface ChapterBatchGenerationPreviewItem {
+  chapterNumber: number
+  title: string
+  summary: string
+  exists: boolean
+  hasContent: boolean
+  source: string
 }
 
 export interface ChapterBatchGenerationAccepted {
@@ -265,6 +283,13 @@ export async function generateChapterDraft(input: ChapterDraftRequest): Promise<
 
 export async function queueChapterBatchGeneration(input: ChapterBatchGenerationRequest): Promise<ChapterBatchGenerationAccepted> {
   const { data } = await http.post<ChapterBatchGenerationAccepted>('/api/generation/chapter-batch-jobs', input)
+  return data
+}
+
+export async function previewChapterBatchGeneration(
+  input: ChapterBatchGenerationPreviewRequest
+): Promise<ChapterBatchGenerationPreviewItem[]> {
+  const { data } = await http.post<ChapterBatchGenerationPreviewItem[]>('/api/generation/chapter-batch-preview', input)
   return data
 }
 

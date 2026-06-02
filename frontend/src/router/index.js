@@ -1,7 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { buildDocumentTitle } from '@/i18n';
 import { useLocaleStore } from '@/stores/locale';
+import { useAuthStore } from '@/stores/auth';
 const routes = [
+    {
+        path: '/login',
+        name: 'login',
+        component: () => import('@/views/LoginView.vue'),
+        meta: { titleKey: 'routes.login', public: true }
+    },
     {
         path: '/',
         component: () => import('@/layouts/MainLayout.vue'),
@@ -133,6 +140,27 @@ const router = createRouter({
     history: createWebHistory(),
     routes,
     scrollBehavior: () => ({ top: 0 })
+});
+router.beforeEach(async (to) => {
+    const authStore = useAuthStore();
+    if (!authStore.initialized) {
+        try {
+            await authStore.refresh();
+        }
+        catch {
+            if (to.name !== 'login') {
+                return { name: 'login', query: { redirect: to.fullPath } };
+            }
+            return true;
+        }
+    }
+    if (to.name === 'login') {
+        return authStore.authenticated ? '/' : true;
+    }
+    if (!to.meta?.public && !authStore.authenticated) {
+        return { name: 'login', query: { redirect: to.fullPath } };
+    }
+    return true;
 });
 router.afterEach((to) => {
     const localeStore = useLocaleStore();

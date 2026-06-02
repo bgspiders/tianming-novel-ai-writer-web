@@ -73,3 +73,35 @@ public class UploadConfiguration : IEntityTypeConfiguration<Upload>
         b.HasIndex(x => x.Sha256);
     }
 }
+
+public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
+{
+    public void Configure(EntityTypeBuilder<AppUser> b)
+    {
+        b.ToTable("app_users");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasMaxLength(64);
+        b.Property(x => x.Username).IsRequired().HasMaxLength(64);
+        b.Property(x => x.PasswordHash).IsRequired().HasMaxLength(128);
+        b.Property(x => x.PasswordSalt).IsRequired().HasMaxLength(64);
+        b.HasIndex(x => x.Username).IsUnique();
+    }
+}
+
+public class AppSessionConfiguration : IEntityTypeConfiguration<AppSession>
+{
+    public void Configure(EntityTypeBuilder<AppSession> b)
+    {
+        b.ToTable("app_sessions");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasMaxLength(64);
+        b.Property(x => x.UserId).IsRequired().HasMaxLength(64);
+        b.Property(x => x.TokenHash).IsRequired().HasMaxLength(64);
+        b.HasIndex(x => x.TokenHash).IsUnique();
+        b.HasIndex(x => new { x.UserId, x.ExpiresAt });
+        b.HasOne(x => x.User)
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}

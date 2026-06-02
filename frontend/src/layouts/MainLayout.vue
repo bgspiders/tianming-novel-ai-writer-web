@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -16,17 +16,21 @@ import {
   Plus,
   Promotion,
   Setting,
-  Sunny
+  Sunny,
+  SwitchButton,
+  UserFilled
 } from '@element-plus/icons-vue'
 import { useI18n } from '@/composables/useI18n'
 import type { Locale } from '@/i18n'
 import { useThemeStore } from '@/stores/theme'
 import { useWorkContextStore } from '@/stores/workContext'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const themeStore = useThemeStore()
 const workContext = useWorkContextStore()
+const authStore = useAuthStore()
 const { localeStore, t, setLocale } = useI18n()
 
 const activeMenu = computed(() => route.path)
@@ -142,6 +146,19 @@ async function submitVolume() {
     creatingVolume.value = false
   }
 }
+
+async function signOut() {
+  try {
+    await authStore.signOut()
+    await router.replace('/login')
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('layout.messages.logoutFailed'))
+  }
+}
+
+onMounted(() => {
+  workContext.init()
+})
 </script>
 
 <template>
@@ -335,6 +352,14 @@ async function submitVolume() {
             <el-icon class="mr-4"><component :is="themeIcon" /></el-icon>
             <span>{{ themeLabel }}</span>
           </el-button>
+
+          <div class="user-chip">
+            <el-icon><UserFilled /></el-icon>
+            <span>{{ authStore.username || 'Admin' }}</span>
+          </div>
+          <el-button text size="small" :icon="SwitchButton" @click="signOut">
+            {{ t('layout.logout') }}
+          </el-button>
         </div>
       </el-header>
 
@@ -482,6 +507,19 @@ async function submitVolume() {
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--tm-border) 80%, transparent);
   margin-right: 8px;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--tm-border);
+  border-radius: 999px;
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
+  background: color-mix(in srgb, var(--tm-bg-elevated) 78%, transparent);
 }
 
 .layout-main {

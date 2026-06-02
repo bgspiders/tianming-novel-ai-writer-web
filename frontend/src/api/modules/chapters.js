@@ -66,6 +66,10 @@ export async function queueChapterBatchGeneration(input) {
     const { data } = await http.post('/api/generation/chapter-batch-jobs', input);
     return data;
 }
+export async function previewChapterBatchGeneration(input) {
+    const { data } = await http.post('/api/generation/chapter-batch-preview', input);
+    return data;
+}
 export async function getChapterBatchGenerationStatus(jobId) {
     const { data } = await http.get(`/api/generation/chapter-batch-jobs/${jobId}`);
     return data;

@@ -94,6 +94,8 @@ public class AppDbContext : DbContext
     public DbSet<Theme> Themes => Set<Theme>();
     public DbSet<NotificationHistory> NotificationHistory => Set<NotificationHistory>();
     public DbSet<Upload> Uploads => Set<Upload>();
+    public DbSet<AppUser> AppUsers => Set<AppUser>();
+    public DbSet<AppSession> AppSessions => Set<AppSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

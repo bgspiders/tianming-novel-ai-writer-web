@@ -3,6 +3,7 @@ import axios, { AxiosError, type AxiosInstance } from 'axios'
 const http: AxiosInstance = axios.create({
   baseURL: '',
   timeout: 60_000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -29,6 +30,11 @@ function normalizeProblemMessage(data?: ProblemDetailsPayload): string | undefin
 http.interceptors.response.use(
   (resp) => resp,
   (err: AxiosError) => {
+    if (err.response?.status === 401 && typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      const redirect = encodeURIComponent(`${window.location.pathname}${window.location.search}`)
+      window.location.assign(`/login?redirect=${redirect}`)
+    }
+
     // 简单错误归一：尽量给前端展示后端 ProblemDetails.detail
     const data = err.response?.data as ProblemDetailsPayload | undefined
     const message = normalizeProblemMessage(data)

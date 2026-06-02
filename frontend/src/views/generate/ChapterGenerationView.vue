@@ -18,9 +18,11 @@ import {
   getChapter,
   listChapters,
   listChapterBatchGenerationJobs,
+  previewChapterBatchGeneration,
   queueChapterBatchGeneration,
   saveChapterContent,
   type Chapter,
+  type ChapterBatchGenerationPreviewItem,
   type ChapterBatchGenerationStatus
 } from '@/api/modules/chapters'
 
@@ -55,6 +57,8 @@ const autoGenerating = ref(false)
 const autoLog = ref<string[]>([])
 const autoJobId = ref('')
 const autoJobStatus = ref<ChapterBatchGenerationStatus | null>(null)
+const autoPreviewing = ref(false)
+const autoPreviewItems = ref<ChapterBatchGenerationPreviewItem[]>([])
 let autoPollTimer: ReturnType<typeof window.setInterval> | null = null
 const autoProgress = reactive({
   total: 0,
@@ -289,6 +293,10 @@ function appendAutoLog(message: string) {
   autoLog.value = [message, ...autoLog.value].slice(0, 20)
 }
 
+function clearAutoPreview() {
+  autoPreviewItems.value = []
+}
+
 async function generateDraftForChapter(chapter: Chapter, silent = false) {
   if (!validateGenerationSettings(false)) return false
 
@@ -406,11 +414,36 @@ async function requestStopAutoGeneration() {
   }
 }
 
-async function generateBatchDrafts() {
+async function previewBatchDrafts() {
   if (autoGenerating.value) return
   if (!validateGenerationSettings(false)) return
   if (autoForm.count < 1) {
     ElMessage.warning(t('chapterGeneration.batch.countRequired'))
+    return
+  }
+
+  autoPreviewing.value = true
+  try {
+    autoPreviewItems.value = await previewChapterBatchGeneration({
+      projectId: workContext.selectedProjectId!,
+      volumeId: workContext.selectedVolumeId!,
+      startChapterNumber: autoForm.startChapterNumber,
+      count: autoForm.count,
+      createMissing: autoForm.createMissing
+    })
+    ElMessage.success(t('chapterGeneration.batch.previewReady'))
+  } catch (err) {
+    ElMessage.error((err as Error).message || t('chapterGeneration.batch.previewFailed'))
+  } finally {
+    autoPreviewing.value = false
+  }
+}
+
+async function generateBatchDrafts() {
+  if (autoGenerating.value) return
+  if (!validateGenerationSettings(false)) return
+  if (autoPreviewItems.value.length === 0) {
+    ElMessage.warning(t('chapterGeneration.batch.previewRequired'))
     return
   }
 
@@ -447,13 +480,19 @@ async function generateBatchDrafts() {
       maxTokens: promptForm.maxTokens,
       maxRewriteAttempts: promptForm.maxRewriteAttempts,
       validationReportId: validationReportId.value || null,
-      rerunValidationAfterSave: rerunValidationAfterSave.value
+      rerunValidationAfterSave: rerunValidationAfterSave.value,
+      previewItems: autoPreviewItems.value.map((item) => ({
+        ...item,
+        title: item.title.trim(),
+        summary: item.summary.trim()
+      }))
     })
     autoJobId.value = accepted.jobId
     autoGenerating.value = true
     appendAutoLog(t('chapterGeneration.batch.queued', { id: accepted.jobId }))
     await refreshAutoJobStatus()
     startAutoPolling()
+    clearAutoPreview()
     aiStore.saveToStorage()
     ElMessage.success(t('chapterGeneration.batch.queued', { id: accepted.jobId }))
   } catch (err) {
@@ -546,6 +585,10 @@ async function saveDraft() {
 }
 
 watch(() => [workContext.selectedProjectId, workContext.selectedVolumeId], refreshChapters)
+watch(
+  () => [autoForm.startChapterNumber, autoForm.count, autoForm.createMissing],
+  clearAutoPreview
+)
 watch(selectedChapterId, async () => {
   if (suppressChapterWatcher.value) return
   await loadSelectedChapter()
@@ -702,11 +745,22 @@ onBeforeUnmount(async () => {
                 v-else
                 size="small"
                 type="primary"
-                :icon="VideoPlay"
+                :icon="DocumentChecked"
+                :loading="autoPreviewing"
                 :disabled="!workContext.selectedProjectId || !workContext.selectedVolumeId || generating"
+                @click="previewBatchDrafts"
+              >
+                {{ t('chapterGeneration.batch.preview') }}
+              </el-button>
+              <el-button
+                v-if="!autoGenerating"
+                size="small"
+                type="success"
+                :icon="VideoPlay"
+                :disabled="!workContext.selectedProjectId || !workContext.selectedVolumeId || generating || autoPreviewItems.length === 0"
                 @click="generateBatchDrafts"
               >
-                {{ t('chapterGeneration.batch.start') }}
+                {{ t('chapterGeneration.batch.confirmStart') }}
               </el-button>
             </div>
           </div>
@@ -742,6 +796,43 @@ onBeforeUnmount(async () => {
                   </el-checkbox>
                 </div>
               </el-form-item>
+            </div>
+            <div v-if="autoPreviewItems.length" class="batch-preview">
+              <div class="batch-preview__head">
+                <div>
+                  <div class="batch-preview__title">{{ t('chapterGeneration.batch.previewTitle') }}</div>
+                  <div class="batch-preview__subtitle">{{ t('chapterGeneration.batch.previewSubtitle') }}</div>
+                </div>
+                <el-button size="small" text :icon="Refresh" :loading="autoPreviewing" @click="previewBatchDrafts">
+                  {{ t('chapterGeneration.batch.refreshPreview') }}
+                </el-button>
+              </div>
+              <el-table :data="autoPreviewItems" size="small" class="batch-preview__table">
+                <el-table-column :label="t('chapterGeneration.batch.previewNumber')" prop="chapterNumber" width="72" />
+                <el-table-column :label="t('chapterGeneration.batch.previewTitleColumn')" min-width="180">
+                  <template #default="{ row }">
+                    <el-input v-model="row.title" size="small" />
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('chapterGeneration.batch.previewSummaryColumn')" min-width="320">
+                  <template #default="{ row }">
+                    <el-input v-model="row.summary" size="small" type="textarea" :rows="2" />
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('chapterGeneration.batch.previewState')" width="120">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.hasContent ? 'warning' : row.exists ? 'info' : 'success'">
+                      {{
+                        row.hasContent
+                          ? t('chapterGeneration.batch.previewHasContent')
+                          : row.exists
+                            ? t('chapterGeneration.batch.previewExists')
+                            : t('chapterGeneration.batch.previewNew')
+                      }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
             </div>
             <div v-if="autoGenerating || autoProgress.total" class="batch-progress">
               <el-progress :percentage="autoProgressPercent" :stroke-width="8" />
@@ -935,6 +1026,34 @@ onBeforeUnmount(async () => {
 }
 .batch-options :deep(.el-checkbox) {
   margin-right: 0;
+}
+.batch-preview {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-bg-color);
+}
+.batch-preview__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.batch-preview__title {
+  font-weight: 650;
+  line-height: 20px;
+}
+.batch-preview__subtitle {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 2px;
+}
+.batch-preview__table :deep(.el-textarea__inner) {
+  min-height: 48px !important;
+  resize: vertical;
 }
 .batch-progress {
   margin-top: 12px;

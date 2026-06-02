@@ -1,14 +1,16 @@
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Bell, ChatDotRound, CircleCheck, Cpu, Document, Edit, MagicStick, Monitor, Moon, Notebook, Plus, Promotion, Setting, Sunny } from '@element-plus/icons-vue';
+import { Bell, ChatDotRound, CircleCheck, Cpu, Document, Edit, MagicStick, Monitor, Moon, Notebook, Plus, Promotion, Setting, Sunny, SwitchButton, UserFilled } from '@element-plus/icons-vue';
 import { useI18n } from '@/composables/useI18n';
 import { useThemeStore } from '@/stores/theme';
 import { useWorkContextStore } from '@/stores/workContext';
+import { useAuthStore } from '@/stores/auth';
 const route = useRoute();
 const router = useRouter();
 const themeStore = useThemeStore();
 const workContext = useWorkContextStore();
+const authStore = useAuthStore();
 const { localeStore, t, setLocale } = useI18n();
 const activeMenu = computed(() => route.path);
 const headerTitle = computed(() => {
@@ -119,6 +121,18 @@ async function submitVolume() {
         creatingVolume.value = false;
     }
 }
+async function signOut() {
+    try {
+        await authStore.signOut();
+        await router.replace('/login');
+    }
+    catch (err) {
+        ElMessage.error(err.message ?? t('layout.messages.logoutFailed'));
+    }
+}
+onMounted(() => {
+    workContext.init();
+});
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
@@ -1038,307 +1052,348 @@ var __VLS_319;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
 (__VLS_ctx.themeLabel);
 var __VLS_311;
-var __VLS_247;
-const __VLS_324 = {}.ElMain;
-/** @type {[typeof __VLS_components.ElMain, typeof __VLS_components.elMain, typeof __VLS_components.ElMain, typeof __VLS_components.elMain, ]} */ ;
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "user-chip" },
+});
+const __VLS_324 = {}.ElIcon;
+/** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
 // @ts-ignore
-const __VLS_325 = __VLS_asFunctionalComponent(__VLS_324, new __VLS_324({
-    ...{ class: "layout-main" },
-}));
-const __VLS_326 = __VLS_325({
-    ...{ class: "layout-main" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_325));
+const __VLS_325 = __VLS_asFunctionalComponent(__VLS_324, new __VLS_324({}));
+const __VLS_326 = __VLS_325({}, ...__VLS_functionalComponentArgsRest(__VLS_325));
 __VLS_327.slots.default;
-const __VLS_328 = {}.RouterView;
-/** @type {[typeof __VLS_components.RouterView, ]} */ ;
+const __VLS_328 = {}.UserFilled;
+/** @type {[typeof __VLS_components.UserFilled, ]} */ ;
 // @ts-ignore
 const __VLS_329 = __VLS_asFunctionalComponent(__VLS_328, new __VLS_328({}));
 const __VLS_330 = __VLS_329({}, ...__VLS_functionalComponentArgsRest(__VLS_329));
 var __VLS_327;
-var __VLS_243;
-var __VLS_3;
-const __VLS_332 = {}.ElDialog;
-/** @type {[typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, ]} */ ;
+__VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+(__VLS_ctx.authStore.username || 'Admin');
+const __VLS_332 = {}.ElButton;
+/** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
 // @ts-ignore
 const __VLS_333 = __VLS_asFunctionalComponent(__VLS_332, new __VLS_332({
-    modelValue: (__VLS_ctx.projectDialogVisible),
-    title: (__VLS_ctx.t('layout.dialogs.newProject')),
-    width: "420px",
+    ...{ 'onClick': {} },
+    text: true,
+    size: "small",
+    icon: (__VLS_ctx.SwitchButton),
 }));
 const __VLS_334 = __VLS_333({
+    ...{ 'onClick': {} },
+    text: true,
+    size: "small",
+    icon: (__VLS_ctx.SwitchButton),
+}, ...__VLS_functionalComponentArgsRest(__VLS_333));
+let __VLS_336;
+let __VLS_337;
+let __VLS_338;
+const __VLS_339 = {
+    onClick: (__VLS_ctx.signOut)
+};
+__VLS_335.slots.default;
+(__VLS_ctx.t('layout.logout'));
+var __VLS_335;
+var __VLS_247;
+const __VLS_340 = {}.ElMain;
+/** @type {[typeof __VLS_components.ElMain, typeof __VLS_components.elMain, typeof __VLS_components.ElMain, typeof __VLS_components.elMain, ]} */ ;
+// @ts-ignore
+const __VLS_341 = __VLS_asFunctionalComponent(__VLS_340, new __VLS_340({
+    ...{ class: "layout-main" },
+}));
+const __VLS_342 = __VLS_341({
+    ...{ class: "layout-main" },
+}, ...__VLS_functionalComponentArgsRest(__VLS_341));
+__VLS_343.slots.default;
+const __VLS_344 = {}.RouterView;
+/** @type {[typeof __VLS_components.RouterView, ]} */ ;
+// @ts-ignore
+const __VLS_345 = __VLS_asFunctionalComponent(__VLS_344, new __VLS_344({}));
+const __VLS_346 = __VLS_345({}, ...__VLS_functionalComponentArgsRest(__VLS_345));
+var __VLS_343;
+var __VLS_243;
+var __VLS_3;
+const __VLS_348 = {}.ElDialog;
+/** @type {[typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, ]} */ ;
+// @ts-ignore
+const __VLS_349 = __VLS_asFunctionalComponent(__VLS_348, new __VLS_348({
     modelValue: (__VLS_ctx.projectDialogVisible),
     title: (__VLS_ctx.t('layout.dialogs.newProject')),
     width: "420px",
-}, ...__VLS_functionalComponentArgsRest(__VLS_333));
-__VLS_335.slots.default;
-const __VLS_336 = {}.ElForm;
+}));
+const __VLS_350 = __VLS_349({
+    modelValue: (__VLS_ctx.projectDialogVisible),
+    title: (__VLS_ctx.t('layout.dialogs.newProject')),
+    width: "420px",
+}, ...__VLS_functionalComponentArgsRest(__VLS_349));
+__VLS_351.slots.default;
+const __VLS_352 = {}.ElForm;
 /** @type {[typeof __VLS_components.ElForm, typeof __VLS_components.elForm, typeof __VLS_components.ElForm, typeof __VLS_components.elForm, ]} */ ;
 // @ts-ignore
-const __VLS_337 = __VLS_asFunctionalComponent(__VLS_336, new __VLS_336({
-    model: (__VLS_ctx.projectForm),
-    labelWidth: "80px",
-}));
-const __VLS_338 = __VLS_337({
-    model: (__VLS_ctx.projectForm),
-    labelWidth: "80px",
-}, ...__VLS_functionalComponentArgsRest(__VLS_337));
-__VLS_339.slots.default;
-const __VLS_340 = {}.ElFormItem;
-/** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
-// @ts-ignore
-const __VLS_341 = __VLS_asFunctionalComponent(__VLS_340, new __VLS_340({
-    label: (__VLS_ctx.t('layout.dialogs.name')),
-    required: true,
-}));
-const __VLS_342 = __VLS_341({
-    label: (__VLS_ctx.t('layout.dialogs.name')),
-    required: true,
-}, ...__VLS_functionalComponentArgsRest(__VLS_341));
-__VLS_343.slots.default;
-const __VLS_344 = {}.ElInput;
-/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
-// @ts-ignore
-const __VLS_345 = __VLS_asFunctionalComponent(__VLS_344, new __VLS_344({
-    ...{ 'onKeyup': {} },
-    modelValue: (__VLS_ctx.projectForm.name),
-}));
-const __VLS_346 = __VLS_345({
-    ...{ 'onKeyup': {} },
-    modelValue: (__VLS_ctx.projectForm.name),
-}, ...__VLS_functionalComponentArgsRest(__VLS_345));
-let __VLS_348;
-let __VLS_349;
-let __VLS_350;
-const __VLS_351 = {
-    onKeyup: (__VLS_ctx.submitProject)
-};
-var __VLS_347;
-var __VLS_343;
-const __VLS_352 = {}.ElFormItem;
-/** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
-// @ts-ignore
 const __VLS_353 = __VLS_asFunctionalComponent(__VLS_352, new __VLS_352({
-    label: (__VLS_ctx.t('layout.dialogs.summary')),
+    model: (__VLS_ctx.projectForm),
+    labelWidth: "80px",
 }));
 const __VLS_354 = __VLS_353({
-    label: (__VLS_ctx.t('layout.dialogs.summary')),
+    model: (__VLS_ctx.projectForm),
+    labelWidth: "80px",
 }, ...__VLS_functionalComponentArgsRest(__VLS_353));
 __VLS_355.slots.default;
-const __VLS_356 = {}.ElInput;
-/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
+const __VLS_356 = {}.ElFormItem;
+/** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_357 = __VLS_asFunctionalComponent(__VLS_356, new __VLS_356({
+    label: (__VLS_ctx.t('layout.dialogs.name')),
+    required: true,
+}));
+const __VLS_358 = __VLS_357({
+    label: (__VLS_ctx.t('layout.dialogs.name')),
+    required: true,
+}, ...__VLS_functionalComponentArgsRest(__VLS_357));
+__VLS_359.slots.default;
+const __VLS_360 = {}.ElInput;
+/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
+// @ts-ignore
+const __VLS_361 = __VLS_asFunctionalComponent(__VLS_360, new __VLS_360({
+    ...{ 'onKeyup': {} },
+    modelValue: (__VLS_ctx.projectForm.name),
+}));
+const __VLS_362 = __VLS_361({
+    ...{ 'onKeyup': {} },
+    modelValue: (__VLS_ctx.projectForm.name),
+}, ...__VLS_functionalComponentArgsRest(__VLS_361));
+let __VLS_364;
+let __VLS_365;
+let __VLS_366;
+const __VLS_367 = {
+    onKeyup: (__VLS_ctx.submitProject)
+};
+var __VLS_363;
+var __VLS_359;
+const __VLS_368 = {}.ElFormItem;
+/** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
+// @ts-ignore
+const __VLS_369 = __VLS_asFunctionalComponent(__VLS_368, new __VLS_368({
+    label: (__VLS_ctx.t('layout.dialogs.summary')),
+}));
+const __VLS_370 = __VLS_369({
+    label: (__VLS_ctx.t('layout.dialogs.summary')),
+}, ...__VLS_functionalComponentArgsRest(__VLS_369));
+__VLS_371.slots.default;
+const __VLS_372 = {}.ElInput;
+/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
+// @ts-ignore
+const __VLS_373 = __VLS_asFunctionalComponent(__VLS_372, new __VLS_372({
     modelValue: (__VLS_ctx.projectForm.description),
     type: "textarea",
     rows: (3),
 }));
-const __VLS_358 = __VLS_357({
+const __VLS_374 = __VLS_373({
     modelValue: (__VLS_ctx.projectForm.description),
     type: "textarea",
     rows: (3),
-}, ...__VLS_functionalComponentArgsRest(__VLS_357));
+}, ...__VLS_functionalComponentArgsRest(__VLS_373));
+var __VLS_371;
 var __VLS_355;
-var __VLS_339;
 {
-    const { footer: __VLS_thisSlot } = __VLS_335.slots;
-    const __VLS_360 = {}.ElButton;
+    const { footer: __VLS_thisSlot } = __VLS_351.slots;
+    const __VLS_376 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
     // @ts-ignore
-    const __VLS_361 = __VLS_asFunctionalComponent(__VLS_360, new __VLS_360({
+    const __VLS_377 = __VLS_asFunctionalComponent(__VLS_376, new __VLS_376({
         ...{ 'onClick': {} },
     }));
-    const __VLS_362 = __VLS_361({
+    const __VLS_378 = __VLS_377({
         ...{ 'onClick': {} },
-    }, ...__VLS_functionalComponentArgsRest(__VLS_361));
-    let __VLS_364;
-    let __VLS_365;
-    let __VLS_366;
-    const __VLS_367 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_377));
+    let __VLS_380;
+    let __VLS_381;
+    let __VLS_382;
+    const __VLS_383 = {
         onClick: (...[$event]) => {
             __VLS_ctx.projectDialogVisible = false;
         }
     };
-    __VLS_363.slots.default;
+    __VLS_379.slots.default;
     (__VLS_ctx.t('layout.dialogs.cancel'));
-    var __VLS_363;
-    const __VLS_368 = {}.ElButton;
+    var __VLS_379;
+    const __VLS_384 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
     // @ts-ignore
-    const __VLS_369 = __VLS_asFunctionalComponent(__VLS_368, new __VLS_368({
+    const __VLS_385 = __VLS_asFunctionalComponent(__VLS_384, new __VLS_384({
         ...{ 'onClick': {} },
         type: "primary",
         loading: (__VLS_ctx.creatingProject),
     }));
-    const __VLS_370 = __VLS_369({
+    const __VLS_386 = __VLS_385({
         ...{ 'onClick': {} },
         type: "primary",
         loading: (__VLS_ctx.creatingProject),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_369));
-    let __VLS_372;
-    let __VLS_373;
-    let __VLS_374;
-    const __VLS_375 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_385));
+    let __VLS_388;
+    let __VLS_389;
+    let __VLS_390;
+    const __VLS_391 = {
         onClick: (__VLS_ctx.submitProject)
     };
-    __VLS_371.slots.default;
+    __VLS_387.slots.default;
     (__VLS_ctx.t('layout.dialogs.create'));
-    var __VLS_371;
+    var __VLS_387;
 }
-var __VLS_335;
-const __VLS_376 = {}.ElDialog;
+var __VLS_351;
+const __VLS_392 = {}.ElDialog;
 /** @type {[typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, ]} */ ;
 // @ts-ignore
-const __VLS_377 = __VLS_asFunctionalComponent(__VLS_376, new __VLS_376({
-    modelValue: (__VLS_ctx.volumeDialogVisible),
-    title: (__VLS_ctx.t('layout.dialogs.newVolume')),
-    width: "420px",
-}));
-const __VLS_378 = __VLS_377({
-    modelValue: (__VLS_ctx.volumeDialogVisible),
-    title: (__VLS_ctx.t('layout.dialogs.newVolume')),
-    width: "420px",
-}, ...__VLS_functionalComponentArgsRest(__VLS_377));
-__VLS_379.slots.default;
-const __VLS_380 = {}.ElForm;
-/** @type {[typeof __VLS_components.ElForm, typeof __VLS_components.elForm, typeof __VLS_components.ElForm, typeof __VLS_components.elForm, ]} */ ;
-// @ts-ignore
-const __VLS_381 = __VLS_asFunctionalComponent(__VLS_380, new __VLS_380({
-    model: (__VLS_ctx.volumeForm),
-    labelWidth: "90px",
-}));
-const __VLS_382 = __VLS_381({
-    model: (__VLS_ctx.volumeForm),
-    labelWidth: "90px",
-}, ...__VLS_functionalComponentArgsRest(__VLS_381));
-__VLS_383.slots.default;
-const __VLS_384 = {}.ElFormItem;
-/** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
-// @ts-ignore
-const __VLS_385 = __VLS_asFunctionalComponent(__VLS_384, new __VLS_384({
-    label: (__VLS_ctx.t('layout.dialogs.number')),
-    required: true,
-}));
-const __VLS_386 = __VLS_385({
-    label: (__VLS_ctx.t('layout.dialogs.number')),
-    required: true,
-}, ...__VLS_functionalComponentArgsRest(__VLS_385));
-__VLS_387.slots.default;
-const __VLS_388 = {}.ElInputNumber;
-/** @type {[typeof __VLS_components.ElInputNumber, typeof __VLS_components.elInputNumber, ]} */ ;
-// @ts-ignore
-const __VLS_389 = __VLS_asFunctionalComponent(__VLS_388, new __VLS_388({
-    modelValue: (__VLS_ctx.volumeForm.volumeNumber),
-    min: (1),
-    controlsPosition: "right",
-}));
-const __VLS_390 = __VLS_389({
-    modelValue: (__VLS_ctx.volumeForm.volumeNumber),
-    min: (1),
-    controlsPosition: "right",
-}, ...__VLS_functionalComponentArgsRest(__VLS_389));
-var __VLS_387;
-const __VLS_392 = {}.ElFormItem;
-/** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
-// @ts-ignore
 const __VLS_393 = __VLS_asFunctionalComponent(__VLS_392, new __VLS_392({
-    label: (__VLS_ctx.t('layout.dialogs.title')),
-    required: true,
+    modelValue: (__VLS_ctx.volumeDialogVisible),
+    title: (__VLS_ctx.t('layout.dialogs.newVolume')),
+    width: "420px",
 }));
 const __VLS_394 = __VLS_393({
-    label: (__VLS_ctx.t('layout.dialogs.title')),
-    required: true,
+    modelValue: (__VLS_ctx.volumeDialogVisible),
+    title: (__VLS_ctx.t('layout.dialogs.newVolume')),
+    width: "420px",
 }, ...__VLS_functionalComponentArgsRest(__VLS_393));
 __VLS_395.slots.default;
-const __VLS_396 = {}.ElInput;
-/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
+const __VLS_396 = {}.ElForm;
+/** @type {[typeof __VLS_components.ElForm, typeof __VLS_components.elForm, typeof __VLS_components.ElForm, typeof __VLS_components.elForm, ]} */ ;
 // @ts-ignore
 const __VLS_397 = __VLS_asFunctionalComponent(__VLS_396, new __VLS_396({
-    ...{ 'onKeyup': {} },
-    modelValue: (__VLS_ctx.volumeForm.title),
+    model: (__VLS_ctx.volumeForm),
+    labelWidth: "90px",
 }));
 const __VLS_398 = __VLS_397({
-    ...{ 'onKeyup': {} },
-    modelValue: (__VLS_ctx.volumeForm.title),
+    model: (__VLS_ctx.volumeForm),
+    labelWidth: "90px",
 }, ...__VLS_functionalComponentArgsRest(__VLS_397));
-let __VLS_400;
-let __VLS_401;
-let __VLS_402;
-const __VLS_403 = {
-    onKeyup: (__VLS_ctx.submitVolume)
-};
-var __VLS_399;
-var __VLS_395;
-const __VLS_404 = {}.ElFormItem;
+__VLS_399.slots.default;
+const __VLS_400 = {}.ElFormItem;
 /** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
+const __VLS_401 = __VLS_asFunctionalComponent(__VLS_400, new __VLS_400({
+    label: (__VLS_ctx.t('layout.dialogs.number')),
+    required: true,
+}));
+const __VLS_402 = __VLS_401({
+    label: (__VLS_ctx.t('layout.dialogs.number')),
+    required: true,
+}, ...__VLS_functionalComponentArgsRest(__VLS_401));
+__VLS_403.slots.default;
+const __VLS_404 = {}.ElInputNumber;
+/** @type {[typeof __VLS_components.ElInputNumber, typeof __VLS_components.elInputNumber, ]} */ ;
+// @ts-ignore
 const __VLS_405 = __VLS_asFunctionalComponent(__VLS_404, new __VLS_404({
-    label: (__VLS_ctx.t('layout.dialogs.theme')),
+    modelValue: (__VLS_ctx.volumeForm.volumeNumber),
+    min: (1),
+    controlsPosition: "right",
 }));
 const __VLS_406 = __VLS_405({
-    label: (__VLS_ctx.t('layout.dialogs.theme')),
+    modelValue: (__VLS_ctx.volumeForm.volumeNumber),
+    min: (1),
+    controlsPosition: "right",
 }, ...__VLS_functionalComponentArgsRest(__VLS_405));
-__VLS_407.slots.default;
-const __VLS_408 = {}.ElInput;
-/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
+var __VLS_403;
+const __VLS_408 = {}.ElFormItem;
+/** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
 // @ts-ignore
 const __VLS_409 = __VLS_asFunctionalComponent(__VLS_408, new __VLS_408({
+    label: (__VLS_ctx.t('layout.dialogs.title')),
+    required: true,
+}));
+const __VLS_410 = __VLS_409({
+    label: (__VLS_ctx.t('layout.dialogs.title')),
+    required: true,
+}, ...__VLS_functionalComponentArgsRest(__VLS_409));
+__VLS_411.slots.default;
+const __VLS_412 = {}.ElInput;
+/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
+// @ts-ignore
+const __VLS_413 = __VLS_asFunctionalComponent(__VLS_412, new __VLS_412({
+    ...{ 'onKeyup': {} },
+    modelValue: (__VLS_ctx.volumeForm.title),
+}));
+const __VLS_414 = __VLS_413({
+    ...{ 'onKeyup': {} },
+    modelValue: (__VLS_ctx.volumeForm.title),
+}, ...__VLS_functionalComponentArgsRest(__VLS_413));
+let __VLS_416;
+let __VLS_417;
+let __VLS_418;
+const __VLS_419 = {
+    onKeyup: (__VLS_ctx.submitVolume)
+};
+var __VLS_415;
+var __VLS_411;
+const __VLS_420 = {}.ElFormItem;
+/** @type {[typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, typeof __VLS_components.ElFormItem, typeof __VLS_components.elFormItem, ]} */ ;
+// @ts-ignore
+const __VLS_421 = __VLS_asFunctionalComponent(__VLS_420, new __VLS_420({
+    label: (__VLS_ctx.t('layout.dialogs.theme')),
+}));
+const __VLS_422 = __VLS_421({
+    label: (__VLS_ctx.t('layout.dialogs.theme')),
+}, ...__VLS_functionalComponentArgsRest(__VLS_421));
+__VLS_423.slots.default;
+const __VLS_424 = {}.ElInput;
+/** @type {[typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ]} */ ;
+// @ts-ignore
+const __VLS_425 = __VLS_asFunctionalComponent(__VLS_424, new __VLS_424({
     modelValue: (__VLS_ctx.volumeForm.theme),
     type: "textarea",
     rows: (3),
 }));
-const __VLS_410 = __VLS_409({
+const __VLS_426 = __VLS_425({
     modelValue: (__VLS_ctx.volumeForm.theme),
     type: "textarea",
     rows: (3),
-}, ...__VLS_functionalComponentArgsRest(__VLS_409));
-var __VLS_407;
-var __VLS_383;
+}, ...__VLS_functionalComponentArgsRest(__VLS_425));
+var __VLS_423;
+var __VLS_399;
 {
-    const { footer: __VLS_thisSlot } = __VLS_379.slots;
-    const __VLS_412 = {}.ElButton;
+    const { footer: __VLS_thisSlot } = __VLS_395.slots;
+    const __VLS_428 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
     // @ts-ignore
-    const __VLS_413 = __VLS_asFunctionalComponent(__VLS_412, new __VLS_412({
+    const __VLS_429 = __VLS_asFunctionalComponent(__VLS_428, new __VLS_428({
         ...{ 'onClick': {} },
     }));
-    const __VLS_414 = __VLS_413({
+    const __VLS_430 = __VLS_429({
         ...{ 'onClick': {} },
-    }, ...__VLS_functionalComponentArgsRest(__VLS_413));
-    let __VLS_416;
-    let __VLS_417;
-    let __VLS_418;
-    const __VLS_419 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_429));
+    let __VLS_432;
+    let __VLS_433;
+    let __VLS_434;
+    const __VLS_435 = {
         onClick: (...[$event]) => {
             __VLS_ctx.volumeDialogVisible = false;
         }
     };
-    __VLS_415.slots.default;
+    __VLS_431.slots.default;
     (__VLS_ctx.t('layout.dialogs.cancel'));
-    var __VLS_415;
-    const __VLS_420 = {}.ElButton;
+    var __VLS_431;
+    const __VLS_436 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
     // @ts-ignore
-    const __VLS_421 = __VLS_asFunctionalComponent(__VLS_420, new __VLS_420({
+    const __VLS_437 = __VLS_asFunctionalComponent(__VLS_436, new __VLS_436({
         ...{ 'onClick': {} },
         type: "primary",
         loading: (__VLS_ctx.creatingVolume),
     }));
-    const __VLS_422 = __VLS_421({
+    const __VLS_438 = __VLS_437({
         ...{ 'onClick': {} },
         type: "primary",
         loading: (__VLS_ctx.creatingVolume),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_421));
-    let __VLS_424;
-    let __VLS_425;
-    let __VLS_426;
-    const __VLS_427 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_437));
+    let __VLS_440;
+    let __VLS_441;
+    let __VLS_442;
+    const __VLS_443 = {
         onClick: (__VLS_ctx.submitVolume)
     };
-    __VLS_423.slots.default;
+    __VLS_439.slots.default;
     (__VLS_ctx.t('layout.dialogs.create'));
-    var __VLS_423;
+    var __VLS_439;
 }
-var __VLS_379;
+var __VLS_395;
 /** @type {__VLS_StyleScopedClasses['layout']} */ ;
 /** @type {__VLS_StyleScopedClasses['layout-aside']} */ ;
 /** @type {__VLS_StyleScopedClasses['brand']} */ ;
@@ -1358,6 +1413,7 @@ var __VLS_379;
 /** @type {__VLS_StyleScopedClasses['theme-trigger']} */ ;
 /** @type {__VLS_StyleScopedClasses['theme-pill']} */ ;
 /** @type {__VLS_StyleScopedClasses['mr-4']} */ ;
+/** @type {__VLS_StyleScopedClasses['user-chip']} */ ;
 /** @type {__VLS_StyleScopedClasses['layout-main']} */ ;
 var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
@@ -1375,9 +1431,12 @@ const __VLS_self = (await import('vue')).defineComponent({
             Promotion: Promotion,
             Setting: Setting,
             Sunny: Sunny,
+            SwitchButton: SwitchButton,
+            UserFilled: UserFilled,
             router: router,
             themeStore: themeStore,
             workContext: workContext,
+            authStore: authStore,
             localeStore: localeStore,
             t: t,
             setLocale: setLocale,
@@ -1399,6 +1458,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             openVolumeDialog: openVolumeDialog,
             submitProject: submitProject,
             submitVolume: submitVolume,
+            signOut: signOut,
         };
     },
 });

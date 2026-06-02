@@ -4,6 +4,7 @@ using TM.Web.Application.Dtos.Generate;
 using TM.Web.Application.Services;
 using TM.Web.Domain.Entities.Runtime;
 using TM.Web.Infrastructure.Persistence;
+using TM.Web.Infrastructure.Services.Generation;
 
 namespace TM.Web.Api.Controllers;
 
@@ -41,6 +42,12 @@ public class GenerationController : ControllerBase
         [FromBody] ChapterBatchGenerationRequest request,
         CancellationToken ct)
         => _chapterBatchJobs.QueueAsync(request, ct);
+
+    [HttpPost("chapter-batch-preview")]
+    public Task<IReadOnlyList<ChapterBatchGenerationPreviewItemDto>> PreviewChapterBatchGeneration(
+        [FromBody] ChapterBatchGenerationPreviewRequest request,
+        CancellationToken ct)
+        => ChapterBatchGenerationWorker.BuildPreviewAsync(_db, request, ct);
 
     [HttpGet("chapter-batch-jobs")]
     public IReadOnlyList<ChapterBatchGenerationJobStatusDto> ListChapterBatchGenerationJobs(

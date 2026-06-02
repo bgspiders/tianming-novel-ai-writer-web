@@ -39,6 +39,36 @@ public sealed class ChapterBatchGenerationRequest
     public string? ValidationReportId { get; set; }
 
     public bool RerunValidationAfterSave { get; set; }
+
+    public List<ChapterBatchGenerationPreviewItemDto> PreviewItems { get; set; } = new();
+}
+
+public sealed class ChapterBatchGenerationPreviewRequest
+{
+    public string ProjectId { get; set; } = string.Empty;
+
+    public string VolumeId { get; set; } = string.Empty;
+
+    public int StartChapterNumber { get; set; } = 1;
+
+    public int Count { get; set; } = 1;
+
+    public bool CreateMissing { get; set; } = true;
+}
+
+public sealed class ChapterBatchGenerationPreviewItemDto
+{
+    public int ChapterNumber { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Summary { get; set; } = string.Empty;
+
+    public bool Exists { get; set; }
+
+    public bool HasContent { get; set; }
+
+    public string Source { get; set; } = string.Empty;
 }
 
 public sealed class ChapterBatchGenerationAcceptedDto

@@ -22,7 +22,8 @@ export const messages = {
             generationPlanning: '生成规划',
             editorWorkspace: '写作编辑器',
             validationWorkbench: '校验工作台',
-            aiAssistant: 'AI 助手'
+            aiAssistant: 'AI 助手',
+            login: '登录'
         },
         layout: {
             stageBadge: '设计 → 规划 → 打包 → 生成 → 校验',
@@ -32,6 +33,7 @@ export const messages = {
             notSelected: '未选择',
             themeStudio: '主题工坊',
             language: '语言',
+            logout: '退出',
             followSystem: '跟随系统',
             scheduled: '定时切换',
             currentThemeAndSource: '{theme} / {source}',
@@ -49,7 +51,8 @@ export const messages = {
                 projectCreated: '项目已创建。',
                 projectCreateFailed: '创建项目失败。',
                 volumeCreated: '卷已创建。',
-                volumeCreateFailed: '创建卷失败。'
+                volumeCreateFailed: '创建卷失败。',
+                logoutFailed: '退出登录失败。'
             },
             dialogs: {
                 newProject: '新建项目',
@@ -856,8 +859,10 @@ export const messages = {
             },
             batch: {
                 title: '自动连续生成',
-                subtitle: '按章节号连续生成并自动保存，适合一次生成多章草稿。',
+                subtitle: '先确认标题和简介，再按章节号连续生成并自动保存。',
                 start: '开始自动生成',
+                preview: '生成标题简介',
+                confirmStart: '确认并生成正文',
                 stop: '停止',
                 startNumber: '起始章',
                 count: '生成章数',
@@ -866,6 +871,19 @@ export const messages = {
                 overwriteExisting: '覆盖已有正文',
                 stopOnFailure: '失败后停止',
                 countRequired: '生成章数必须大于 0。',
+                previewReady: '标题和简介已生成，请确认后再生成正文。',
+                previewFailed: '生成标题和简介失败。',
+                previewRequired: '请先生成并确认标题和简介。',
+                previewTitle: '正文生成前确认',
+                previewSubtitle: '可直接修改每章标题和简介；确认后后台会按这份清单生成正文。',
+                refreshPreview: '重新生成',
+                previewNumber: '章节',
+                previewTitleColumn: '标题',
+                previewSummaryColumn: '简介',
+                previewState: '状态',
+                previewNew: '新建',
+                previewExists: '已有章节',
+                previewHasContent: '已有正文',
                 missingChapter: '第 {number} 章不存在，且未启用自动创建。',
                 created: '已创建第 {number} 章：{title}',
                 generated: '已生成第 {number} 章：{title}',
@@ -1298,7 +1316,8 @@ export const messages = {
             generationPlanning: 'Generation Planning',
             editorWorkspace: 'Editor Workspace',
             validationWorkbench: 'Validation Workbench',
-            aiAssistant: 'AI Assistant'
+            aiAssistant: 'AI Assistant',
+            login: 'Login'
         },
         layout: {
             stageBadge: 'Design → Plan → Package → Generate → Validate',
@@ -1307,6 +1326,7 @@ export const messages = {
             volume: 'Volume',
             notSelected: 'Not selected',
             themeStudio: 'Theme Studio',
+            logout: 'Logout',
             language: 'Language',
             followSystem: 'Follow System',
             scheduled: 'Scheduled',
@@ -1325,7 +1345,8 @@ export const messages = {
                 projectCreated: 'Project created.',
                 projectCreateFailed: 'Failed to create project.',
                 volumeCreated: 'Volume created.',
-                volumeCreateFailed: 'Failed to create volume.'
+                volumeCreateFailed: 'Failed to create volume.',
+                logoutFailed: 'Failed to logout.'
             },
             dialogs: {
                 newProject: 'New Project',
@@ -2150,8 +2171,10 @@ export const messages = {
             },
             batch: {
                 title: 'Auto Generate Chapters',
-                subtitle: 'Generate by chapter number and save automatically, useful for multi-chapter drafts.',
+                subtitle: 'Confirm titles and summaries first, then generate and save chapters automatically.',
                 start: 'Start Auto Generate',
+                preview: 'Generate Titles',
+                confirmStart: 'Confirm and Generate',
                 stop: 'Stop',
                 startNumber: 'Start No.',
                 count: 'Chapter Count',
@@ -2160,6 +2183,19 @@ export const messages = {
                 overwriteExisting: 'Overwrite existing content',
                 stopOnFailure: 'Stop on failure',
                 countRequired: 'Chapter count must be greater than 0.',
+                previewReady: 'Titles and summaries are ready. Confirm them before generating content.',
+                previewFailed: 'Failed to generate titles and summaries.',
+                previewRequired: 'Generate and confirm titles and summaries first.',
+                previewTitle: 'Confirm Before Content Generation',
+                previewSubtitle: 'Edit titles and summaries here; the background job will use this list.',
+                refreshPreview: 'Regenerate',
+                previewNumber: 'No.',
+                previewTitleColumn: 'Title',
+                previewSummaryColumn: 'Summary',
+                previewState: 'State',
+                previewNew: 'New',
+                previewExists: 'Exists',
+                previewHasContent: 'Has content',
                 missingChapter: 'Chapter {number} does not exist and auto creation is disabled.',
                 created: 'Created Chapter {number}: {title}',
                 generated: 'Generated Chapter {number}: {title}',
