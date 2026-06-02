@@ -223,6 +223,7 @@ async function submitVolume() {
             <span>{{ t('layout.menu.generate') }}</span>
           </template>
           <el-menu-item index="/generate">{{ t('layout.menu.workbench') }}</el-menu-item>
+          <el-menu-item index="/generate/novel-seed">{{ t('layout.menu.novelSeed') }}</el-menu-item>
           <el-menu-item index="/generate/outlines">{{ t('layout.menu.outlines') }}</el-menu-item>
           <el-menu-item index="/generate/volume_designs">{{ t('layout.menu.volumeDesigns') }}</el-menu-item>
           <el-menu-item index="/generate/chapter_plans">{{ t('layout.menu.chapterPlans') }}</el-menu-item>

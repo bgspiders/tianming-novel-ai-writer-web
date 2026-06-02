@@ -18,6 +18,29 @@ public interface IChapterDraftService
     Task<ChapterDraftResult> GenerateDraftAsync(ChapterDraftRequest request, CancellationToken ct = default);
 }
 
+public interface IChapterBatchGenerationService
+{
+    Task<ChapterBatchGenerationAcceptedDto> QueueAsync(ChapterBatchGenerationRequest request, CancellationToken ct = default);
+
+    ChapterBatchGenerationJobStatusDto? GetStatus(string jobId);
+
+    IReadOnlyList<ChapterBatchGenerationJobStatusDto> ListRecent(string? projectId = null, int take = 20);
+
+    bool RequestCancel(string jobId);
+}
+
+public interface IChapterBatchGenerationJobQueue
+{
+    ValueTask EnqueueAsync(ChapterBatchGenerationJob job, CancellationToken ct = default);
+
+    ValueTask<ChapterBatchGenerationJob> DequeueAsync(CancellationToken ct);
+}
+
+public sealed record ChapterBatchGenerationJob(
+    string JobId,
+    ChapterBatchGenerationRequest Request,
+    DateTime QueuedAt);
+
 public interface IContextPackagingService
 {
     Task<PackageContextResult> PackageAsync(PackageContextRequest request, CancellationToken ct = default);

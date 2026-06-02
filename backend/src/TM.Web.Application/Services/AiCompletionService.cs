@@ -27,26 +27,7 @@ public sealed class AiCompletionService : IAiCompletionService
 
     public async Task<AiTestResult> StreamAsync(AiTestRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.RunId))
-        {
-            throw new ArgumentException("RunId 不能为空", nameof(request));
-        }
-        if (string.IsNullOrWhiteSpace(request.Endpoint))
-        {
-            throw new ArgumentException("Endpoint 不能为空（例如 https://api.openai.com/v1）", nameof(request));
-        }
-        if (string.IsNullOrWhiteSpace(request.ApiKey))
-        {
-            throw new ArgumentException("ApiKey 不能为空", nameof(request));
-        }
-        if (string.IsNullOrWhiteSpace(request.Model))
-        {
-            throw new ArgumentException("Model 不能为空", nameof(request));
-        }
-        if (string.IsNullOrWhiteSpace(request.Prompt))
-        {
-            throw new ArgumentException("Prompt 不能为空", nameof(request));
-        }
+        ValidateRequest(request, requireRunId: true);
 
         var sw = Stopwatch.StartNew();
         var result = new AiTestResult
@@ -134,6 +115,45 @@ public sealed class AiCompletionService : IAiCompletionService
         return result;
     }
 
+    public async Task<AiTestResult> CompleteAsync(AiTestRequest request, CancellationToken ct = default)
+    {
+        ValidateRequest(request, requireRunId: false);
+
+        var sw = Stopwatch.StartNew();
+        var result = new AiTestResult
+        {
+            RunId = string.IsNullOrWhiteSpace(request.RunId) ? Guid.NewGuid().ToString("N") : request.RunId,
+            Model = request.Model
+        };
+
+        try
+        {
+            var (chat, history, settings, kernel) = BuildChatRequest(request);
+            var response = await chat.GetChatMessageContentAsync(history, settings, kernel, ct);
+            result.Content = response.Content ?? string.Empty;
+            result.CharCount = result.Content.Length;
+            result.ChunkCount = string.IsNullOrEmpty(result.Content) ? 0 : 1;
+            result.FinishReason = response.Metadata is not null
+                && response.Metadata.TryGetValue("FinishReason", out var raw)
+                && raw is not null
+                    ? raw.ToString()
+                    : "stop";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AI completion failed. runId={RunId}", result.RunId);
+            var message = BuildAiFailureMessage(ex, result.CharCount, request.MaxTokens);
+            throw new InvalidOperationException(message, ex);
+        }
+        finally
+        {
+            sw.Stop();
+            result.ElapsedMs = sw.ElapsedMilliseconds;
+        }
+
+        return result;
+    }
+
     /// <summary>
     /// OpenAI 兼容服务的常见坑：端点必须带 /v1 才能正确路由。
     /// 如果用户填了根域名（如 https://api.deepseek.com），自动补齐。
@@ -150,10 +170,71 @@ public sealed class AiCompletionService : IAiCompletionService
         return trimmed + "/v1";
     }
 
+    private (IChatCompletionService Chat, ChatHistory History, OpenAIPromptExecutionSettings Settings, Kernel Kernel) BuildChatRequest(AiTestRequest request)
+    {
+        var kernel = Kernel.CreateBuilder()
+            .AddOpenAIChatCompletion(
+                modelId: request.Model,
+                endpoint: new Uri(NormalizeEndpoint(request.Endpoint)),
+                apiKey: request.ApiKey,
+                httpClient: _httpClientFactory.CreateOpenAiCompatibleClient())
+            .Build();
+
+        var chat = kernel.GetRequiredService<IChatCompletionService>();
+
+        var history = new ChatHistory();
+        if (!string.IsNullOrWhiteSpace(request.SystemPrompt))
+        {
+            history.AddSystemMessage(request.SystemPrompt!);
+        }
+        history.AddUserMessage(request.Prompt);
+
+        var settings = new OpenAIPromptExecutionSettings
+        {
+            Temperature = request.Temperature ?? 0.7,
+            MaxTokens = request.MaxTokens ?? 1024
+        };
+
+        return (chat, history, settings, kernel);
+    }
+
+    private static void ValidateRequest(AiTestRequest request, bool requireRunId)
+    {
+        if (requireRunId && string.IsNullOrWhiteSpace(request.RunId))
+        {
+            throw new ArgumentException("RunId 不能为空", nameof(request));
+        }
+        if (string.IsNullOrWhiteSpace(request.Endpoint))
+        {
+            throw new ArgumentException("Endpoint 不能为空（例如 https://api.openai.com/v1）", nameof(request));
+        }
+        if (string.IsNullOrWhiteSpace(request.ApiKey))
+        {
+            throw new ArgumentException("ApiKey 不能为空", nameof(request));
+        }
+        if (string.IsNullOrWhiteSpace(request.Model))
+        {
+            throw new ArgumentException("Model 不能为空", nameof(request));
+        }
+        if (string.IsNullOrWhiteSpace(request.Prompt))
+        {
+            throw new ArgumentException("Prompt 不能为空", nameof(request));
+        }
+    }
+
     private static string BuildAiFailureMessage(Exception ex, int streamedChars, int? maxTokens)
     {
         var root = GetInnermostMessage(ex);
         var tokenHint = maxTokens.HasValue ? $"当前最大 Tokens={maxTokens.Value}。" : string.Empty;
+
+        if (root.Contains("ResponseEnded", StringComparison.OrdinalIgnoreCase)
+            || root.Contains("response ended prematurely", StringComparison.OrdinalIgnoreCase)
+            || root.Contains("ended prematurely", StringComparison.OrdinalIgnoreCase))
+        {
+            return streamedChars > 0
+                ? $"AI 上游连接在已返回 {streamedChars} 个字符后提前断开。{tokenHint}请降低输出规模，或分卷/分段生成后重试。原始错误：{root}"
+                : $"AI 上游响应提前断开。{tokenHint}通常是单次输出过长、模型/网关不稳定或上游限制导致；请降低章节数量、降低最大 Tokens，或分段生成后重试。原始错误：{root}";
+        }
 
         if (ex is HttpRequestException || root.Contains("sending the request", StringComparison.OrdinalIgnoreCase))
         {

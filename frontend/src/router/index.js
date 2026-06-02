@@ -65,6 +65,12 @@ const routes = [
                 meta: { titleKey: 'routes.generationWorkbench' }
             },
             {
+                path: 'generate/novel-seed',
+                name: 'novel-seed',
+                component: () => import('@/views/generate/NovelSeedView.vue'),
+                meta: { titleKey: 'routes.novelSeed' }
+            },
+            {
                 path: 'generate/chapters',
                 name: 'chapter-generation',
                 component: () => import('@/views/generate/ChapterGenerationView.vue'),

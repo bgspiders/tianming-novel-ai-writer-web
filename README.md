@@ -87,6 +87,8 @@ Vite 会把 `/api` 和 `/hubs` 代理到后端 `http://localhost:38721`。
 
 ## Docker 部署
 
+Docker 部署以仓库根目录作为构建上下文，镜像会同时构建根目录下的 `frontend/` 和 `backend/`，不再依赖旧的 `web/` 目录。
+
 ### 启动
 
 ```bash
@@ -129,6 +131,12 @@ docker compose up -d --build
 ```text
 http://localhost:38721/api/health
 ```
+
+### 构建注意事项
+
+- `frontend/package-lock.json` 必须与 `frontend/package.json` 保持同步，否则 Docker 内部的 `npm ci` 会失败。
+- 后端运行镜像基于 Playwright .NET 镜像，首次构建会拉取较大的基础镜像。
+- 如果构建时报 `mcr.microsoft.com/... EOF`，通常是 Microsoft 镜像仓库连接中断，重新执行 `docker compose up -d --build` 即可继续。
 
 ## 代理配置
 

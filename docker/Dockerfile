@@ -10,7 +10,7 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /src
 
-COPY web/frontend/package.json web/frontend/package-lock.json* ./
+COPY frontend/package.json frontend/package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
     if [ -f package-lock.json ]; then \
         npm ci --no-fund --no-audit --no-progress; \
@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.npm \
         npm install --no-fund --no-audit --no-progress; \
     fi
 
-COPY web/frontend/. .
+COPY frontend/. .
 RUN npm run build
 
 # ---------- Stage 2: build backend ----------
@@ -26,21 +26,19 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS backend-build
 WORKDIR /src
 
 # Copy project files for restore
-COPY web/backend/TM.Web.sln web/backend/Directory.Build.props ./web/backend/
-COPY web/backend/src/TM.Web.Api/TM.Web.Api.csproj web/backend/src/TM.Web.Api/
-COPY web/backend/src/TM.Web.Application/TM.Web.Application.csproj web/backend/src/TM.Web.Application/
-COPY web/backend/src/TM.Web.Domain/TM.Web.Domain.csproj web/backend/src/TM.Web.Domain/
-COPY web/backend/src/TM.Web.Infrastructure/TM.Web.Infrastructure.csproj web/backend/src/TM.Web.Infrastructure/
-COPY web/backend/src/TM.Web.LegacyBridge/TM.Web.LegacyBridge.csproj web/backend/src/TM.Web.LegacyBridge/
-COPY web/backend/tests/TM.Web.Tests/TM.Web.Tests.csproj web/backend/tests/TM.Web.Tests/
-RUN dotnet restore web/backend/src/TM.Web.Api/TM.Web.Api.csproj
+COPY backend/TM.Web.sln backend/Directory.Build.props ./backend/
+COPY backend/src/TM.Web.Api/TM.Web.Api.csproj backend/src/TM.Web.Api/
+COPY backend/src/TM.Web.Application/TM.Web.Application.csproj backend/src/TM.Web.Application/
+COPY backend/src/TM.Web.Domain/TM.Web.Domain.csproj backend/src/TM.Web.Domain/
+COPY backend/src/TM.Web.Infrastructure/TM.Web.Infrastructure.csproj backend/src/TM.Web.Infrastructure/
+COPY backend/src/TM.Web.LegacyBridge/TM.Web.LegacyBridge.csproj backend/src/TM.Web.LegacyBridge/
+COPY backend/tests/TM.Web.Tests/TM.Web.Tests.csproj backend/tests/TM.Web.Tests/
+RUN dotnet restore backend/src/TM.Web.Api/TM.Web.Api.csproj
 
-# Copy full source (including Framework/ and Services/ for LegacyBridge)
-COPY Framework/ Framework/
-COPY Services/ Services/
-COPY web/backend/ web/backend/
+# Copy full source.
+COPY backend/ backend/
 
-RUN dotnet publish web/backend/src/TM.Web.Api/TM.Web.Api.csproj \
+RUN dotnet publish backend/src/TM.Web.Api/TM.Web.Api.csproj \
     -c Release \
     -o /publish \
     --no-restore \

@@ -1,9 +1,11 @@
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { useI18n } from '@/composables/useI18n';
 import { useWorkContextStore } from '@/stores/workContext';
 import { getFactSnapshot, listValidationReports, listValidationSummaries, runValidation, updateValidationReportChapterStatus } from '@/api/modules/validation';
 const workContext = useWorkContextStore();
+const router = useRouter();
 const { t } = useI18n();
 const loading = ref(false);
 const running = ref(false);
@@ -242,6 +244,24 @@ async function markChapterStatus(report, status) {
     finally {
         updatingReportId.value = '';
     }
+}
+async function openFixChapter(report) {
+    if (!report.chapterId)
+        return;
+    const repairSummary = report.items
+        .filter((item) => item.result !== 'passed')
+        .slice(0, 3)
+        .map((item) => `${item.name}：${item.suggestion || item.details}`)
+        .join('；');
+    await router.push({
+        path: '/generate/chapters',
+        query: {
+            chapterId: report.chapterId,
+            validationReportId: report.id,
+            rewriteMode: 'validation_fix',
+            repairSummary
+        }
+    });
 }
 watch(() => [workContext.selectedProjectId, workContext.selectedVolumeId], refresh);
 onMounted(refresh);
@@ -639,29 +659,25 @@ __VLS_95.slots.default;
     const __VLS_97 = __VLS_asFunctionalComponent(__VLS_96, new __VLS_96({
         ...{ 'onClick': {} },
         size: "small",
-        type: "danger",
         plain: true,
-        loading: (__VLS_ctx.updatingReportId === row.id),
-        disabled: (row.chapterStatus === 'needs_fix'),
+        type: "primary",
     }));
     const __VLS_98 = __VLS_97({
         ...{ 'onClick': {} },
         size: "small",
-        type: "danger",
         plain: true,
-        loading: (__VLS_ctx.updatingReportId === row.id),
-        disabled: (row.chapterStatus === 'needs_fix'),
+        type: "primary",
     }, ...__VLS_functionalComponentArgsRest(__VLS_97));
     let __VLS_100;
     let __VLS_101;
     let __VLS_102;
     const __VLS_103 = {
         onClick: (...[$event]) => {
-            __VLS_ctx.markChapterStatus(row, 'needs_fix');
+            __VLS_ctx.openFixChapter(row);
         }
     };
     __VLS_99.slots.default;
-    (__VLS_ctx.t('validationWorkbench.actions.markNeedsFix'));
+    (__VLS_ctx.t('validationWorkbench.actions.goFixChapter'));
     var __VLS_99;
     const __VLS_104 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -669,163 +685,193 @@ __VLS_95.slots.default;
     const __VLS_105 = __VLS_asFunctionalComponent(__VLS_104, new __VLS_104({
         ...{ 'onClick': {} },
         size: "small",
-        type: "success",
+        type: "danger",
         plain: true,
         loading: (__VLS_ctx.updatingReportId === row.id),
-        disabled: (row.chapterStatus === 'validated'),
+        disabled: (row.chapterStatus === 'needs_fix'),
     }));
     const __VLS_106 = __VLS_105({
         ...{ 'onClick': {} },
         size: "small",
-        type: "success",
+        type: "danger",
         plain: true,
         loading: (__VLS_ctx.updatingReportId === row.id),
-        disabled: (row.chapterStatus === 'validated'),
+        disabled: (row.chapterStatus === 'needs_fix'),
     }, ...__VLS_functionalComponentArgsRest(__VLS_105));
     let __VLS_108;
     let __VLS_109;
     let __VLS_110;
     const __VLS_111 = {
         onClick: (...[$event]) => {
-            __VLS_ctx.markChapterStatus(row, 'validated');
+            __VLS_ctx.markChapterStatus(row, 'needs_fix');
         }
     };
     __VLS_107.slots.default;
-    (__VLS_ctx.t('validationWorkbench.actions.markValidated'));
+    (__VLS_ctx.t('validationWorkbench.actions.markNeedsFix'));
     var __VLS_107;
+    const __VLS_112 = {}.ElButton;
+    /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
+    // @ts-ignore
+    const __VLS_113 = __VLS_asFunctionalComponent(__VLS_112, new __VLS_112({
+        ...{ 'onClick': {} },
+        size: "small",
+        type: "success",
+        plain: true,
+        loading: (__VLS_ctx.updatingReportId === row.id),
+        disabled: (row.chapterStatus === 'validated'),
+    }));
+    const __VLS_114 = __VLS_113({
+        ...{ 'onClick': {} },
+        size: "small",
+        type: "success",
+        plain: true,
+        loading: (__VLS_ctx.updatingReportId === row.id),
+        disabled: (row.chapterStatus === 'validated'),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_113));
+    let __VLS_116;
+    let __VLS_117;
+    let __VLS_118;
+    const __VLS_119 = {
+        onClick: (...[$event]) => {
+            __VLS_ctx.markChapterStatus(row, 'validated');
+        }
+    };
+    __VLS_115.slots.default;
+    (__VLS_ctx.t('validationWorkbench.actions.markValidated'));
+    var __VLS_115;
 }
 var __VLS_95;
-const __VLS_112 = {}.ElTableColumn;
+const __VLS_120 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
-const __VLS_113 = __VLS_asFunctionalComponent(__VLS_112, new __VLS_112({
+const __VLS_121 = __VLS_asFunctionalComponent(__VLS_120, new __VLS_120({
     type: "expand",
 }));
-const __VLS_114 = __VLS_113({
+const __VLS_122 = __VLS_121({
     type: "expand",
-}, ...__VLS_functionalComponentArgsRest(__VLS_113));
-__VLS_115.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_121));
+__VLS_123.slots.default;
 {
-    const { default: __VLS_thisSlot } = __VLS_115.slots;
+    const { default: __VLS_thisSlot } = __VLS_123.slots;
     const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
-    const __VLS_116 = {}.ElTable;
+    const __VLS_124 = {}.ElTable;
     /** @type {[typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ]} */ ;
     // @ts-ignore
-    const __VLS_117 = __VLS_asFunctionalComponent(__VLS_116, new __VLS_116({
-        data: (row.items),
-        size: "small",
-        border: true,
-    }));
-    const __VLS_118 = __VLS_117({
-        data: (row.items),
-        size: "small",
-        border: true,
-    }, ...__VLS_functionalComponentArgsRest(__VLS_117));
-    __VLS_119.slots.default;
-    const __VLS_120 = {}.ElTableColumn;
-    /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
-    // @ts-ignore
-    const __VLS_121 = __VLS_asFunctionalComponent(__VLS_120, new __VLS_120({
-        prop: "name",
-        label: (__VLS_ctx.t('validationWorkbench.columns.check')),
-        width: "150",
-    }));
-    const __VLS_122 = __VLS_121({
-        prop: "name",
-        label: (__VLS_ctx.t('validationWorkbench.columns.check')),
-        width: "150",
-    }, ...__VLS_functionalComponentArgsRest(__VLS_121));
-    const __VLS_124 = {}.ElTableColumn;
-    /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
-    // @ts-ignore
     const __VLS_125 = __VLS_asFunctionalComponent(__VLS_124, new __VLS_124({
-        prop: "details",
-        label: (__VLS_ctx.t('validationWorkbench.columns.details')),
-        minWidth: "220",
+        data: (row.items),
+        size: "small",
+        border: true,
     }));
     const __VLS_126 = __VLS_125({
-        prop: "details",
-        label: (__VLS_ctx.t('validationWorkbench.columns.details')),
-        minWidth: "220",
+        data: (row.items),
+        size: "small",
+        border: true,
     }, ...__VLS_functionalComponentArgsRest(__VLS_125));
+    __VLS_127.slots.default;
     const __VLS_128 = {}.ElTableColumn;
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
     const __VLS_129 = __VLS_asFunctionalComponent(__VLS_128, new __VLS_128({
-        prop: "suggestion",
-        label: (__VLS_ctx.t('validationWorkbench.columns.suggestion')),
-        minWidth: "220",
+        prop: "name",
+        label: (__VLS_ctx.t('validationWorkbench.columns.check')),
+        width: "150",
     }));
     const __VLS_130 = __VLS_129({
+        prop: "name",
+        label: (__VLS_ctx.t('validationWorkbench.columns.check')),
+        width: "150",
+    }, ...__VLS_functionalComponentArgsRest(__VLS_129));
+    const __VLS_132 = {}.ElTableColumn;
+    /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
+    // @ts-ignore
+    const __VLS_133 = __VLS_asFunctionalComponent(__VLS_132, new __VLS_132({
+        prop: "details",
+        label: (__VLS_ctx.t('validationWorkbench.columns.details')),
+        minWidth: "220",
+    }));
+    const __VLS_134 = __VLS_133({
+        prop: "details",
+        label: (__VLS_ctx.t('validationWorkbench.columns.details')),
+        minWidth: "220",
+    }, ...__VLS_functionalComponentArgsRest(__VLS_133));
+    const __VLS_136 = {}.ElTableColumn;
+    /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
+    // @ts-ignore
+    const __VLS_137 = __VLS_asFunctionalComponent(__VLS_136, new __VLS_136({
         prop: "suggestion",
         label: (__VLS_ctx.t('validationWorkbench.columns.suggestion')),
         minWidth: "220",
-    }, ...__VLS_functionalComponentArgsRest(__VLS_129));
-    const __VLS_132 = {}.ElTableColumn;
+    }));
+    const __VLS_138 = __VLS_137({
+        prop: "suggestion",
+        label: (__VLS_ctx.t('validationWorkbench.columns.suggestion')),
+        minWidth: "220",
+    }, ...__VLS_functionalComponentArgsRest(__VLS_137));
+    const __VLS_140 = {}.ElTableColumn;
     /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
     // @ts-ignore
-    const __VLS_133 = __VLS_asFunctionalComponent(__VLS_132, new __VLS_132({
+    const __VLS_141 = __VLS_asFunctionalComponent(__VLS_140, new __VLS_140({
         label: (__VLS_ctx.t('validationWorkbench.columns.result')),
         width: "100",
     }));
-    const __VLS_134 = __VLS_133({
+    const __VLS_142 = __VLS_141({
         label: (__VLS_ctx.t('validationWorkbench.columns.result')),
         width: "100",
-    }, ...__VLS_functionalComponentArgsRest(__VLS_133));
-    __VLS_135.slots.default;
+    }, ...__VLS_functionalComponentArgsRest(__VLS_141));
+    __VLS_143.slots.default;
     {
-        const { default: __VLS_thisSlot } = __VLS_135.slots;
+        const { default: __VLS_thisSlot } = __VLS_143.slots;
         const { row: item } = __VLS_getSlotParam(__VLS_thisSlot);
-        const __VLS_136 = {}.ElTag;
+        const __VLS_144 = {}.ElTag;
         /** @type {[typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ]} */ ;
         // @ts-ignore
-        const __VLS_137 = __VLS_asFunctionalComponent(__VLS_136, new __VLS_136({
+        const __VLS_145 = __VLS_asFunctionalComponent(__VLS_144, new __VLS_144({
             type: (__VLS_ctx.resultType(item.result)),
         }));
-        const __VLS_138 = __VLS_137({
+        const __VLS_146 = __VLS_145({
             type: (__VLS_ctx.resultType(item.result)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_137));
-        __VLS_139.slots.default;
+        }, ...__VLS_functionalComponentArgsRest(__VLS_145));
+        __VLS_147.slots.default;
         (__VLS_ctx.resultLabel(item.result));
-        var __VLS_139;
+        var __VLS_147;
     }
-    var __VLS_135;
-    var __VLS_119;
+    var __VLS_143;
+    var __VLS_127;
 }
-var __VLS_115;
+var __VLS_123;
 var __VLS_63;
 var __VLS_59;
 var __VLS_55;
 var __VLS_23;
-const __VLS_140 = {}.ElCard;
+const __VLS_148 = {}.ElCard;
 /** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
 // @ts-ignore
-const __VLS_141 = __VLS_asFunctionalComponent(__VLS_140, new __VLS_140({
+const __VLS_149 = __VLS_asFunctionalComponent(__VLS_148, new __VLS_148({
     shadow: "never",
     ...{ class: "panel" },
 }));
-const __VLS_142 = __VLS_141({
+const __VLS_150 = __VLS_149({
     shadow: "never",
     ...{ class: "panel" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_141));
-__VLS_143.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_149));
+__VLS_151.slots.default;
 {
-    const { header: __VLS_thisSlot } = __VLS_143.slots;
+    const { header: __VLS_thisSlot } = __VLS_151.slots;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
     (__VLS_ctx.t('validationWorkbench.panels.factOverview'));
 }
 if (!__VLS_ctx.facts) {
-    const __VLS_144 = {}.ElEmpty;
+    const __VLS_152 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
-    const __VLS_145 = __VLS_asFunctionalComponent(__VLS_144, new __VLS_144({
+    const __VLS_153 = __VLS_asFunctionalComponent(__VLS_152, new __VLS_152({
         description: (__VLS_ctx.t('validationWorkbench.empty.factOverview')),
     }));
-    const __VLS_146 = __VLS_145({
+    const __VLS_154 = __VLS_153({
         description: (__VLS_ctx.t('validationWorkbench.empty.factOverview')),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_145));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_153));
 }
 else {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -844,343 +890,343 @@ else {
         (card.hint);
     }
 }
-var __VLS_143;
-const __VLS_148 = {}.ElCard;
+var __VLS_151;
+const __VLS_156 = {}.ElCard;
 /** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
 // @ts-ignore
-const __VLS_149 = __VLS_asFunctionalComponent(__VLS_148, new __VLS_148({
+const __VLS_157 = __VLS_asFunctionalComponent(__VLS_156, new __VLS_156({
     shadow: "never",
     ...{ class: "panel" },
 }));
-const __VLS_150 = __VLS_149({
+const __VLS_158 = __VLS_157({
     shadow: "never",
     ...{ class: "panel" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_149));
-__VLS_151.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_157));
+__VLS_159.slots.default;
 {
-    const { header: __VLS_thisSlot } = __VLS_151.slots;
+    const { header: __VLS_thisSlot } = __VLS_159.slots;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
     (__VLS_ctx.t('validationWorkbench.panels.trackingSummary'));
 }
 if (!__VLS_ctx.facts || __VLS_ctx.facts.sections.length === 0) {
-    const __VLS_152 = {}.ElEmpty;
+    const __VLS_160 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
-    const __VLS_153 = __VLS_asFunctionalComponent(__VLS_152, new __VLS_152({
+    const __VLS_161 = __VLS_asFunctionalComponent(__VLS_160, new __VLS_160({
         description: (__VLS_ctx.t('validationWorkbench.empty.trackingSummary')),
     }));
-    const __VLS_154 = __VLS_153({
+    const __VLS_162 = __VLS_161({
         description: (__VLS_ctx.t('validationWorkbench.empty.trackingSummary')),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_153));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_161));
 }
 else {
-    const __VLS_156 = {}.ElCollapse;
+    const __VLS_164 = {}.ElCollapse;
     /** @type {[typeof __VLS_components.ElCollapse, typeof __VLS_components.elCollapse, typeof __VLS_components.ElCollapse, typeof __VLS_components.elCollapse, ]} */ ;
     // @ts-ignore
-    const __VLS_157 = __VLS_asFunctionalComponent(__VLS_156, new __VLS_156({}));
-    const __VLS_158 = __VLS_157({}, ...__VLS_functionalComponentArgsRest(__VLS_157));
-    __VLS_159.slots.default;
+    const __VLS_165 = __VLS_asFunctionalComponent(__VLS_164, new __VLS_164({}));
+    const __VLS_166 = __VLS_165({}, ...__VLS_functionalComponentArgsRest(__VLS_165));
+    __VLS_167.slots.default;
     for (const [section] of __VLS_getVForSourceType((__VLS_ctx.facts.sections))) {
-        const __VLS_160 = {}.ElCollapseItem;
+        const __VLS_168 = {}.ElCollapseItem;
         /** @type {[typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, ]} */ ;
         // @ts-ignore
-        const __VLS_161 = __VLS_asFunctionalComponent(__VLS_160, new __VLS_160({
+        const __VLS_169 = __VLS_asFunctionalComponent(__VLS_168, new __VLS_168({
             key: (section.key),
             title: (`${section.title} / ${section.totalCount}`),
             name: (section.key),
         }));
-        const __VLS_162 = __VLS_161({
+        const __VLS_170 = __VLS_169({
             key: (section.key),
             title: (`${section.title} / ${section.totalCount}`),
             name: (section.key),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_161));
-        __VLS_163.slots.default;
+        }, ...__VLS_functionalComponentArgsRest(__VLS_169));
+        __VLS_171.slots.default;
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "section-summary" },
         });
         (section.summary);
-        const __VLS_164 = {}.ElTable;
+        const __VLS_172 = {}.ElTable;
         /** @type {[typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ]} */ ;
         // @ts-ignore
-        const __VLS_165 = __VLS_asFunctionalComponent(__VLS_164, new __VLS_164({
-            data: (section.items),
-            size: "small",
-            border: true,
-        }));
-        const __VLS_166 = __VLS_165({
-            data: (section.items),
-            size: "small",
-            border: true,
-        }, ...__VLS_functionalComponentArgsRest(__VLS_165));
-        __VLS_167.slots.default;
-        const __VLS_168 = {}.ElTableColumn;
-        /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
-        // @ts-ignore
-        const __VLS_169 = __VLS_asFunctionalComponent(__VLS_168, new __VLS_168({
-            prop: "name",
-            label: (__VLS_ctx.t('validationWorkbench.columns.name')),
-            minWidth: "150",
-        }));
-        const __VLS_170 = __VLS_169({
-            prop: "name",
-            label: (__VLS_ctx.t('validationWorkbench.columns.name')),
-            minWidth: "150",
-        }, ...__VLS_functionalComponentArgsRest(__VLS_169));
-        const __VLS_172 = {}.ElTableColumn;
-        /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
-        // @ts-ignore
         const __VLS_173 = __VLS_asFunctionalComponent(__VLS_172, new __VLS_172({
-            prop: "status",
-            label: (__VLS_ctx.t('validationWorkbench.columns.status')),
-            width: "130",
+            data: (section.items),
+            size: "small",
+            border: true,
         }));
         const __VLS_174 = __VLS_173({
+            data: (section.items),
+            size: "small",
+            border: true,
+        }, ...__VLS_functionalComponentArgsRest(__VLS_173));
+        __VLS_175.slots.default;
+        const __VLS_176 = {}.ElTableColumn;
+        /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
+        // @ts-ignore
+        const __VLS_177 = __VLS_asFunctionalComponent(__VLS_176, new __VLS_176({
+            prop: "name",
+            label: (__VLS_ctx.t('validationWorkbench.columns.name')),
+            minWidth: "150",
+        }));
+        const __VLS_178 = __VLS_177({
+            prop: "name",
+            label: (__VLS_ctx.t('validationWorkbench.columns.name')),
+            minWidth: "150",
+        }, ...__VLS_functionalComponentArgsRest(__VLS_177));
+        const __VLS_180 = {}.ElTableColumn;
+        /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
+        // @ts-ignore
+        const __VLS_181 = __VLS_asFunctionalComponent(__VLS_180, new __VLS_180({
             prop: "status",
             label: (__VLS_ctx.t('validationWorkbench.columns.status')),
             width: "130",
-        }, ...__VLS_functionalComponentArgsRest(__VLS_173));
-        const __VLS_176 = {}.ElTableColumn;
+        }));
+        const __VLS_182 = __VLS_181({
+            prop: "status",
+            label: (__VLS_ctx.t('validationWorkbench.columns.status')),
+            width: "130",
+        }, ...__VLS_functionalComponentArgsRest(__VLS_181));
+        const __VLS_184 = {}.ElTableColumn;
         /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
         // @ts-ignore
-        const __VLS_177 = __VLS_asFunctionalComponent(__VLS_176, new __VLS_176({
+        const __VLS_185 = __VLS_asFunctionalComponent(__VLS_184, new __VLS_184({
             label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
             width: "120",
         }));
-        const __VLS_178 = __VLS_177({
+        const __VLS_186 = __VLS_185({
             label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
             width: "120",
-        }, ...__VLS_functionalComponentArgsRest(__VLS_177));
-        __VLS_179.slots.default;
+        }, ...__VLS_functionalComponentArgsRest(__VLS_185));
+        __VLS_187.slots.default;
         {
-            const { default: __VLS_thisSlot } = __VLS_179.slots;
+            const { default: __VLS_thisSlot } = __VLS_187.slots;
             const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
             (row.chapterNumber
                 ? __VLS_ctx.t('validationWorkbench.chapterOnly', { number: row.chapterNumber })
                 : '-');
         }
-        var __VLS_179;
-        const __VLS_180 = {}.ElTableColumn;
+        var __VLS_187;
+        const __VLS_188 = {}.ElTableColumn;
         /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
         // @ts-ignore
-        const __VLS_181 = __VLS_asFunctionalComponent(__VLS_180, new __VLS_180({
+        const __VLS_189 = __VLS_asFunctionalComponent(__VLS_188, new __VLS_188({
             prop: "detail",
             label: (__VLS_ctx.t('validationWorkbench.columns.detail')),
             minWidth: "240",
         }));
-        const __VLS_182 = __VLS_181({
+        const __VLS_190 = __VLS_189({
             prop: "detail",
             label: (__VLS_ctx.t('validationWorkbench.columns.detail')),
             minWidth: "240",
-        }, ...__VLS_functionalComponentArgsRest(__VLS_181));
-        const __VLS_184 = {}.ElTableColumn;
+        }, ...__VLS_functionalComponentArgsRest(__VLS_189));
+        const __VLS_192 = {}.ElTableColumn;
         /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
         // @ts-ignore
-        const __VLS_185 = __VLS_asFunctionalComponent(__VLS_184, new __VLS_184({
+        const __VLS_193 = __VLS_asFunctionalComponent(__VLS_192, new __VLS_192({
             prop: "importance",
             label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
             width: "110",
         }));
-        const __VLS_186 = __VLS_185({
+        const __VLS_194 = __VLS_193({
             prop: "importance",
             label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
             width: "110",
-        }, ...__VLS_functionalComponentArgsRest(__VLS_185));
-        var __VLS_167;
-        var __VLS_163;
+        }, ...__VLS_functionalComponentArgsRest(__VLS_193));
+        var __VLS_175;
+        var __VLS_171;
     }
-    var __VLS_159;
+    var __VLS_167;
 }
-var __VLS_151;
-const __VLS_188 = {}.ElRow;
+var __VLS_159;
+const __VLS_196 = {}.ElRow;
 /** @type {[typeof __VLS_components.ElRow, typeof __VLS_components.elRow, typeof __VLS_components.ElRow, typeof __VLS_components.elRow, ]} */ ;
 // @ts-ignore
-const __VLS_189 = __VLS_asFunctionalComponent(__VLS_188, new __VLS_188({
-    gutter: (16),
-}));
-const __VLS_190 = __VLS_189({
-    gutter: (16),
-}, ...__VLS_functionalComponentArgsRest(__VLS_189));
-__VLS_191.slots.default;
-const __VLS_192 = {}.ElCol;
-/** @type {[typeof __VLS_components.ElCol, typeof __VLS_components.elCol, typeof __VLS_components.ElCol, typeof __VLS_components.elCol, ]} */ ;
-// @ts-ignore
-const __VLS_193 = __VLS_asFunctionalComponent(__VLS_192, new __VLS_192({
-    span: (14),
-}));
-const __VLS_194 = __VLS_193({
-    span: (14),
-}, ...__VLS_functionalComponentArgsRest(__VLS_193));
-__VLS_195.slots.default;
-const __VLS_196 = {}.ElCard;
-/** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
-// @ts-ignore
 const __VLS_197 = __VLS_asFunctionalComponent(__VLS_196, new __VLS_196({
-    shadow: "never",
-    ...{ class: "panel" },
+    gutter: (16),
 }));
 const __VLS_198 = __VLS_197({
-    shadow: "never",
-    ...{ class: "panel" },
+    gutter: (16),
 }, ...__VLS_functionalComponentArgsRest(__VLS_197));
 __VLS_199.slots.default;
+const __VLS_200 = {}.ElCol;
+/** @type {[typeof __VLS_components.ElCol, typeof __VLS_components.elCol, typeof __VLS_components.ElCol, typeof __VLS_components.elCol, ]} */ ;
+// @ts-ignore
+const __VLS_201 = __VLS_asFunctionalComponent(__VLS_200, new __VLS_200({
+    span: (14),
+}));
+const __VLS_202 = __VLS_201({
+    span: (14),
+}, ...__VLS_functionalComponentArgsRest(__VLS_201));
+__VLS_203.slots.default;
+const __VLS_204 = {}.ElCard;
+/** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
+// @ts-ignore
+const __VLS_205 = __VLS_asFunctionalComponent(__VLS_204, new __VLS_204({
+    shadow: "never",
+    ...{ class: "panel" },
+}));
+const __VLS_206 = __VLS_205({
+    shadow: "never",
+    ...{ class: "panel" },
+}, ...__VLS_functionalComponentArgsRest(__VLS_205));
+__VLS_207.slots.default;
 {
-    const { header: __VLS_thisSlot } = __VLS_199.slots;
+    const { header: __VLS_thisSlot } = __VLS_207.slots;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
     (__VLS_ctx.t('validationWorkbench.panels.timeline'));
 }
-const __VLS_200 = {}.ElTable;
+const __VLS_208 = {}.ElTable;
 /** @type {[typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ]} */ ;
 // @ts-ignore
-const __VLS_201 = __VLS_asFunctionalComponent(__VLS_200, new __VLS_200({
+const __VLS_209 = __VLS_asFunctionalComponent(__VLS_208, new __VLS_208({
     data: (__VLS_ctx.facts?.timelines ?? []),
     rowKey: "id",
     border: true,
 }));
-const __VLS_202 = __VLS_201({
+const __VLS_210 = __VLS_209({
     data: (__VLS_ctx.facts?.timelines ?? []),
     rowKey: "id",
     border: true,
-}, ...__VLS_functionalComponentArgsRest(__VLS_201));
-__VLS_203.slots.default;
-const __VLS_204 = {}.ElTableColumn;
+}, ...__VLS_functionalComponentArgsRest(__VLS_209));
+__VLS_211.slots.default;
+const __VLS_212 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
-const __VLS_205 = __VLS_asFunctionalComponent(__VLS_204, new __VLS_204({
+const __VLS_213 = __VLS_asFunctionalComponent(__VLS_212, new __VLS_212({
     label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
     width: "140",
 }));
-const __VLS_206 = __VLS_205({
+const __VLS_214 = __VLS_213({
     label: (__VLS_ctx.t('validationWorkbench.columns.chapter')),
     width: "140",
-}, ...__VLS_functionalComponentArgsRest(__VLS_205));
-__VLS_207.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_213));
+__VLS_215.slots.default;
 {
-    const { default: __VLS_thisSlot } = __VLS_207.slots;
+    const { default: __VLS_thisSlot } = __VLS_215.slots;
     const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
     (__VLS_ctx.t('validationWorkbench.chapterOnly', { number: row.chapterNumber }));
 }
-var __VLS_207;
-const __VLS_208 = {}.ElTableColumn;
-/** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
-// @ts-ignore
-const __VLS_209 = __VLS_asFunctionalComponent(__VLS_208, new __VLS_208({
-    prop: "timePeriod",
-    label: (__VLS_ctx.t('validationWorkbench.columns.timePeriod')),
-    width: "160",
-}));
-const __VLS_210 = __VLS_209({
-    prop: "timePeriod",
-    label: (__VLS_ctx.t('validationWorkbench.columns.timePeriod')),
-    width: "160",
-}, ...__VLS_functionalComponentArgsRest(__VLS_209));
-const __VLS_212 = {}.ElTableColumn;
-/** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
-// @ts-ignore
-const __VLS_213 = __VLS_asFunctionalComponent(__VLS_212, new __VLS_212({
-    prop: "elapsedTime",
-    label: (__VLS_ctx.t('validationWorkbench.columns.elapsed')),
-    width: "150",
-}));
-const __VLS_214 = __VLS_213({
-    prop: "elapsedTime",
-    label: (__VLS_ctx.t('validationWorkbench.columns.elapsed')),
-    width: "150",
-}, ...__VLS_functionalComponentArgsRest(__VLS_213));
+var __VLS_215;
 const __VLS_216 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_217 = __VLS_asFunctionalComponent(__VLS_216, new __VLS_216({
-    prop: "keyTimeEvent",
-    label: (__VLS_ctx.t('validationWorkbench.columns.keyEvent')),
-    minWidth: "240",
+    prop: "timePeriod",
+    label: (__VLS_ctx.t('validationWorkbench.columns.timePeriod')),
+    width: "160",
 }));
 const __VLS_218 = __VLS_217({
-    prop: "keyTimeEvent",
-    label: (__VLS_ctx.t('validationWorkbench.columns.keyEvent')),
-    minWidth: "240",
+    prop: "timePeriod",
+    label: (__VLS_ctx.t('validationWorkbench.columns.timePeriod')),
+    width: "160",
 }, ...__VLS_functionalComponentArgsRest(__VLS_217));
 const __VLS_220 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_221 = __VLS_asFunctionalComponent(__VLS_220, new __VLS_220({
-    prop: "importance",
-    label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
-    width: "110",
+    prop: "elapsedTime",
+    label: (__VLS_ctx.t('validationWorkbench.columns.elapsed')),
+    width: "150",
 }));
 const __VLS_222 = __VLS_221({
+    prop: "elapsedTime",
+    label: (__VLS_ctx.t('validationWorkbench.columns.elapsed')),
+    width: "150",
+}, ...__VLS_functionalComponentArgsRest(__VLS_221));
+const __VLS_224 = {}.ElTableColumn;
+/** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
+// @ts-ignore
+const __VLS_225 = __VLS_asFunctionalComponent(__VLS_224, new __VLS_224({
+    prop: "keyTimeEvent",
+    label: (__VLS_ctx.t('validationWorkbench.columns.keyEvent')),
+    minWidth: "240",
+}));
+const __VLS_226 = __VLS_225({
+    prop: "keyTimeEvent",
+    label: (__VLS_ctx.t('validationWorkbench.columns.keyEvent')),
+    minWidth: "240",
+}, ...__VLS_functionalComponentArgsRest(__VLS_225));
+const __VLS_228 = {}.ElTableColumn;
+/** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
+// @ts-ignore
+const __VLS_229 = __VLS_asFunctionalComponent(__VLS_228, new __VLS_228({
     prop: "importance",
     label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
     width: "110",
-}, ...__VLS_functionalComponentArgsRest(__VLS_221));
-var __VLS_203;
-var __VLS_199;
-var __VLS_195;
-const __VLS_224 = {}.ElCol;
-/** @type {[typeof __VLS_components.ElCol, typeof __VLS_components.elCol, typeof __VLS_components.ElCol, typeof __VLS_components.elCol, ]} */ ;
-// @ts-ignore
-const __VLS_225 = __VLS_asFunctionalComponent(__VLS_224, new __VLS_224({
-    span: (10),
-}));
-const __VLS_226 = __VLS_225({
-    span: (10),
-}, ...__VLS_functionalComponentArgsRest(__VLS_225));
-__VLS_227.slots.default;
-const __VLS_228 = {}.ElCard;
-/** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
-// @ts-ignore
-const __VLS_229 = __VLS_asFunctionalComponent(__VLS_228, new __VLS_228({
-    shadow: "never",
-    ...{ class: "panel" },
 }));
 const __VLS_230 = __VLS_229({
+    prop: "importance",
+    label: (__VLS_ctx.t('validationWorkbench.columns.importance')),
+    width: "110",
+}, ...__VLS_functionalComponentArgsRest(__VLS_229));
+var __VLS_211;
+var __VLS_207;
+var __VLS_203;
+const __VLS_232 = {}.ElCol;
+/** @type {[typeof __VLS_components.ElCol, typeof __VLS_components.elCol, typeof __VLS_components.ElCol, typeof __VLS_components.elCol, ]} */ ;
+// @ts-ignore
+const __VLS_233 = __VLS_asFunctionalComponent(__VLS_232, new __VLS_232({
+    span: (10),
+}));
+const __VLS_234 = __VLS_233({
+    span: (10),
+}, ...__VLS_functionalComponentArgsRest(__VLS_233));
+__VLS_235.slots.default;
+const __VLS_236 = {}.ElCard;
+/** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
+// @ts-ignore
+const __VLS_237 = __VLS_asFunctionalComponent(__VLS_236, new __VLS_236({
     shadow: "never",
     ...{ class: "panel" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_229));
-__VLS_231.slots.default;
+}));
+const __VLS_238 = __VLS_237({
+    shadow: "never",
+    ...{ class: "panel" },
+}, ...__VLS_functionalComponentArgsRest(__VLS_237));
+__VLS_239.slots.default;
 {
-    const { header: __VLS_thisSlot } = __VLS_231.slots;
+    const { header: __VLS_thisSlot } = __VLS_239.slots;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "panel-title" },
     });
     (__VLS_ctx.t('validationWorkbench.panels.archives'));
 }
 if (!__VLS_ctx.facts || __VLS_ctx.facts.volumeArchives.length === 0) {
-    const __VLS_232 = {}.ElEmpty;
+    const __VLS_240 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
-    const __VLS_233 = __VLS_asFunctionalComponent(__VLS_232, new __VLS_232({
+    const __VLS_241 = __VLS_asFunctionalComponent(__VLS_240, new __VLS_240({
         description: (__VLS_ctx.t('validationWorkbench.empty.archives')),
     }));
-    const __VLS_234 = __VLS_233({
+    const __VLS_242 = __VLS_241({
         description: (__VLS_ctx.t('validationWorkbench.empty.archives')),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_233));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_241));
 }
 else {
-    const __VLS_236 = {}.ElCollapse;
+    const __VLS_244 = {}.ElCollapse;
     /** @type {[typeof __VLS_components.ElCollapse, typeof __VLS_components.elCollapse, typeof __VLS_components.ElCollapse, typeof __VLS_components.elCollapse, ]} */ ;
     // @ts-ignore
-    const __VLS_237 = __VLS_asFunctionalComponent(__VLS_236, new __VLS_236({}));
-    const __VLS_238 = __VLS_237({}, ...__VLS_functionalComponentArgsRest(__VLS_237));
-    __VLS_239.slots.default;
+    const __VLS_245 = __VLS_asFunctionalComponent(__VLS_244, new __VLS_244({}));
+    const __VLS_246 = __VLS_245({}, ...__VLS_functionalComponentArgsRest(__VLS_245));
+    __VLS_247.slots.default;
     for (const [archive] of __VLS_getVForSourceType((__VLS_ctx.facts.volumeArchives))) {
-        const __VLS_240 = {}.ElCollapseItem;
+        const __VLS_248 = {}.ElCollapseItem;
         /** @type {[typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, typeof __VLS_components.ElCollapseItem, typeof __VLS_components.elCollapseItem, ]} */ ;
         // @ts-ignore
-        const __VLS_241 = __VLS_asFunctionalComponent(__VLS_240, new __VLS_240({
+        const __VLS_249 = __VLS_asFunctionalComponent(__VLS_248, new __VLS_248({
             key: (archive.id),
             title: (__VLS_ctx.t('validationWorkbench.archiveTitle', { number: archive.volumeNumber, time: __VLS_ctx.formatTime(archive.archivedAt) })),
             name: (archive.id),
         }));
-        const __VLS_242 = __VLS_241({
+        const __VLS_250 = __VLS_249({
             key: (archive.id),
             title: (__VLS_ctx.t('validationWorkbench.archiveTitle', { number: archive.volumeNumber, time: __VLS_ctx.formatTime(archive.archivedAt) })),
             name: (archive.id),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_241));
-        __VLS_243.slots.default;
+        }, ...__VLS_functionalComponentArgsRest(__VLS_249));
+        __VLS_251.slots.default;
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "meta" },
         });
@@ -1188,13 +1234,13 @@ else {
         (archive.lastChapterId || '-');
         __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({});
         (__VLS_ctx.parseJsonText(archive.snapshotPayload));
-        var __VLS_243;
+        var __VLS_251;
     }
-    var __VLS_239;
+    var __VLS_247;
 }
-var __VLS_231;
-var __VLS_227;
-var __VLS_191;
+var __VLS_239;
+var __VLS_235;
+var __VLS_199;
 /** @type {__VLS_StyleScopedClasses['validation-page']} */ ;
 /** @type {__VLS_StyleScopedClasses['hero']} */ ;
 /** @type {__VLS_StyleScopedClasses['eyebrow']} */ ;
@@ -1244,6 +1290,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             refresh: refresh,
             runCurrentValidation: runCurrentValidation,
             markChapterStatus: markChapterStatus,
+            openFixChapter: openFixChapter,
         };
     },
 });

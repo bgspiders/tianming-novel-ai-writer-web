@@ -113,3 +113,10 @@ public interface IChapterBlueprintService
     Task<ChapterBlueprintDto> UpdateAsync(string id, ChapterBlueprintUpsertDto input, CancellationToken ct = default);
     Task DeleteAsync(string id, CancellationToken ct = default);
 }
+
+public interface INovelSeedService
+{
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedResult> GenerateAsync(
+        TM.Web.Application.Dtos.Generate.NovelSeedRequest request,
+        CancellationToken ct = default);
+}

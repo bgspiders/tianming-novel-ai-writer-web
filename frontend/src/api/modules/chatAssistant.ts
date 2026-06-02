@@ -178,7 +178,11 @@ export async function listChatMessages(sessionId: string): Promise<ChatMessage[]
 }
 
 export async function sendChatMessage(sessionId: string, input: SendChatMessageRequest): Promise<SendChatMessageResult> {
-  const { data } = await http.post<SendChatMessageResult>(`/api/chat-assistant/sessions/${sessionId}/messages`, input)
+  const { data } = await http.post<SendChatMessageResult>(
+    `/api/chat-assistant/sessions/${sessionId}/messages`,
+    input,
+    { timeout: 10 * 60_000 }
+  )
   return data
 }
 
@@ -189,7 +193,8 @@ export async function executeChatPlan(
 ): Promise<ExecuteChatPlanResult> {
   const { data } = await http.post<ExecuteChatPlanResult>(
     `/api/chat-assistant/sessions/${sessionId}/messages/${messageId}/execute`,
-    input
+    input,
+    { timeout: 10 * 60_000 }
   )
   return data
 }

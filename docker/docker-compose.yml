@@ -2,8 +2,8 @@ services:
   tianming-web:
     container_name: tianming-web
     build:
-      context: ../..
-      dockerfile: web/docker/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     image: tianming-web:0.1
     ports:
       - "38721:38721"

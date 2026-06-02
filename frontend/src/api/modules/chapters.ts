@@ -133,6 +133,54 @@ export interface ChapterDraftResult extends AiTestResult {
   generationRecordId?: string | null
 }
 
+export interface ChapterBatchGenerationRequest {
+  projectId: string
+  volumeId: string
+  startChapterNumber: number
+  count: number
+  createMissing: boolean
+  overwriteExisting: boolean
+  stopOnFailure: boolean
+  configId?: string | null
+  endpoint: string
+  providerId?: string | null
+  apiKeyId?: string | null
+  apiKey: string
+  model: string
+  systemPrompt?: string
+  temperature?: number
+  maxTokens?: number
+  maxRewriteAttempts?: number
+  validationReportId?: string | null
+  rerunValidationAfterSave?: boolean
+}
+
+export interface ChapterBatchGenerationAccepted {
+  jobId: string
+  status: string
+  queuedAt: string
+}
+
+export interface ChapterBatchGenerationStatus {
+  jobId: string
+  projectId: string
+  volumeId: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | string
+  startChapterNumber: number
+  total: number
+  completed: number
+  failed: number
+  skipped: number
+  currentChapterNumber: number
+  currentChapterTitle: string
+  message: string
+  logs: string[]
+  queuedAt: string
+  startedAt?: string | null
+  finishedAt?: string | null
+  cancelRequested: boolean
+}
+
 function buildEditorListParams(params?: ChapterListParams): Record<string, string> | undefined {
   if (!params) return undefined
 
@@ -213,4 +261,24 @@ export async function generateChapterDraft(input: ChapterDraftRequest): Promise<
     timeout: 10 * 60_000
   })
   return data
+}
+
+export async function queueChapterBatchGeneration(input: ChapterBatchGenerationRequest): Promise<ChapterBatchGenerationAccepted> {
+  const { data } = await http.post<ChapterBatchGenerationAccepted>('/api/generation/chapter-batch-jobs', input)
+  return data
+}
+
+export async function getChapterBatchGenerationStatus(jobId: string): Promise<ChapterBatchGenerationStatus> {
+  const { data } = await http.get<ChapterBatchGenerationStatus>(`/api/generation/chapter-batch-jobs/${jobId}`)
+  return data
+}
+
+export async function listChapterBatchGenerationJobs(projectId?: string | null): Promise<ChapterBatchGenerationStatus[]> {
+  const params = projectId ? { projectId } : undefined
+  const { data } = await http.get<ChapterBatchGenerationStatus[]>('/api/generation/chapter-batch-jobs', { params })
+  return data
+}
+
+export async function cancelChapterBatchGeneration(jobId: string): Promise<void> {
+  await http.post(`/api/generation/chapter-batch-jobs/${jobId}/cancel`)
 }

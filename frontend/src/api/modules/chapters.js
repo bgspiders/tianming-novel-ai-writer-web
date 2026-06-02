@@ -62,3 +62,19 @@ export async function generateChapterDraft(input) {
     });
     return data;
 }
+export async function queueChapterBatchGeneration(input) {
+    const { data } = await http.post('/api/generation/chapter-batch-jobs', input);
+    return data;
+}
+export async function getChapterBatchGenerationStatus(jobId) {
+    const { data } = await http.get(`/api/generation/chapter-batch-jobs/${jobId}`);
+    return data;
+}
+export async function listChapterBatchGenerationJobs(projectId) {
+    const params = projectId ? { projectId } : undefined;
+    const { data } = await http.get('/api/generation/chapter-batch-jobs', { params });
+    return data;
+}
+export async function cancelChapterBatchGeneration(jobId) {
+    await http.post(`/api/generation/chapter-batch-jobs/${jobId}/cancel`);
+}

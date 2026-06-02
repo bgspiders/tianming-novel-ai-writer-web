@@ -12,12 +12,18 @@ namespace TM.Web.Api.Controllers;
 public class GenerationController : ControllerBase
 {
     private readonly IChapterDraftService _drafts;
+    private readonly IChapterBatchGenerationService _chapterBatchJobs;
     private readonly IContextPackagingService _packaging;
     private readonly AppDbContext _db;
 
-    public GenerationController(IChapterDraftService drafts, IContextPackagingService packaging, AppDbContext db)
+    public GenerationController(
+        IChapterDraftService drafts,
+        IChapterBatchGenerationService chapterBatchJobs,
+        IContextPackagingService packaging,
+        AppDbContext db)
     {
         _drafts = drafts;
+        _chapterBatchJobs = chapterBatchJobs;
         _packaging = packaging;
         _db = db;
     }
@@ -29,6 +35,29 @@ public class GenerationController : ControllerBase
     [HttpPost("chapter-draft")]
     public Task<ChapterDraftResult> GenerateChapterDraft([FromBody] ChapterDraftRequest request, CancellationToken ct)
         => _drafts.GenerateDraftAsync(request, ct);
+
+    [HttpPost("chapter-batch-jobs")]
+    public Task<ChapterBatchGenerationAcceptedDto> QueueChapterBatchGeneration(
+        [FromBody] ChapterBatchGenerationRequest request,
+        CancellationToken ct)
+        => _chapterBatchJobs.QueueAsync(request, ct);
+
+    [HttpGet("chapter-batch-jobs")]
+    public IReadOnlyList<ChapterBatchGenerationJobStatusDto> ListChapterBatchGenerationJobs(
+        [FromQuery] string? projectId,
+        [FromQuery] int take = 20)
+        => _chapterBatchJobs.ListRecent(projectId, take);
+
+    [HttpGet("chapter-batch-jobs/{jobId}")]
+    public ActionResult<ChapterBatchGenerationJobStatusDto> GetChapterBatchGenerationJob(string jobId)
+    {
+        var status = _chapterBatchJobs.GetStatus(jobId);
+        return status == null ? NotFound() : Ok(status);
+    }
+
+    [HttpPost("chapter-batch-jobs/{jobId}/cancel")]
+    public IActionResult CancelChapterBatchGenerationJob(string jobId)
+        => _chapterBatchJobs.RequestCancel(jobId) ? NoContent() : NotFound();
 
     [HttpGet("records")]
     public async Task<IReadOnlyList<GenerationRecordDto>> ListRecords(

@@ -16,6 +16,7 @@ export const messages = {
             chapterEditor: '章节编辑',
             designModules: '设计模块',
             generationWorkbench: '生成工作台',
+            novelSeed: 'AI 开书',
             chapterGeneration: '章节生成',
             generationGate: '生成闸门',
             generationPlanning: '生成规划',
@@ -66,6 +67,7 @@ export const messages = {
                 healthCheck: '健康检查',
                 aiStreaming: 'AI 流式测试',
                 generate: '生成',
+                novelSeed: 'AI 开书',
                 writerEditor: '写作编辑器',
                 validation: '校验',
                 worldRules: '世界规则',
@@ -127,10 +129,10 @@ export const messages = {
                 runtime: '运行环境'
             },
             focusItems: {
-                notifications: '模型配置 → 智能拆书 → 创意素材',
-                proxy: '世界观 / 角色 / 势力 / 位置 / 剧情规则',
-                docker: '大纲设计 → 分卷设计 → 章节设计 → 蓝图设计',
-                smoke: '数据中心重新打包 → 章节预览 → Agent/Plan 生成 → 校验修复'
+                step1: '模型配置 → 智能拆书 → 创意素材',
+                step2: '世界观 / 角色 / 势力 / 位置 / 剧情规则',
+                step3: '大纲设计 → 分卷设计 → 章节设计 → 蓝图设计',
+                step4: '数据中心重新打包 → 章节预览 → Agent/Plan 生成 → 校验修复'
             },
             runtimeItems: {
                 backend: '后端：{url}',
@@ -799,13 +801,14 @@ export const messages = {
                 loadAiConfigFailed: '加载 AI 配置失败。',
                 selectChapterFirst: '请先选择或创建章节。',
                 endpointModelRequired: 'Endpoint 和 Model 必填。',
-                selectProviderFirst: '请先选择 Provider。',
-                tempKeyRequired: '请输入临时 API Key。',
+                selectConfigOrKeyFirst: '请先选择已保存配置，或手动填写 API Key。',
                 promptRequired: 'Prompt 不能为空。',
                 draftGenerated: '草稿已生成并保存到章节。',
                 generationFailed: '生成失败。',
                 draftSaved: '草稿已保存。',
-                saveDraftFailed: '保存草稿失败。'
+                saveDraftFailed: '保存草稿失败。',
+                firstChapterAlreadyExists: '当前卷已经有章节，不能再执行一键生成第一章。',
+                validationRerunCompleted: '已根据最新正文自动重新运行校验。'
             },
             chapter: {
                 panelTitle: '章节',
@@ -820,17 +823,18 @@ export const messages = {
                 tableTitle: '标题',
                 tableStatus: '状态',
                 header: '章节 {number} / {title}',
-                draftFallback: '章节草稿'
+                draftFallback: '章节草稿',
+                defaultFirstChapterTitle: '第一章 开局',
+                autoTitle: '第 {number} 章'
             },
             actions: {
                 saveDraft: '保存草稿',
                 generateDraft: '生成草稿',
+                generateFirstChapter: '一键生成第一章',
                 refreshAiConfig: '刷新 AI 配置'
             },
             ai: {
-                savedKey: '已保存 Key',
-                temporaryKey: '临时 Key',
-                provider: 'Provider',
+                config: '已保存配置',
                 apiKey: 'API Key',
                 model: '模型',
                 endpoint: 'Endpoint',
@@ -839,9 +843,9 @@ export const messages = {
                 temperature: '温度',
                 maxTokens: '最大 Tokens',
                 maxRewrites: '最大重写次数',
-                optionalKey: '可选指定 Key',
-                selectProvider: '选择 Provider',
-                selectModel: '选择模型',
+                selectConfig: '选择已保存配置',
+                autoRerunValidation: '修后自动复检',
+                manualValidation: '手动复检',
                 apiKeyPlaceholder: 'sk-...',
                 modelPlaceholder: 'gpt-4o-mini / deepseek-chat / ...',
                 endpointPlaceholder: 'https://api.openai.com/v1',
@@ -849,6 +853,42 @@ export const messages = {
             },
             status: {
                 record: '记录 {id}'
+            },
+            batch: {
+                title: '自动连续生成',
+                subtitle: '按章节号连续生成并自动保存，适合一次生成多章草稿。',
+                start: '开始自动生成',
+                stop: '停止',
+                startNumber: '起始章',
+                count: '生成章数',
+                options: '选项',
+                createMissing: '缺章节自动创建',
+                overwriteExisting: '覆盖已有正文',
+                stopOnFailure: '失败后停止',
+                countRequired: '生成章数必须大于 0。',
+                missingChapter: '第 {number} 章不存在，且未启用自动创建。',
+                created: '已创建第 {number} 章：{title}',
+                generated: '已生成第 {number} 章：{title}',
+                skippedExisting: '已跳过第 {number} 章：{title}，已有正文。',
+                failed: '第 {number} 章生成失败：{title}',
+                queued: '后台任务已提交：{id}',
+                queueFailed: '提交后台章节生成任务失败。',
+                loadJobFailed: '加载后台章节生成任务失败。',
+                cancelFailed: '取消后台章节生成任务失败。',
+                jobId: '任务 {id}',
+                stopRequested: '将在当前章节结束后停止自动生成。',
+                stopped: '已停止自动生成。',
+                completed: '自动生成完成：成功 {completed} 章，跳过 {skipped} 章，失败 {failed} 章。',
+                progress: '成功 {completed} / 跳过 {skipped} / 失败 {failed} / 总计 {total}',
+                current: '当前：第 {number} 章 / {title}',
+                status: {
+                    idle: '空闲',
+                    queued: '排队中',
+                    running: '后台运行中',
+                    completed: '已完成',
+                    failed: '已结束',
+                    cancelled: '已取消'
+                }
             }
         },
         aiAssistant: {
@@ -1018,14 +1058,15 @@ export const messages = {
                 txtAnalysisPlaceholder: '已从本地 TXT 导入原文，请在拆书分析中继续补充世界观、角色与剧情拆解。',
                 fullText: '全文',
                 aiAnalysis: 'AI 拆书分析',
+                aiProviderConfig: 'AI 配置',
                 aiProvider: 'Provider',
-        aiKeyAuto: 'Key（可自动轮换）',
-        aiModel: '模型',
-        aiEndpoint: 'Endpoint',
-        runAiAnalysis: 'AI 分析',
-        generateCreativeMaterial: '生成创意素材',
-        buildSkeleton: '建立骨架',
-        aiStatus: 'AI 状态',
+                aiKeyAuto: 'Key（可自动轮换）',
+                aiModel: '模型',
+                aiEndpoint: 'Endpoint',
+                runAiAnalysis: 'AI 分析',
+                generateCreativeMaterial: '生成创意素材',
+                buildSkeleton: '建立骨架',
+                aiStatus: 'AI 状态',
                 aiIdle: '未运行',
                 aiQueued: '排队中',
                 aiRunning: '分析中',
@@ -1081,15 +1122,15 @@ export const messages = {
                 previewRequiredForAi: '请先上传 TXT 或预览 URL。',
                 aiConfigRequired: '请先选择 Provider、模型并填写 Endpoint。',
                 aiAnalysisCompleted: 'AI 分析已完成并回填预览。',
-        aiAnalysisFailed: 'AI 分析失败。',
-        previewApplied: '预览已应用到表单。',
-        creativeMaterialCreatedFromBookAnalysis: '已根据拆书生成创意素材：{name}',
-        createCreativeMaterialFromBookAnalysisFailed: '根据拆书生成创意素材失败。',
-        skeletonBuilt: '骨架已建立：五大规则 {rules} 条，大纲 {outlines} 条，分卷 {volumes} 条，章节 {chapters} 条，蓝图 {blueprints} 条。',
-        skeletonBuildFailed: '建立骨架失败。',
-        backgroundAiQueued: '后台 AI 分析已加入队列，可继续当前操作。',
-        backgroundAiQueueFailed: '加入后台 AI 分析队列失败。',
-        backgroundAiAlreadyRunning: '该记录已有后台 AI 分析任务正在执行。'
+                aiAnalysisFailed: 'AI 分析失败。',
+                previewApplied: '预览已应用到表单。',
+                creativeMaterialCreatedFromBookAnalysis: '已根据拆书生成创意素材：{name}',
+                createCreativeMaterialFromBookAnalysisFailed: '根据拆书生成创意素材失败。',
+                skeletonBuilt: '骨架已建立：五大规则 {rules} 条，大纲 {outlines} 条，分卷 {volumes} 条，章节 {chapters} 条，蓝图 {blueprints} 条。',
+                skeletonBuildFailed: '建立骨架失败。',
+                backgroundAiQueued: '后台 AI 分析已加入队列，可继续当前操作。',
+                backgroundAiQueueFailed: '加入后台 AI 分析队列失败。',
+                backgroundAiAlreadyRunning: '该记录已有后台 AI 分析任务正在执行。'
             }
         },
         editor: {
@@ -1251,6 +1292,7 @@ export const messages = {
             chapterEditor: 'Chapter Editor',
             designModules: 'Design Modules',
             generationWorkbench: 'Generation Workbench',
+            novelSeed: 'Novel Seed',
             chapterGeneration: 'Chapter Generation',
             generationGate: 'Generation Gate',
             generationPlanning: 'Generation Planning',
@@ -1301,6 +1343,7 @@ export const messages = {
                 healthCheck: 'Health Check',
                 aiStreaming: 'AI Streaming',
                 generate: 'Generate',
+                novelSeed: 'Novel Seed',
                 writerEditor: 'Writer Editor',
                 validation: 'Validation',
                 worldRules: 'World Rules',
@@ -1362,10 +1405,10 @@ export const messages = {
                 runtime: 'Runtime'
             },
             focusItems: {
-                notifications: 'Model setup → book analysis → creative materials',
-                proxy: 'World / character / faction / location / plot rules',
-                docker: 'Outline → volume design → chapter plan → blueprint',
-                smoke: 'Data center package → chapter preview → Agent/Plan generation → validation fixes'
+                step1: 'Model setup → book analysis → creative materials',
+                step2: 'World / character / faction / location / plot rules',
+                step3: 'Outline → volume design → chapter plan → blueprint',
+                step4: 'Data center package → chapter preview → Agent/Plan generation → validation fixes'
             },
             runtimeItems: {
                 backend: 'Backend: {url}',
@@ -1396,16 +1439,20 @@ export const messages = {
                 required: 'Please provide endpoint, API key, model, and prompt.',
                 signalrFailed: 'SignalR connection failed: {message}',
                 unknownError: 'Unknown error',
-                requestFailed: 'Request failed.'
+                requestFailed: 'Request failed.',
+                loadConfigsFailed: 'Failed to load AI configs.'
             },
             labels: {
+                config: 'Saved Config',
+                configSummary: 'Selected Config',
                 endpoint: 'Endpoint',
                 apiKey: 'API Key',
                 model: 'Model',
                 systemPrompt: 'System Prompt',
                 userPrompt: 'User Prompt',
                 temperature: 'Temperature',
-                maxTokens: 'Max Tokens'
+                maxTokens: 'Max Tokens',
+                noSavedKey: 'Saved key hidden'
             },
             placeholders: {
                 endpoint: 'https://api.openai.com/v1',
@@ -1564,6 +1611,23 @@ export const messages = {
             eyebrow: 'Writing Plans / Content Config',
             title: 'Writing Plan Workbench',
             subtitle: 'Native route: outline → volumes → chapters → blueprints → data-center packaging → chapter preview → writing AI generation → validation. Web currently wires planning, generation records, and gates; packaging and chapter preview are marked pending.',
+            actions: {
+                packageNow: 'Package Now'
+            },
+            labels: {
+                packageVersion: 'Package version: v{value}',
+                packageFiles: 'Context files: {value}',
+                packageModules: 'Enabled modules: {value}',
+                packageTime: 'Packaged at: {value}'
+            },
+            empty: {
+                package: 'No package snapshot yet.'
+            },
+            messages: {
+                selectProjectFirst: 'Select a project first.',
+                packageSuccess: 'Packaging completed: v{version}, {files} context files.',
+                packageFailed: 'Packaging failed.'
+            },
             context: {
                 project: 'Project',
                 volume: 'Volume',
@@ -1933,7 +1997,8 @@ export const messages = {
                 refresh: 'Refresh',
                 run: 'Run Validation',
                 markNeedsFix: 'Mark Needs Fix',
-                markValidated: 'Mark Validated'
+                markValidated: 'Mark Validated',
+                goFixChapter: 'Open Fix Chapter'
             },
             panels: {
                 summaries: 'Validation Summaries',
@@ -2014,7 +2079,7 @@ export const messages = {
                 chapterMarkedNeedsFix: 'Chapter marked for fixes.',
                 chapterMarkedValidated: 'Chapter marked as validated.',
                 updateChapterStatusFailed: 'Failed to update chapter status.'
-            }
+            },
         },
         chapterGeneration: {
             messages: {
@@ -2030,13 +2095,14 @@ export const messages = {
                 loadAiConfigFailed: 'Failed to load AI configuration.',
                 selectChapterFirst: 'Select or create a chapter first.',
                 endpointModelRequired: 'Endpoint and model are required.',
-                selectProviderFirst: 'Select a provider first.',
-                tempKeyRequired: 'Enter a temporary API key.',
+                selectConfigOrKeyFirst: 'Select a saved config or enter an API key manually.',
                 promptRequired: 'Prompt is required.',
                 draftGenerated: 'Draft generated and saved to the chapter.',
                 generationFailed: 'Generation failed.',
                 draftSaved: 'Draft saved.',
-                saveDraftFailed: 'Failed to save draft.'
+                saveDraftFailed: 'Failed to save draft.',
+                validationRerunCompleted: 'Validation was rerun automatically for the updated chapter.',
+                firstChapterAlreadyExists: 'This volume already has chapters, so first-chapter auto generation is unavailable.'
             },
             chapter: {
                 panelTitle: 'Chapters',
@@ -2051,17 +2117,18 @@ export const messages = {
                 tableTitle: 'Title',
                 tableStatus: 'Status',
                 header: 'Chapter {number} / {title}',
-                draftFallback: 'Chapter Draft'
+                draftFallback: 'Chapter Draft',
+                defaultFirstChapterTitle: 'Chapter 1 Opening',
+                autoTitle: 'Chapter {number}'
             },
             actions: {
                 saveDraft: 'Save Draft',
                 generateDraft: 'Generate Draft',
+                generateFirstChapter: 'Generate First Chapter',
                 refreshAiConfig: 'Refresh AI Config'
             },
             ai: {
-                savedKey: 'Saved key',
-                temporaryKey: 'Temporary key',
-                provider: 'Provider',
+                config: 'Saved Config',
                 apiKey: 'API Key',
                 model: 'Model',
                 endpoint: 'Endpoint',
@@ -2070,9 +2137,9 @@ export const messages = {
                 temperature: 'Temperature',
                 maxTokens: 'Max Tokens',
                 maxRewrites: 'Max Rewrites',
-                optionalKey: 'Optional explicit key',
-                selectProvider: 'Select provider',
-                selectModel: 'Select model',
+                selectConfig: 'Select saved config',
+                autoRerunValidation: 'Auto rerun validation',
+                manualValidation: 'Manual validation',
                 apiKeyPlaceholder: 'sk-...',
                 modelPlaceholder: 'gpt-4o-mini / deepseek-chat / ...',
                 endpointPlaceholder: 'https://api.openai.com/v1',
@@ -2080,6 +2147,42 @@ export const messages = {
             },
             status: {
                 record: 'Record {id}'
+            },
+            batch: {
+                title: 'Auto Generate Chapters',
+                subtitle: 'Generate by chapter number and save automatically, useful for multi-chapter drafts.',
+                start: 'Start Auto Generate',
+                stop: 'Stop',
+                startNumber: 'Start No.',
+                count: 'Chapter Count',
+                options: 'Options',
+                createMissing: 'Create missing chapters',
+                overwriteExisting: 'Overwrite existing content',
+                stopOnFailure: 'Stop on failure',
+                countRequired: 'Chapter count must be greater than 0.',
+                missingChapter: 'Chapter {number} does not exist and auto creation is disabled.',
+                created: 'Created Chapter {number}: {title}',
+                generated: 'Generated Chapter {number}: {title}',
+                skippedExisting: 'Skipped Chapter {number}: {title}; content already exists.',
+                failed: 'Chapter {number} failed: {title}',
+                queued: 'Background job queued: {id}',
+                queueFailed: 'Failed to queue background chapter generation.',
+                loadJobFailed: 'Failed to load background chapter generation job.',
+                cancelFailed: 'Failed to cancel background chapter generation job.',
+                jobId: 'Job {id}',
+                stopRequested: 'Auto generation will stop after the current chapter.',
+                stopped: 'Auto generation stopped.',
+                completed: 'Auto generation completed: {completed} succeeded, {skipped} skipped, {failed} failed.',
+                progress: 'Done {completed} / skipped {skipped} / failed {failed} / total {total}',
+                current: 'Current: Chapter {number} / {title}',
+                status: {
+                    idle: 'Idle',
+                    queued: 'Queued',
+                    running: 'Running in background',
+                    completed: 'Completed',
+                    failed: 'Finished',
+                    cancelled: 'Cancelled'
+                }
             }
         },
         aiAssistant: {
@@ -2249,14 +2352,15 @@ export const messages = {
                 txtAnalysisPlaceholder: 'Imported from local TXT. Continue filling world, character, and plot analysis.',
                 fullText: 'Full Text',
                 aiAnalysis: 'AI Book Analysis',
+                aiProviderConfig: 'AI Config',
                 aiProvider: 'Provider',
-        aiKeyAuto: 'Key (auto rotation)',
-        aiModel: 'Model',
-        aiEndpoint: 'Endpoint',
-        runAiAnalysis: 'AI Analyze',
-        generateCreativeMaterial: 'Create Creative Material',
-        buildSkeleton: 'Build Skeleton',
-        aiStatus: 'AI Status',
+                aiKeyAuto: 'Key (auto rotation)',
+                aiModel: 'Model',
+                aiEndpoint: 'Endpoint',
+                runAiAnalysis: 'AI Analyze',
+                generateCreativeMaterial: 'Create Creative Material',
+                buildSkeleton: 'Build Skeleton',
+                aiStatus: 'AI Status',
                 aiIdle: 'Idle',
                 aiQueued: 'Queued',
                 aiRunning: 'Running',
@@ -2312,15 +2416,15 @@ export const messages = {
                 previewRequiredForAi: 'Upload TXT or preview URL first.',
                 aiConfigRequired: 'Select Provider, model, and endpoint first.',
                 aiAnalysisCompleted: 'AI analysis completed and filled the preview.',
-        aiAnalysisFailed: 'AI analysis failed.',
-        previewApplied: 'Preview applied to the form.',
-        creativeMaterialCreatedFromBookAnalysis: 'Creative material created from book analysis: {name}',
-        createCreativeMaterialFromBookAnalysisFailed: 'Failed to create creative material from book analysis.',
-        skeletonBuilt: 'Skeleton built: {rules} rules, {outlines} outline, {volumes} volumes, {chapters} chapter plans, {blueprints} blueprints.',
-        skeletonBuildFailed: 'Failed to build skeleton.',
-        backgroundAiQueued: 'Background AI analysis has been queued. You can keep working.',
-        backgroundAiQueueFailed: 'Failed to queue background AI analysis.',
-        backgroundAiAlreadyRunning: 'A background AI analysis job is already running for this record.'
+                aiAnalysisFailed: 'AI analysis failed.',
+                previewApplied: 'Preview applied to the form.',
+                creativeMaterialCreatedFromBookAnalysis: 'Creative material created from book analysis: {name}',
+                createCreativeMaterialFromBookAnalysisFailed: 'Failed to create creative material from book analysis.',
+                skeletonBuilt: 'Skeleton built: {rules} rules, {outlines} outline, {volumes} volumes, {chapters} chapter plans, {blueprints} blueprints.',
+                skeletonBuildFailed: 'Failed to build skeleton.',
+                backgroundAiQueued: 'Background AI analysis has been queued. You can keep working.',
+                backgroundAiQueueFailed: 'Failed to queue background AI analysis.',
+                backgroundAiAlreadyRunning: 'A background AI analysis job is already running for this record.'
             }
         },
         editor: {

@@ -137,13 +137,13 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.ul, __VLS_intrinsicElements.ul
     ...{ class: "feature-list" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.li, __VLS_intrinsicElements.li)({});
-(__VLS_ctx.t('home.focusItems.notifications'));
+(__VLS_ctx.t('home.focusItems.step1'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.li, __VLS_intrinsicElements.li)({});
-(__VLS_ctx.t('home.focusItems.proxy'));
+(__VLS_ctx.t('home.focusItems.step2'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.li, __VLS_intrinsicElements.li)({});
-(__VLS_ctx.t('home.focusItems.docker'));
+(__VLS_ctx.t('home.focusItems.step3'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.li, __VLS_intrinsicElements.li)({});
-(__VLS_ctx.t('home.focusItems.smoke'));
+(__VLS_ctx.t('home.focusItems.step4'));
 var __VLS_15;
 const __VLS_16 = {}.ElCard;
 /** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;

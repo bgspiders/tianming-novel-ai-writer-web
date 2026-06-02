@@ -1,8 +1,12 @@
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { ElMessage } from 'element-plus';
 import { useI18n } from '@/composables/useI18n';
+import { packageGenerationContext } from '@/api/modules/generation';
 import { useWorkContextStore } from '@/stores/workContext';
 const workContext = useWorkContextStore();
 const { t } = useI18n();
+const packaging = ref(false);
+const packageResult = ref(null);
 const cards = computed(() => [
     {
         title: t('generationWorkbench.cards.outlines.title'),
@@ -34,17 +38,17 @@ const cards = computed(() => [
     },
     {
         title: t('generationWorkbench.cards.package.title'),
-        path: '',
+        path: '/generate',
         icon: '包',
         desc: t('generationWorkbench.cards.package.desc'),
-        ready: false
+        ready: true
     },
     {
         title: t('generationWorkbench.cards.preview.title'),
-        path: '',
+        path: '/generate/chapters',
         icon: '阅',
         desc: t('generationWorkbench.cards.preview.desc'),
-        ready: false
+        ready: true
     },
     {
         title: t('generationWorkbench.cards.draftChapters.title'),
@@ -61,6 +65,26 @@ const cards = computed(() => [
         ready: true
     }
 ]);
+async function runPackaging() {
+    if (!workContext.selectedProjectId) {
+        ElMessage.warning(t('generationWorkbench.messages.selectProjectFirst'));
+        return;
+    }
+    packaging.value = true;
+    try {
+        packageResult.value = await packageGenerationContext(workContext.selectedProjectId, workContext.selectedProject?.currentSourceBookId ?? null);
+        ElMessage.success(t('generationWorkbench.messages.packageSuccess', {
+            version: packageResult.value.version,
+            files: packageResult.value.fileCount
+        }));
+    }
+    catch (err) {
+        ElMessage.error(err.message || t('generationWorkbench.messages.packageFailed'));
+    }
+    finally {
+        packaging.value = false;
+    }
+}
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
@@ -72,6 +96,7 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['disabled']} */ ;
 /** @type {__VLS_StyleScopedClasses['hero']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['package-head']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -170,6 +195,79 @@ for (const [card] of __VLS_getVForSourceType((__VLS_ctx.cards))) {
     var __VLS_11;
     var __VLS_7;
 }
+const __VLS_12 = {}.ElCard;
+/** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
+// @ts-ignore
+const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({
+    shadow: "never",
+    ...{ class: "package-panel" },
+}));
+const __VLS_14 = __VLS_13({
+    shadow: "never",
+    ...{ class: "package-panel" },
+}, ...__VLS_functionalComponentArgsRest(__VLS_13));
+__VLS_15.slots.default;
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "package-head" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "package-title" },
+});
+(__VLS_ctx.t('generationWorkbench.cards.package.title'));
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "package-desc" },
+});
+(__VLS_ctx.t('generationWorkbench.cards.package.desc'));
+const __VLS_16 = {}.ElButton;
+/** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
+// @ts-ignore
+const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({
+    ...{ 'onClick': {} },
+    type: "primary",
+    loading: (__VLS_ctx.packaging),
+}));
+const __VLS_18 = __VLS_17({
+    ...{ 'onClick': {} },
+    type: "primary",
+    loading: (__VLS_ctx.packaging),
+}, ...__VLS_functionalComponentArgsRest(__VLS_17));
+let __VLS_20;
+let __VLS_21;
+let __VLS_22;
+const __VLS_23 = {
+    onClick: (__VLS_ctx.runPackaging)
+};
+__VLS_19.slots.default;
+(__VLS_ctx.t('generationWorkbench.actions.packageNow'));
+var __VLS_19;
+if (!__VLS_ctx.packageResult) {
+    const __VLS_24 = {}.ElEmpty;
+    /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
+    // @ts-ignore
+    const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
+        description: (__VLS_ctx.t('generationWorkbench.empty.package')),
+        imageSize: (72),
+    }));
+    const __VLS_26 = __VLS_25({
+        description: (__VLS_ctx.t('generationWorkbench.empty.package')),
+        imageSize: (72),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_25));
+}
+else {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "package-meta" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+    (__VLS_ctx.t('generationWorkbench.labels.packageVersion', { value: __VLS_ctx.packageResult.version }));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+    (__VLS_ctx.t('generationWorkbench.labels.packageFiles', { value: __VLS_ctx.packageResult.fileCount }));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+    (__VLS_ctx.t('generationWorkbench.labels.packageModules', { value: __VLS_ctx.packageResult.enabledModuleCount }));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+    (__VLS_ctx.t('generationWorkbench.labels.packageTime', { value: new Date(__VLS_ctx.packageResult.publishedAt).toLocaleString() }));
+}
+var __VLS_15;
 /** @type {__VLS_StyleScopedClasses['generation-workbench']} */ ;
 /** @type {__VLS_StyleScopedClasses['hero']} */ ;
 /** @type {__VLS_StyleScopedClasses['eyebrow']} */ ;
@@ -183,13 +281,21 @@ for (const [card] of __VLS_getVForSourceType((__VLS_ctx.cards))) {
 /** @type {__VLS_StyleScopedClasses['card-icon']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-title']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-desc']} */ ;
+/** @type {__VLS_StyleScopedClasses['package-panel']} */ ;
+/** @type {__VLS_StyleScopedClasses['package-head']} */ ;
+/** @type {__VLS_StyleScopedClasses['package-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['package-desc']} */ ;
+/** @type {__VLS_StyleScopedClasses['package-meta']} */ ;
 var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
             workContext: workContext,
             t: t,
+            packaging: packaging,
+            packageResult: packageResult,
             cards: cards,
+            runPackaging: runPackaging,
         };
     },
 });

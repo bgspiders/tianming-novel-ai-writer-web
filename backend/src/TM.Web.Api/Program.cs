@@ -83,6 +83,9 @@ builder.Services.AddSingleton<IAiCompletionService, AiCompletionService>();
 builder.Services.AddSingleton<IGenerationGateService, LegacyGenerationGateService>();
 builder.Services.AddSingleton<IBookAnalysisBackgroundJobQueue, BookAnalysisBackgroundJobQueue>();
 builder.Services.AddHostedService<BookAnalysisBackgroundWorker>();
+builder.Services.AddSingleton<IChapterBatchGenerationJobQueue, ChapterBatchGenerationJobQueue>();
+builder.Services.AddSingleton<IChapterBatchGenerationService, ChapterBatchGenerationService>();
+builder.Services.AddHostedService<ChapterBatchGenerationWorker>();
 
 builder.Services.AddAppDatabase(builder.Configuration);
 
@@ -101,6 +104,7 @@ builder.Services.AddScoped<IVolumeService, VolumeService>();
 builder.Services.AddScoped<IChapterService, ChapterService>();
 builder.Services.AddScoped<IEditorService, EditorService>();
 builder.Services.AddScoped<GenerationStateService>();
+builder.Services.AddScoped<INovelSeedService, NovelSeedService>();
 builder.Services.AddScoped<IContextPackagingService, ContextPackagingService>();
 builder.Services.AddScoped<IChapterDraftService, ChapterDraftService>();
 builder.Services.AddScoped<IWorldRuleService, WorldRuleService>();

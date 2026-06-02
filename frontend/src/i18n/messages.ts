@@ -19,6 +19,7 @@ export const messages: TranslationDictionary = {
       chapterEditor: '章节编辑',
       designModules: '设计模块',
       generationWorkbench: '生成工作台',
+      novelSeed: 'AI 开书',
       chapterGeneration: '章节生成',
       generationGate: '生成闸门',
       generationPlanning: '生成规划',
@@ -69,6 +70,7 @@ export const messages: TranslationDictionary = {
         healthCheck: '健康检查',
         aiStreaming: 'AI 流式测试',
         generate: '生成',
+        novelSeed: 'AI 开书',
         writerEditor: '写作编辑器',
         validation: '校验',
         worldRules: '世界规则',
@@ -828,7 +830,8 @@ export const messages: TranslationDictionary = {
         tableStatus: '状态',
         header: '章节 {number} / {title}',
         draftFallback: '章节草稿',
-        defaultFirstChapterTitle: '第一章 开局'
+        defaultFirstChapterTitle: '第一章 开局',
+        autoTitle: '第 {number} 章'
       },
       actions: {
         saveDraft: '保存草稿',
@@ -856,6 +859,42 @@ export const messages: TranslationDictionary = {
       },
       status: {
         record: '记录 {id}'
+      },
+      batch: {
+        title: '自动连续生成',
+        subtitle: '按章节号连续生成并自动保存，适合一次生成多章草稿。',
+        start: '开始自动生成',
+        stop: '停止',
+        startNumber: '起始章',
+        count: '生成章数',
+        options: '选项',
+        createMissing: '缺章节自动创建',
+        overwriteExisting: '覆盖已有正文',
+        stopOnFailure: '失败后停止',
+        countRequired: '生成章数必须大于 0。',
+        missingChapter: '第 {number} 章不存在，且未启用自动创建。',
+        created: '已创建第 {number} 章：{title}',
+        generated: '已生成第 {number} 章：{title}',
+        skippedExisting: '已跳过第 {number} 章：{title}，已有正文。',
+        failed: '第 {number} 章生成失败：{title}',
+        queued: '后台任务已提交：{id}',
+        queueFailed: '提交后台章节生成任务失败。',
+        loadJobFailed: '加载后台章节生成任务失败。',
+        cancelFailed: '取消后台章节生成任务失败。',
+        jobId: '任务 {id}',
+        stopRequested: '将在当前章节结束后停止自动生成。',
+        stopped: '已停止自动生成。',
+        completed: '自动生成完成：成功 {completed} 章，跳过 {skipped} 章，失败 {failed} 章。',
+        progress: '成功 {completed} / 跳过 {skipped} / 失败 {failed} / 总计 {total}',
+        current: '当前：第 {number} 章 / {title}',
+        status: {
+          idle: '空闲',
+          queued: '排队中',
+          running: '后台运行中',
+          completed: '已完成',
+          failed: '已结束',
+          cancelled: '已取消'
+        }
       }
     },
     aiAssistant: {
@@ -1259,6 +1298,7 @@ export const messages: TranslationDictionary = {
       chapterEditor: 'Chapter Editor',
       designModules: 'Design Modules',
       generationWorkbench: 'Generation Workbench',
+      novelSeed: 'Novel Seed',
       chapterGeneration: 'Chapter Generation',
       generationGate: 'Generation Gate',
       generationPlanning: 'Generation Planning',
@@ -1309,6 +1349,7 @@ export const messages: TranslationDictionary = {
         healthCheck: 'Health Check',
         aiStreaming: 'AI Streaming',
         generate: 'Generate',
+        novelSeed: 'Novel Seed',
         writerEditor: 'Writer Editor',
         validation: 'Validation',
         worldRules: 'World Rules',
@@ -2086,7 +2127,8 @@ export const messages: TranslationDictionary = {
         tableStatus: 'Status',
         header: 'Chapter {number} / {title}',
         draftFallback: 'Chapter Draft',
-        defaultFirstChapterTitle: 'Chapter 1 Opening'
+        defaultFirstChapterTitle: 'Chapter 1 Opening',
+        autoTitle: 'Chapter {number}'
       },
       actions: {
         saveDraft: 'Save Draft',
@@ -2114,6 +2156,42 @@ export const messages: TranslationDictionary = {
       },
       status: {
         record: 'Record {id}'
+      },
+      batch: {
+        title: 'Auto Generate Chapters',
+        subtitle: 'Generate by chapter number and save automatically, useful for multi-chapter drafts.',
+        start: 'Start Auto Generate',
+        stop: 'Stop',
+        startNumber: 'Start No.',
+        count: 'Chapter Count',
+        options: 'Options',
+        createMissing: 'Create missing chapters',
+        overwriteExisting: 'Overwrite existing content',
+        stopOnFailure: 'Stop on failure',
+        countRequired: 'Chapter count must be greater than 0.',
+        missingChapter: 'Chapter {number} does not exist and auto creation is disabled.',
+        created: 'Created Chapter {number}: {title}',
+        generated: 'Generated Chapter {number}: {title}',
+        skippedExisting: 'Skipped Chapter {number}: {title}; content already exists.',
+        failed: 'Chapter {number} failed: {title}',
+        queued: 'Background job queued: {id}',
+        queueFailed: 'Failed to queue background chapter generation.',
+        loadJobFailed: 'Failed to load background chapter generation job.',
+        cancelFailed: 'Failed to cancel background chapter generation job.',
+        jobId: 'Job {id}',
+        stopRequested: 'Auto generation will stop after the current chapter.',
+        stopped: 'Auto generation stopped.',
+        completed: 'Auto generation completed: {completed} succeeded, {skipped} skipped, {failed} failed.',
+        progress: 'Done {completed} / skipped {skipped} / failed {failed} / total {total}',
+        current: 'Current: Chapter {number} / {title}',
+        status: {
+          idle: 'Idle',
+          queued: 'Queued',
+          running: 'Running in background',
+          completed: 'Completed',
+          failed: 'Finished',
+          cancelled: 'Cancelled'
+        }
       }
     },
     aiAssistant: {

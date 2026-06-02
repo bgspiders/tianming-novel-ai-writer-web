@@ -32,6 +32,7 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+.npm-cache/
 .vite/
 .npm/
 .pnpm-debug.log*

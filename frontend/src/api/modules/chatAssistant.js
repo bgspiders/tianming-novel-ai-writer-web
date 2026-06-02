@@ -22,10 +22,10 @@ export async function listChatMessages(sessionId) {
     return data;
 }
 export async function sendChatMessage(sessionId, input) {
-    const { data } = await http.post(`/api/chat-assistant/sessions/${sessionId}/messages`, input);
+    const { data } = await http.post(`/api/chat-assistant/sessions/${sessionId}/messages`, input, { timeout: 10 * 60_000 });
     return data;
 }
 export async function executeChatPlan(sessionId, messageId, input) {
-    const { data } = await http.post(`/api/chat-assistant/sessions/${sessionId}/messages/${messageId}/execute`, input);
+    const { data } = await http.post(`/api/chat-assistant/sessions/${sessionId}/messages/${messageId}/execute`, input, { timeout: 10 * 60_000 });
     return data;
 }
