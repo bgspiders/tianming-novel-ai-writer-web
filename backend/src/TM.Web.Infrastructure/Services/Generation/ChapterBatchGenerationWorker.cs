@@ -191,6 +191,9 @@ public sealed class ChapterBatchGenerationWorker : BackgroundService
             $"章节：{chapter.ChapterNumber} / {chapter.Title}",
             $"本章正文标题硬约束：{heading}",
             string.IsNullOrWhiteSpace(chapter.Summary) ? string.Empty : $"摘要：{chapter.Summary}",
+            request.AutoContinuityMode
+                ? "自动连续模式已开启：必须承接上一章的角色状态、地点状态、冲突进度、伏笔和时间线；不得重置人物关系，不得跳过上一章钩子。"
+                : string.Empty,
             string.Empty,
             "请直接输出章节草稿，保持叙事连贯清晰。",
             $"正文第一行必须严格使用“{heading}”。",

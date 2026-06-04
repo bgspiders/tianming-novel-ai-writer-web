@@ -88,7 +88,8 @@ const autoForm = reactive({
   count: 3,
   createMissing: true,
   overwriteExisting: false,
-  stopOnFailure: true
+  stopOnFailure: true,
+  autoContinuityMode: true
 })
 
 const selectedConfig = computed(() =>
@@ -468,7 +469,8 @@ async function generateBatchDrafts() {
       count: autoForm.count,
       createMissing: autoForm.createMissing,
       overwriteExisting: autoForm.overwriteExisting,
-      stopOnFailure: autoForm.stopOnFailure,
+      stopOnFailure: autoForm.autoContinuityMode ? true : autoForm.stopOnFailure,
+      autoContinuityMode: autoForm.autoContinuityMode,
       configId: selectedConfigId.value || null,
       endpoint: aiForm.value.endpoint,
       providerId: selectedConfigId.value || null,
@@ -480,7 +482,7 @@ async function generateBatchDrafts() {
       maxTokens: promptForm.maxTokens,
       maxRewriteAttempts: promptForm.maxRewriteAttempts,
       validationReportId: validationReportId.value || null,
-      rerunValidationAfterSave: rerunValidationAfterSave.value,
+      rerunValidationAfterSave: autoForm.autoContinuityMode ? true : rerunValidationAfterSave.value,
       previewItems: autoPreviewItems.value.map((item) => ({
         ...item,
         title: item.title.trim(),
@@ -791,9 +793,15 @@ onBeforeUnmount(async () => {
                   <el-checkbox v-model="autoForm.overwriteExisting" :disabled="autoGenerating">
                     {{ t('chapterGeneration.batch.overwriteExisting') }}
                   </el-checkbox>
-                  <el-checkbox v-model="autoForm.stopOnFailure" :disabled="autoGenerating">
+                  <el-checkbox v-model="autoForm.autoContinuityMode" :disabled="autoGenerating">
+                    {{ t('chapterGeneration.batch.autoContinuityMode') }}
+                  </el-checkbox>
+                  <el-checkbox v-model="autoForm.stopOnFailure" :disabled="autoGenerating || autoForm.autoContinuityMode">
                     {{ t('chapterGeneration.batch.stopOnFailure') }}
                   </el-checkbox>
+                  <span v-if="autoForm.autoContinuityMode" class="batch-option-hint">
+                    {{ t('chapterGeneration.batch.autoContinuityHint') }}
+                  </span>
                 </div>
               </el-form-item>
             </div>

@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Bell,
   ChatDotRound,
   CircleCheck,
+  Delete,
   Document,
   Edit,
+  FolderOpened,
   MagicStick,
   Monitor,
   Moon,
@@ -73,11 +75,24 @@ const localeOptions: Array<{ label: string; value: Locale }> = [
 ]
 
 const projectDialogVisible = ref(false)
+const projectManagerVisible = ref(false)
 const volumeDialogVisible = ref(false)
 const creatingProject = ref(false)
+const deletingProjectId = ref('')
 const creatingVolume = ref(false)
 const guideVisible = ref(false)
 const guideCurrent = ref(0)
+const minSidebarWidth = 188
+const maxSidebarWidth = 420
+const sidebarWidth = ref(readSidebarWidth())
+const isSidebarResizing = ref(false)
+let sidebarPointerMoveHandler: ((event: PointerEvent) => void) | null = null
+let sidebarPointerUpHandler: (() => void) | null = null
+
+const sidebarStyle = computed(() => ({
+  width: `${sidebarWidth.value}px`,
+  flex: `0 0 ${sidebarWidth.value}px`
+}))
 
 const projectForm = reactive({
   name: '',
@@ -90,10 +105,27 @@ const volumeForm = reactive({
   theme: ''
 })
 
+function clampSidebarWidth(width: number) {
+  return Math.min(maxSidebarWidth, Math.max(minSidebarWidth, Math.round(width)))
+}
+
+function readSidebarWidth() {
+  const storedWidth = Number(localStorage.getItem('tm.sidebar.width'))
+  return Number.isFinite(storedWidth) && storedWidth > 0 ? clampSidebarWidth(storedWidth) : 236
+}
+
+function saveSidebarWidth() {
+  localStorage.setItem('tm.sidebar.width', String(sidebarWidth.value))
+}
+
 function openProjectDialog() {
   projectForm.name = ''
   projectForm.description = ''
   projectDialogVisible.value = true
+}
+
+function openProjectManager() {
+  projectManagerVisible.value = true
 }
 
 function openVolumeDialog() {
@@ -125,6 +157,32 @@ async function submitProject() {
   } finally {
     creatingProject.value = false
   }
+}
+
+async function deleteManagedProject(projectId: string) {
+  const project = workContext.projects.find((p) => p.id === projectId)
+  if (!project) return
+
+  deletingProjectId.value = projectId
+  try {
+    await workContext.removeProject(projectId)
+    ElMessage.success(t('layout.messages.projectDeleted', { name: project.name }))
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? t('layout.messages.projectDeleteFailed'))
+  } finally {
+    deletingProjectId.value = ''
+  }
+}
+
+function formatProjectTime(value: string) {
+  if (!value) return '-'
+  return new Intl.DateTimeFormat(localeStore.locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(value))
 }
 
 async function submitVolume() {
@@ -176,14 +234,52 @@ function handleGuideClose() {
   guideVisible.value = false
 }
 
+function clearSidebarResizeListeners() {
+  if (sidebarPointerMoveHandler) {
+    window.removeEventListener('pointermove', sidebarPointerMoveHandler)
+    sidebarPointerMoveHandler = null
+  }
+  if (sidebarPointerUpHandler) {
+    window.removeEventListener('pointerup', sidebarPointerUpHandler)
+    window.removeEventListener('pointercancel', sidebarPointerUpHandler)
+    sidebarPointerUpHandler = null
+  }
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  isSidebarResizing.value = false
+}
+
+function startSidebarResize(event: PointerEvent) {
+  event.preventDefault()
+  isSidebarResizing.value = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+
+  sidebarPointerMoveHandler = (moveEvent: PointerEvent) => {
+    sidebarWidth.value = clampSidebarWidth(moveEvent.clientX)
+  }
+  sidebarPointerUpHandler = () => {
+    saveSidebarWidth()
+    clearSidebarResizeListeners()
+  }
+
+  window.addEventListener('pointermove', sidebarPointerMoveHandler)
+  window.addEventListener('pointerup', sidebarPointerUpHandler)
+  window.addEventListener('pointercancel', sidebarPointerUpHandler)
+}
+
 onMounted(() => {
   workContext.init()
+})
+
+onBeforeUnmount(() => {
+  clearSidebarResizeListeners()
 })
 </script>
 
 <template>
   <el-container class="layout">
-    <el-aside width="236px" class="layout-aside">
+    <el-aside :width="`${sidebarWidth}px`" :style="sidebarStyle" class="layout-aside">
       <div class="brand">
         <span class="brand-dot"></span>
         <div class="brand-copy">
@@ -283,7 +379,15 @@ onMounted(() => {
       </el-menu>
     </el-aside>
 
-    <el-container>
+    <button
+      class="sidebar-resizer"
+      :class="{ 'is-resizing': isSidebarResizing }"
+      type="button"
+      :aria-label="t('layout.resizeSidebar')"
+      @pointerdown="startSidebarResize"
+    ></button>
+
+    <el-container class="layout-content">
       <el-header height="60px" class="layout-header">
         <div>
           <div class="header-title">{{ headerTitle }}</div>
@@ -324,6 +428,9 @@ onMounted(() => {
             <el-button size="small" :icon="Plus" @click="openProjectDialog">
               {{ t('layout.dialogs.newProject') }}
             </el-button>
+            <el-button size="small" :icon="FolderOpened" @click="openProjectManager">
+              {{ t('layout.projectManage') }}
+            </el-button>
 
             <span class="context-label">{{ t('layout.volume') }}</span>
             <el-select
@@ -362,11 +469,6 @@ onMounted(() => {
 
           <el-button type="primary" plain size="small" class="guide-trigger" @click="startGuide">
             {{ t('layout.guide.start') }}
-          </el-button>
-
-          <el-button class="theme-trigger" @click="router.push('/settings/themes')">
-            <span class="theme-pill" :style="{ background: themeStore.effectiveTheme.hero }"></span>
-            <span>{{ t('layout.themeStudio') }}</span>
           </el-button>
 
           <el-button text size="small" @click="cycleTheme">
@@ -429,6 +531,52 @@ onMounted(() => {
     </template>
   </el-dialog>
 
+  <el-dialog v-model="projectManagerVisible" :title="t('layout.dialogs.projectManager')" width="720px">
+    <div class="project-manager">
+      <div v-if="!workContext.projects.length" class="project-empty">
+        {{ t('layout.projectManager.empty') }}
+      </div>
+      <div v-for="project in workContext.projects" :key="project.id" class="project-row">
+        <div class="project-row-main">
+          <div class="project-row-title">
+            <span>{{ project.name }}</span>
+            <el-tag v-if="project.id === workContext.selectedProjectId" size="small" type="success">
+              {{ t('layout.projectManager.current') }}
+            </el-tag>
+          </div>
+          <div class="project-row-desc">{{ project.description || t('layout.projectManager.noDescription') }}</div>
+          <div class="project-row-meta">
+            {{ t('layout.projectManager.updatedAt', { time: formatProjectTime(project.updatedAt) }) }}
+          </div>
+        </div>
+        <el-popconfirm
+          width="320"
+          :title="t('layout.projectManager.deleteConfirm', { name: project.name })"
+          :confirm-button-text="t('layout.dialogs.delete')"
+          :cancel-button-text="t('layout.dialogs.cancel')"
+          confirm-button-type="danger"
+          @confirm="deleteManagedProject(project.id)"
+        >
+          <template #reference>
+            <el-button
+              type="danger"
+              plain
+              size="small"
+              :icon="Delete"
+              :loading="deletingProjectId === project.id"
+            >
+              {{ t('layout.dialogs.delete') }}
+            </el-button>
+          </template>
+        </el-popconfirm>
+      </div>
+    </div>
+    <template #footer>
+      <el-button @click="projectManagerVisible = false">{{ t('layout.dialogs.close') }}</el-button>
+      <el-button type="primary" :icon="Plus" @click="openProjectDialog">{{ t('layout.dialogs.newProject') }}</el-button>
+    </template>
+  </el-dialog>
+
   <el-dialog v-model="volumeDialogVisible" :title="t('layout.dialogs.newVolume')" width="420px">
     <el-form :model="volumeForm" label-width="90px">
       <el-form-item :label="t('layout.dialogs.number')" required>
@@ -451,6 +599,7 @@ onMounted(() => {
 <style scoped>
 .layout {
   height: 100vh;
+  overflow: hidden;
 }
 
 .layout-aside {
@@ -459,44 +608,152 @@ onMounted(() => {
     var(--tm-bg-elevated);
   border-right: 1px solid var(--tm-border);
   padding: 14px 10px 10px;
+  min-width: 188px;
+  max-width: 420px;
+  overflow: hidden auto;
+  flex-shrink: 0;
 }
 
 .brand {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 8px 12px 16px;
 }
 
 .brand-dot {
+  flex: 0 0 auto;
   width: 12px;
   height: 12px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--tm-primary), var(--tm-info));
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--tm-primary) 18%, transparent);
+  margin-top: 4px;
 }
 
 .brand-copy {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
 }
 
 .brand-text {
   font-size: 15px;
   font-weight: 700;
   color: var(--tm-fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-sub {
   font-size: 11px;
   color: var(--tm-fg-secondary);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  white-space: normal;
+}
+
+.brand :deep(.el-tag) {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.sidebar-resizer {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 8px;
+  width: 8px;
+  border: 0;
+  padding: 0;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.sidebar-resizer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.sidebar-resizer:hover::before,
+.sidebar-resizer.is-resizing::before {
+  background: var(--tm-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tm-primary) 14%, transparent);
+}
+
+.layout-content {
+  min-width: 0;
 }
 
 .layout-menu {
   border-right: none;
+}
+
+.layout-menu :deep(.el-menu-item span),
+.layout-menu :deep(.el-sub-menu__title span) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.project-empty {
+  padding: 20px 0;
+  text-align: center;
+  color: var(--tm-fg-secondary);
+}
+
+.project-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--tm-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tm-bg-elevated) 92%, transparent);
+}
+
+.project-row-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.project-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--tm-fg-primary);
+}
+
+.project-row-desc {
+  margin-top: 4px;
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.project-row-meta {
+  margin-top: 6px;
+  color: var(--tm-fg-tertiary);
+  font-size: 12px;
 }
 
 .layout-header {
@@ -513,24 +770,30 @@ onMounted(() => {
   font-size: 16px;
   color: var(--tm-fg-primary);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .header-sub {
   font-size: 12px;
   color: var(--tm-fg-secondary);
   margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .work-context {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .primary-project-entry {
@@ -542,22 +805,10 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.theme-trigger {
-  border-radius: 999px;
-}
-
 .guide-trigger {
   border-radius: 999px;
   font-weight: 600;
   white-space: nowrap;
-}
-
-.theme-pill {
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--tm-border) 80%, transparent);
-  margin-right: 8px;
 }
 
 .user-chip {
@@ -584,13 +835,51 @@ onMounted(() => {
 }
 
 @media (max-width: 1100px) {
+  .layout-header {
+    height: auto !important;
+    min-height: 60px;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+  }
+
   .header-right {
     gap: 8px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   .work-context {
     flex-wrap: wrap;
     justify-content: flex-end;
+  }
+
+  .project-row {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout-aside {
+    min-width: 172px;
+  }
+
+  .sidebar-resizer {
+    flex-basis: 10px;
+    width: 10px;
+  }
+
+  .layout-header {
+    flex-direction: column;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .work-context {
+    justify-content: flex-start;
   }
 }
 </style>

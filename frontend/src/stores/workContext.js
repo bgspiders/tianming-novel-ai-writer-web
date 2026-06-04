@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
-import { listProjects, listVolumes, createProject, createVolume, updateProject } from '@/api/modules/projects';
+import { listProjects, listVolumes, createProject, createVolume, deleteProject, updateProject } from '@/api/modules/projects';
 const PROJECT_KEY = 'tm.workContext.projectId';
 const VOLUME_KEY = 'tm.workContext.volumeId';
 export const useWorkContextStore = defineStore('workContext', () => {
@@ -56,6 +56,14 @@ export const useWorkContextStore = defineStore('workContext', () => {
         await refreshVolumes();
         return project;
     }
+    async function removeProject(id) {
+        await deleteProject(id);
+        projects.value = projects.value.filter((p) => p.id !== id);
+        if (selectedProjectId.value === id) {
+            selectedProjectId.value = projects.value[0]?.id ?? '';
+        }
+        await refreshVolumes();
+    }
     async function addVolume(input) {
         if (!selectedProjectId.value)
             throw new Error('请先选择项目');
@@ -97,6 +105,7 @@ export const useWorkContextStore = defineStore('workContext', () => {
         refreshProjects,
         refreshVolumes,
         addProject,
+        removeProject,
         addVolume,
         updateSelectedProjectSourceBook
     };

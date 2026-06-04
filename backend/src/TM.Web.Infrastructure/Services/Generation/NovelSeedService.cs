@@ -9,6 +9,7 @@ using TM.Web.Domain.Entities.Core;
 using TM.Web.Domain.Entities.Design;
 using TM.Web.Domain.Entities.Generate;
 using TM.Web.Domain.Entities.Runtime;
+using TM.Web.Domain.Entities.Tracking;
 using TM.Web.Infrastructure.Persistence;
 
 [assembly: InternalsVisibleTo("TM.Web.Tests")]
@@ -747,7 +748,7 @@ public sealed class NovelSeedService : INovelSeedService
     {
         var counts = new DesignCounts();
 
-        _db.WorldRules.Add(new WorldRule
+        var worldRule = new WorldRule
         {
             Name = FirstNonEmpty(plan.World.Name, "核心世界观"),
             SourceBookId = sourceBookId,
@@ -762,12 +763,14 @@ public sealed class NovelSeedService : INovelSeedService
             KeyEvents = plan.World.KeyEvents,
             ModernHistory = plan.World.ModernHistory,
             StatusQuo = plan.World.StatusQuo
-        });
+        };
+        _db.WorldRules.Add(worldRule);
         counts.WorldRules++;
 
+        var characterRules = new List<CharacterRule>();
         foreach (var c in plan.Characters.Take(12))
         {
-            _db.CharacterRules.Add(new CharacterRule
+            var rule = new CharacterRule
             {
                 Name = FirstNonEmpty(c.Name, "未命名角色"),
                 SourceBookId = sourceBookId,
@@ -783,13 +786,16 @@ public sealed class NovelSeedService : INovelSeedService
                 GrowthPath = c.GrowthPath,
                 SpecialAbilities = c.Abilities,
                 SignatureItems = c.SignatureItems
-            });
+            };
+            characterRules.Add(rule);
+            _db.CharacterRules.Add(rule);
             counts.Characters++;
         }
 
+        var factionRules = new List<FactionRule>();
         foreach (var f in plan.Factions.Take(8))
         {
-            _db.FactionRules.Add(new FactionRule
+            var rule = new FactionRule
             {
                 Name = FirstNonEmpty(f.Name, "未命名势力"),
                 SourceBookId = sourceBookId,
@@ -801,13 +807,16 @@ public sealed class NovelSeedService : INovelSeedService
                 CoreMembers = f.CoreMembers,
                 Allies = f.Allies,
                 Enemies = f.Enemies
-            });
+            };
+            factionRules.Add(rule);
+            _db.FactionRules.Add(rule);
             counts.Factions++;
         }
 
+        var locationRules = new List<LocationRule>();
         foreach (var l in plan.Locations.Take(12))
         {
-            _db.LocationRules.Add(new LocationRule
+            var rule = new LocationRule
             {
                 Name = FirstNonEmpty(l.Name, "未命名地点"),
                 SourceBookId = sourceBookId,
@@ -820,7 +829,9 @@ public sealed class NovelSeedService : INovelSeedService
                 Landmarks = l.Landmarks,
                 Resources = l.Resources,
                 Dangers = l.Dangers
-            });
+            };
+            locationRules.Add(rule);
+            _db.LocationRules.Add(rule);
             counts.Locations++;
         }
 
@@ -897,7 +908,8 @@ public sealed class NovelSeedService : INovelSeedService
         });
         counts.CreativeMaterials++;
 
-        foreach (var chapter in BuildPlanningChapters(request, plan))
+        var planningChapters = BuildPlanningChapters(request, plan).ToList();
+        foreach (var chapter in planningChapters)
         {
             var volumeTitle = volumes.First(v => v.VolumeNumber == chapter.VolumeNumber).Title;
             _db.ChapterPlans.Add(new ChapterPlan
@@ -963,8 +975,248 @@ public sealed class NovelSeedService : INovelSeedService
             counts.ChapterBlueprints++;
         }
 
+        SeedInitialTrackingFacts(sourceBookId, plan, characterRules, factionRules, locationRules, chapters, planningChapters);
+
         return counts;
     }
+
+    private void SeedInitialTrackingFacts(
+        string sourceBookId,
+        GeneratedNovelPlan plan,
+        IReadOnlyList<CharacterRule> characterRules,
+        IReadOnlyList<FactionRule> factionRules,
+        IReadOnlyList<LocationRule> locationRules,
+        IReadOnlyList<Chapter> chapters,
+        IReadOnlyList<GeneratedChapterPlan> planningChapters)
+    {
+        if (chapters.Count == 0) return;
+
+        var projectId = chapters[0].ProjectId;
+        var firstChapter = chapters.OrderBy(x => x.ChapterNumber).First();
+        var chapterMap = chapters.ToDictionary(x => x.ChapterNumber);
+        var firstPlan = planningChapters.OrderBy(x => x.Number).FirstOrDefault();
+
+        foreach (var rule in characterRules.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
+        {
+            var entry = new CharacterStateEntry
+            {
+                ProjectId = projectId,
+                SourceBookId = sourceBookId,
+                CharacterId = rule.Id,
+                Name = rule.Name,
+                BaseProfile = JoinNonEmpty(rule.Identity, rule.CharacterType, rule.Want, rule.Need, rule.GrowthPath)
+            };
+            _db.CharacterStateEntries.Add(entry);
+            _db.CharacterStatePoints.Add(new CharacterStatePoint
+            {
+                CharacterStateEntryId = entry.Id,
+                ChapterId = firstChapter.Id,
+                Phase = "初始登场",
+                Level = FirstNonEmpty(rule.Identity, rule.CharacterType, "待推进"),
+                MentalState = FirstNonEmpty(rule.Want, rule.Need, "目标已建立"),
+                Abilities = SplitTags(rule.SpecialAbilities),
+                KeyEvent = FirstNonEmpty(firstPlan?.CoreEvent, firstPlan?.Summary, plan.Logline),
+                Importance = IsMainCharacter(rule) ? "high" : "normal"
+            });
+            var initialLocation = PickCharacterLocation(rule.Name, firstPlan, locationRules);
+            if (!string.IsNullOrWhiteSpace(initialLocation))
+            {
+                _db.CharacterLocations.Add(new CharacterLocation
+                {
+                    ProjectId = projectId,
+                    SourceBookId = sourceBookId,
+                    CharacterName = rule.Name,
+                    CurrentLocation = initialLocation,
+                    LastUpdatedChapter = firstChapter.Id
+                });
+            }
+        }
+
+        foreach (var rule in factionRules.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
+        {
+            var entry = new FactionStateEntry
+            {
+                ProjectId = projectId,
+                SourceBookId = sourceBookId,
+                FactionId = rule.Id,
+                Name = rule.Name,
+                CurrentStatus = "active"
+            };
+            _db.FactionStateEntries.Add(entry);
+            _db.FactionStatePoints.Add(new FactionStatePoint
+            {
+                FactionStateEntryId = entry.Id,
+                ChapterId = firstChapter.Id,
+                Status = "active",
+                Event = FirstNonEmpty(rule.Goal, firstPlan?.Conflict, plan.Logline),
+                Importance = "normal"
+            });
+        }
+
+        foreach (var rule in locationRules.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
+        {
+            var entry = new LocationStateEntry
+            {
+                ProjectId = projectId,
+                SourceBookId = sourceBookId,
+                LocationId = rule.Id,
+                Name = rule.Name,
+                CurrentStatus = "available"
+            };
+            _db.LocationStateEntries.Add(entry);
+            _db.LocationStatePoints.Add(new LocationStatePoint
+            {
+                LocationStateEntryId = entry.Id,
+                ChapterId = firstChapter.Id,
+                Status = "available",
+                Event = FirstNonEmpty(rule.Description, firstPlan?.SpatialAnchor, plan.World.StatusQuo),
+                Importance = "normal"
+            });
+        }
+
+        var conflicts = BuildInitialConflicts(plan, planningChapters);
+        foreach (var conflict in conflicts)
+        {
+            var entry = new ConflictProgressEntry
+            {
+                ProjectId = projectId,
+                SourceBookId = sourceBookId,
+                Name = conflict.Name,
+                Type = conflict.Type,
+                Tier = conflict.Tier,
+                Status = "active",
+                InvolvedChapters = planningChapters.Take(8).Select(x => $"{x.Number}").ToList(),
+                InvolvedCharacters = planningChapters.SelectMany(x => x.Characters).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Take(8).ToList()
+            };
+            _db.ConflictProgressEntries.Add(entry);
+            _db.ConflictProgressPoints.Add(new ConflictProgressPoint
+            {
+                ConflictProgressEntryId = entry.Id,
+                ChapterId = firstChapter.Id,
+                Event = conflict.Event,
+                Status = "active",
+                Description = conflict.Description,
+                Importance = conflict.Tier == "Tier-1" ? "high" : "normal"
+            });
+        }
+
+        foreach (var chapter in planningChapters.Where(x => chapterMap.ContainsKey(x.Number)))
+        {
+            var storedChapter = chapterMap[chapter.Number];
+            _db.ChapterTimelines.Add(new ChapterTimeline
+            {
+                ProjectId = projectId,
+                SourceBookId = sourceBookId,
+                ChapterId = storedChapter.Id,
+                TimePeriod = FirstNonEmpty(chapter.TemporalAnchor, chapter.TimelineCoordinate, $"第 {chapter.Number} 章时段"),
+                ElapsedTime = chapter.TimelineCoordinate,
+                KeyTimeEvent = FirstNonEmpty(chapter.CoreEvent, chapter.Summary, chapter.MainGoal),
+                Importance = chapter.IsSingularityEvent ? "high" : "normal"
+            });
+            _db.PlotPoints.Add(new PlotPoint
+            {
+                ProjectId = projectId,
+                SourceBookId = sourceBookId,
+                ChapterId = storedChapter.Id,
+                Context = FirstNonEmpty(chapter.CoreEvent, chapter.Summary, chapter.MainGoal),
+                Keywords = SplitTags(JoinNonEmpty(chapter.ChapterType, chapter.MacroPhase, chapter.StatusMarkers, chapter.Hook)),
+                InvolvedCharacters = chapter.Characters.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Take(8).ToList(),
+                Importance = chapter.IsSingularityEvent ? "high" : "normal",
+                Storyline = FirstNonEmpty(chapter.TacticalArcId, "main")
+            });
+        }
+
+        foreach (var foreshadowing in BuildInitialForeshadowings(projectId, sourceBookId, planningChapters))
+        {
+            _db.Foreshadowings.Add(foreshadowing);
+        }
+    }
+
+    private static IReadOnlyList<(string Name, string Type, string Tier, string Event, string Description)> BuildInitialConflicts(
+        GeneratedNovelPlan plan,
+        IReadOnlyList<GeneratedChapterPlan> planningChapters)
+    {
+        var volumeConflicts = plan.Volumes
+            .Select(x => FirstNonEmpty(x.MainConflict, x.StageGoal))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .Take(5)
+            .Select((x, index) => ($"卷冲突 {index + 1}", "volume", index == 0 ? "Tier-1" : "Tier-2", x, x))
+            .ToList();
+
+        if (volumeConflicts.Count > 0) return volumeConflicts;
+
+        return planningChapters
+            .Select(x => FirstNonEmpty(x.Conflict, x.CoreEvent, x.Summary))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .Take(3)
+            .Select((x, index) => ($"章节冲突 {index + 1}", "chapter", index == 0 ? "Tier-1" : "Tier-2", x, x))
+            .ToList();
+    }
+
+    private static IReadOnlyList<Foreshadowing> BuildInitialForeshadowings(
+        string projectId,
+        string sourceBookId,
+        IReadOnlyList<GeneratedChapterPlan> planningChapters)
+    {
+        var seeded = planningChapters
+            .Where(x => !string.IsNullOrWhiteSpace(x.Hook) || !string.IsNullOrWhiteSpace(x.ForeshadowingTier))
+            .Take(8)
+            .Select(x => new Foreshadowing
+            {
+                ProjectId = projectId,
+                SourceBookId = sourceBookId,
+                Name = FirstNonEmpty(x.Hook, x.CoreEvent, $"第 {x.Number} 章伏笔"),
+                Tier = FirstNonEmpty(x.ForeshadowingTier, x.IsSingularityEvent ? "Tier-1" : "Tier-2"),
+                IsSetup = true,
+                IsResolved = false,
+                IsOverdue = false,
+                ExpectedSetupChapter = $"{x.Number}",
+                ExpectedPayoffChapter = $"{Math.Max(x.Number + 2, x.Number)}",
+                ActualSetupChapter = $"{x.Number}",
+                OverdueSuggestion = "后续章节需回收或升级该伏笔。"
+            })
+            .ToList();
+
+        if (seeded.Count > 0) return seeded;
+
+        var first = planningChapters.OrderBy(x => x.Number).FirstOrDefault();
+        return first == null
+            ? Array.Empty<Foreshadowing>()
+            : new[]
+            {
+                new Foreshadowing
+                {
+                    ProjectId = projectId,
+                    SourceBookId = sourceBookId,
+                    Name = FirstNonEmpty(first.CoreEvent, first.Summary, "主线伏笔"),
+                    Tier = "Tier-2",
+                    IsSetup = true,
+                    ExpectedSetupChapter = $"{first.Number}",
+                    ExpectedPayoffChapter = $"{first.Number + 2}",
+                    ActualSetupChapter = $"{first.Number}",
+                    OverdueSuggestion = "后续章节需回收或升级该伏笔。"
+                }
+            };
+    }
+
+    private static string PickCharacterLocation(
+        string characterName,
+        GeneratedChapterPlan? firstPlan,
+        IReadOnlyList<LocationRule> locationRules)
+    {
+        if (firstPlan != null && firstPlan.Characters.Contains(characterName) && firstPlan.Locations.Count > 0)
+        {
+            return firstPlan.Locations[0];
+        }
+
+        return locationRules.FirstOrDefault()?.Name ?? string.Empty;
+    }
+
+    private static bool IsMainCharacter(CharacterRule rule)
+        => rule.CharacterType.Contains("主", StringComparison.OrdinalIgnoreCase)
+           || rule.Identity.Contains("主", StringComparison.OrdinalIgnoreCase);
 
     private async Task<string> ResolveApiKeyAsync(NovelSeedRequest request, CancellationToken ct)
     {
@@ -1045,6 +1297,21 @@ public sealed class NovelSeedService : INovelSeedService
 
     private static string FirstNonEmpty(params string?[] values)
         => values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim() ?? string.Empty;
+
+    private static string JoinNonEmpty(params string?[] values)
+        => string.Join("；", values.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!.Trim()));
+
+    private static List<string> SplitTags(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return new List<string>();
+
+        return value
+            .Split(new[] { '、', ',', '，', ';', '；', '\n', '\r', '|', '/' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => x.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
 
     private static string? BlankToNull(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

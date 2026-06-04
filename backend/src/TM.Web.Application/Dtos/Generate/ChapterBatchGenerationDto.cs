@@ -16,6 +16,8 @@ public sealed class ChapterBatchGenerationRequest
 
     public bool StopOnFailure { get; set; } = true;
 
+    public bool AutoContinuityMode { get; set; }
+
     public string? ConfigId { get; set; }
 
     public string Endpoint { get; set; } = string.Empty;

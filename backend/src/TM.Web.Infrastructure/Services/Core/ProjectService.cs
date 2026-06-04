@@ -76,11 +76,44 @@ public class ProjectService : IProjectService
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        var entity = await _db.Projects.FindAsync(new object?[] { id }, ct);
-        if (entity == null) return;
+        var exists = await _db.Projects.AnyAsync(p => p.Id == id, ct);
+        if (!exists) return;
 
-        _db.Projects.Remove(entity);
-        await _db.SaveChangesAsync(ct);
+        await DeleteProjectScopedDataAsync(id, ct);
+        await _db.Projects.Where(p => p.Id == id).ExecuteDeleteAsync(ct);
+    }
+
+    private async Task DeleteProjectScopedDataAsync(string projectId, CancellationToken ct)
+    {
+        await _db.ValidationReports.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.ValidationSummaries.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+
+        await _db.GenerationRecords.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.GenerationStatistics.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.ChatSessions.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+
+        await _db.KeywordChapterIndices.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.RelationStrengthIndices.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.GlobalSummaryCaches.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.LayerCompletionStatuses.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+
+        await _db.Manifests.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.WorkScopes.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+
+        await _db.CharacterStateEntries.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.FactionStateEntries.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.LocationStateEntries.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.ItemStateEntries.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.ConflictProgressEntries.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.ChapterTimelines.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.CharacterLocations.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.CharacterMovements.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.Foreshadowings.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.PlotPoints.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.VolumeFactArchives.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+
+        await _db.Chapters.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await _db.Volumes.Where(x => x.ProjectId == projectId).ExecuteDeleteAsync(ct);
     }
 
     private async Task ValidateSourceBookAsync(string? sourceBookId, CancellationToken ct)

@@ -5,6 +5,7 @@ import {
   listVolumes,
   createProject,
   createVolume,
+  deleteProject,
   updateProject,
   type Project,
   type ProjectUpsert,
@@ -76,6 +77,15 @@ export const useWorkContextStore = defineStore('workContext', () => {
     return project
   }
 
+  async function removeProject(id: string) {
+    await deleteProject(id)
+    projects.value = projects.value.filter((p) => p.id !== id)
+    if (selectedProjectId.value === id) {
+      selectedProjectId.value = projects.value[0]?.id ?? ''
+    }
+    await refreshVolumes()
+  }
+
   async function addVolume(input: Omit<VolumeUpsert, 'projectId'>) {
     if (!selectedProjectId.value) throw new Error('请先选择项目')
     const volume = await createVolume({ ...input, projectId: selectedProjectId.value })
@@ -120,6 +130,7 @@ export const useWorkContextStore = defineStore('workContext', () => {
     refreshProjects,
     refreshVolumes,
     addProject,
+    removeProject,
     addVolume,
     updateSelectedProjectSourceBook
   }

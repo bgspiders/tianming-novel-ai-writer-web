@@ -32,7 +32,9 @@ export const messages: TranslationDictionary = {
     layout: {
       stageBadge: '设计 → 规划 → 打包 → 生成 → 校验',
       stageTag: '闭环',
+      resizeSidebar: '调整侧栏宽度',
       project: '项目',
+      projectManage: '项目管理',
       volume: '卷',
       notSelected: '未选择',
       themeStudio: '主题工坊',
@@ -56,6 +58,8 @@ export const messages: TranslationDictionary = {
         projectCreateFailed: '创建项目失败。',
         volumeCreated: '卷已创建。',
         volumeCreateFailed: '创建卷失败。',
+        projectDeleted: '项目「{name}」已删除。',
+        projectDeleteFailed: '删除项目失败。',
         logoutFailed: '退出登录失败。'
       },
       guide: {
@@ -71,9 +75,19 @@ export const messages: TranslationDictionary = {
         number: '编号',
         title: '标题',
         theme: '主题',
+        projectManager: '项目管理',
+        delete: '删除',
+        close: '关闭',
         confirm: '确认',
         cancel: '取消',
         create: '创建'
+      },
+      projectManager: {
+        empty: '当前没有项目。',
+        current: '当前',
+        noDescription: '暂无简介',
+        updatedAt: '更新时间：{time}',
+        deleteConfirm: '确认删除项目「{name}」？这会清掉该项目下的章节、卷、校验和生成数据。'
       },
       menu: {
         generate: '生成',
@@ -880,6 +894,8 @@ export const messages: TranslationDictionary = {
         options: '选项',
         createMissing: '缺章节自动创建',
         overwriteExisting: '覆盖已有正文',
+        autoContinuityMode: '自动连续模式',
+        autoContinuityHint: '开启后会按章连续生成、每章保存后自动复检，失败时暂停。',
         stopOnFailure: '失败后停止',
         countRequired: '生成章数必须大于 0。',
         previewReady: '标题和简介已生成，请确认后再生成正文。',
@@ -1334,7 +1350,9 @@ export const messages: TranslationDictionary = {
     layout: {
       stageBadge: 'Design → Plan → Package → Generate → Validate',
       stageTag: 'Loop',
+      resizeSidebar: 'Resize sidebar',
       project: 'Project',
+      projectManage: 'Project Manager',
       volume: 'Volume',
       notSelected: 'Not selected',
       themeStudio: 'Theme Studio',
@@ -1358,6 +1376,8 @@ export const messages: TranslationDictionary = {
         projectCreateFailed: 'Failed to create project.',
         volumeCreated: 'Volume created.',
         volumeCreateFailed: 'Failed to create volume.',
+        projectDeleted: 'Project "{name}" deleted.',
+        projectDeleteFailed: 'Failed to delete project.',
         logoutFailed: 'Failed to logout.'
       },
       guide: {
@@ -1373,9 +1393,19 @@ export const messages: TranslationDictionary = {
         number: 'Number',
         title: 'Title',
         theme: 'Theme',
+        projectManager: 'Project Manager',
+        delete: 'Delete',
+        close: 'Close',
         confirm: 'Confirm',
         cancel: 'Cancel',
         create: 'Create'
+      },
+      projectManager: {
+        empty: 'No projects yet.',
+        current: 'Current',
+        noDescription: 'No description',
+        updatedAt: 'Updated at: {time}',
+        deleteConfirm: 'Delete project "{name}"? This will remove chapters, volumes, validation, and generation data.'
       },
       menu: {
         generate: 'Generate',
@@ -2200,6 +2230,8 @@ export const messages: TranslationDictionary = {
         options: 'Options',
         createMissing: 'Create missing chapters',
         overwriteExisting: 'Overwrite existing content',
+        autoContinuityMode: 'Auto continuity mode',
+        autoContinuityHint: 'Generates in order, reruns validation after each saved chapter, and pauses on failure.',
         stopOnFailure: 'Stop on failure',
         countRequired: 'Chapter count must be greater than 0.',
         previewReady: 'Titles and summaries are ready. Confirm them before generating content.',

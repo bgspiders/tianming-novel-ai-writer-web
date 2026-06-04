@@ -68,6 +68,11 @@ public sealed class ChapterBatchGenerationService : IChapterBatchGenerationServi
         if (string.IsNullOrWhiteSpace(request.VolumeId)) throw new InvalidOperationException("分卷 ID 不能为空。");
         if (request.StartChapterNumber <= 0) throw new InvalidOperationException("起始章节号必须大于 0。");
         request.Count = Math.Clamp(request.Count, 1, 200);
+        if (request.AutoContinuityMode)
+        {
+            request.RerunValidationAfterSave = true;
+            request.StopOnFailure = true;
+        }
         if (string.IsNullOrWhiteSpace(request.Endpoint)) throw new InvalidOperationException("Endpoint 不能为空。");
         if (string.IsNullOrWhiteSpace(request.Model)) throw new InvalidOperationException("模型不能为空。");
         if (string.IsNullOrWhiteSpace(request.ConfigId) && string.IsNullOrWhiteSpace(request.ApiKey))

@@ -141,6 +141,7 @@ export interface ChapterBatchGenerationRequest {
   createMissing: boolean
   overwriteExisting: boolean
   stopOnFailure: boolean
+  autoContinuityMode?: boolean
   configId?: string | null
   endpoint: string
   providerId?: string | null
