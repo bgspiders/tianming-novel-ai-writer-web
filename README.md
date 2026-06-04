@@ -93,10 +93,11 @@ Vite 会把 `/api` 和 `/hubs` 代理到后端 `http://localhost:38721`。
 
 Docker 部署以仓库根目录作为构建上下文，镜像会同时构建根目录下的 `frontend/` 和 `backend/`，不再依赖旧的 `web/` 目录。
 
-### 启动
+### 推荐部署
 
 ```bash
-cd docker
+git pull https://github.com/bgspiders/tianming-novel-ai-writer-web
+cd tianming-novel-ai-writer-web/docker
 docker compose up -d --build
 ```
 
