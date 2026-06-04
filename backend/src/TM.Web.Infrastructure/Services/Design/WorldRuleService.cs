@@ -14,7 +14,7 @@ public class WorldRuleService : IWorldRuleService
     public async Task<IReadOnlyList<WorldRuleDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
         query = await _db.ResolveProjectScopeAsync(query, ct);
-        var rows = await _db.WorldRules.AsQueryable().ApplyFilter(query).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(_db.WorldRules.AsQueryable().ApplyFilter(query)).ToListAsync(ct);
         return rows.Select(Map).ToList();
     }
 
@@ -25,7 +25,7 @@ public class WorldRuleService : IWorldRuleService
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var filtered = _db.WorldRules.AsQueryable().ApplyFilter(query);
         var total = await filtered.CountAsync(ct);
-        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(filtered).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return new PagedResult<WorldRuleDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
@@ -82,6 +82,10 @@ public class WorldRuleService : IWorldRuleService
         e.ModernHistory = i.ModernHistory ?? "";
         e.StatusQuo = i.StatusQuo ?? "";
     }
+
+    private static IOrderedQueryable<WorldRule> ApplyDefaultOrder(IQueryable<WorldRule> query)
+        => query.OrderBy(x => x.Category)
+            .ThenBy(x => x.Name);
 
     private static WorldRuleDto Map(WorldRule e)
         => new(e.Id, e.Name, e.Category, e.CategoryId, e.IsEnabled, e.SourceBookId,

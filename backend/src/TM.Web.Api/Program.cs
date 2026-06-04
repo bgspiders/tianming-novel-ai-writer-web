@@ -107,6 +107,7 @@ builder.Services.AddScoped<IChapterService, ChapterService>();
 builder.Services.AddScoped<IEditorService, EditorService>();
 builder.Services.AddScoped<GenerationStateService>();
 builder.Services.AddScoped<INovelSeedService, NovelSeedService>();
+builder.Services.AddScoped<ITianmingProtocolService, TianmingProtocolService>();
 builder.Services.AddScoped<IContextPackagingService, ContextPackagingService>();
 builder.Services.AddScoped<IChapterDraftService, ChapterDraftService>();
 builder.Services.AddScoped<IWorldRuleService, WorldRuleService>();
@@ -153,6 +154,7 @@ using (var scope = app.Services.CreateScope())
     // away from the migration history and miss later columns.
     await db.Database.MigrateAsync();
     await AuthSchemaCompatibility.EnsureAuthTablesAsync(db);
+    await ChapterPlanSchemaCompatibility.EnsureProtocolColumnsAsync(db);
     await AiProviderSeeder.SeedAsync(db);
 }
 

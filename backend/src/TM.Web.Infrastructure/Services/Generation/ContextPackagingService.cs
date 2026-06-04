@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using TM.Web.Application.Dtos.Generate;
 using TM.Web.Application.Services;
@@ -73,13 +75,14 @@ public sealed class ContextPackagingService : IContextPackagingService
 
         async Task addAsync<T>(IQueryable<T> query, string moduleKey) where T : class
         {
-            var count = await query.CountAsync(ct);
-            if (count <= 0) return;
+            var rows = await query.ToListAsync(ct);
+            if (rows.Count <= 0) return;
+            var payload = JsonSerializer.Serialize(rows, JsonOptions);
 
             files.Add(new PackageFileEntry(
                 moduleKey,
                 $"context/{moduleKey}.json",
-                $"count:{count};project:{projectId};source:{sourceBookId ?? "global"}"));
+                Sha256(payload)));
         }
 
         await addAsync(FilterBySourceBook(_db.WorldRules.AsNoTracking().Where(x => x.IsEnabled), sourceBookId), "world_rules");
@@ -92,6 +95,7 @@ public sealed class ContextPackagingService : IContextPackagingService
         await addAsync(FilterBySourceBook(_db.VolumeDesigns.AsNoTracking().Where(x => x.IsEnabled), sourceBookId), "volume_designs");
         await addAsync(FilterBySourceBook(_db.ChapterPlans.AsNoTracking().Where(x => x.IsEnabled), sourceBookId), "chapter_plans");
         await addAsync(FilterBySourceBook(_db.ChapterBlueprints.AsNoTracking().Where(x => x.IsEnabled), sourceBookId), "chapter_blueprints");
+        await AddKnowledgeBaseFilesAsync(files, projectId, sourceBookId, ct);
 
         var volumeCount = await _db.Volumes.AsNoTracking().Where(x => x.ProjectId == projectId).CountAsync(ct);
         if (volumeCount > 0)
@@ -117,6 +121,27 @@ public sealed class ContextPackagingService : IContextPackagingService
                 .GroupBy(static x => x.ModuleKey)
                 .ToDictionary(static g => g.Key, static g => g.Count())
         };
+
+    private async Task AddKnowledgeBaseFilesAsync(List<PackageFileEntry> files, string projectId, string? sourceBookId, CancellationToken ct)
+    {
+        var settingsPrefix = $"tianming.kb.{projectId}.{sourceBookId ?? "global"}.";
+        var imported = await _db.AppSettings.AsNoTracking()
+            .Where(x => x.Key.StartsWith(settingsPrefix))
+            .OrderBy(x => x.Key)
+            .ToListAsync(ct);
+        foreach (var setting in imported)
+        {
+            var fileKey = setting.Key[settingsPrefix.Length..];
+            var path = $"knowledge-base/{fileKey}.md";
+            files.Add(new PackageFileEntry($"kb_{fileKey}", path, Sha256(setting.Value)));
+        }
+    }
+
+    private static string Sha256(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
 
     private static IQueryable<T> FilterBySourceBook<T>(IQueryable<T> query, string? sourceBookId) where T : class
     {

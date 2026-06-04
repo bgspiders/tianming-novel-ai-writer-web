@@ -537,7 +537,78 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
           { key: 'estimatedWordCount', label: 'Estimated Word Count', type: 'text' },
           { key: 'chapterTheme', label: 'Chapter Theme', type: 'textarea', rows: 2 },
           { key: 'readerExperienceGoal', label: 'Reader Experience Goal', type: 'textarea', rows: 2 },
-          { key: 'mainGoal', label: 'Main Goal', type: 'textarea', rows: 2 }
+          { key: 'mainGoal', label: 'Main Goal', type: 'textarea', rows: 2 },
+          {
+            key: 'macroPhase',
+            label: 'Macro Phase',
+            type: 'select',
+            options: [
+              { label: '起', value: '起' },
+              { label: '承', value: '承' },
+              { label: '转', value: '转' },
+              { label: '合', value: '合' }
+            ]
+          },
+          { key: 'tacticalArcId', label: 'Tactical Arc ID', type: 'text', placeholder: '弧光1.1' },
+          { key: 'tacticalArcTitle', label: 'Tactical Arc Title', type: 'text' }
+        ]
+      },
+      {
+        key: 'protocol',
+        label: 'Protocol',
+        fields: [
+          {
+            key: 'chapterType',
+            label: 'Chapter Type',
+            type: 'select',
+            options: [
+              { label: '主线', value: '主线' },
+              { label: '峰值', value: '峰值' },
+              { label: '缓冲-对话', value: '缓冲-对话' },
+              { label: '缓冲-线索', value: '缓冲-线索' },
+              { label: '缓冲-代价', value: '缓冲-代价' }
+            ]
+          },
+          {
+            key: 'conflictScore',
+            label: 'Conflict Score',
+            type: 'select',
+            options: [
+              { label: '★☆☆☆☆', value: '★☆☆☆☆' },
+              { label: '★★☆☆☆', value: '★★☆☆☆' },
+              { label: '★★★☆☆', value: '★★★☆☆' },
+              { label: '★★★★☆', value: '★★★★☆' },
+              { label: '★★★★★', value: '★★★★★' }
+            ]
+          },
+          { key: 'coreEvent', label: 'Core Event', type: 'textarea', rows: 3 },
+          { key: 'allowedEntities', label: 'Allowed Entities', type: 'tags' },
+          { key: 'statusMarkers', label: 'Status Markers', type: 'textarea', rows: 2, placeholder: '【状态：沉寂】' },
+          { key: 'isSingularityEvent', label: 'Singularity Event', type: 'switch', default: false },
+          { key: 'bufferRole', label: 'Buffer Role', type: 'text', placeholder: '线索滴灌 / 峰后代价 / 对话沉淀' },
+          {
+            key: 'foreshadowingTier',
+            label: 'Foreshadowing Tier',
+            type: 'select',
+            options: [
+              { label: 'None', value: '' },
+              { label: 'Tier-1', value: 'Tier-1' },
+              { label: 'Tier-2', value: 'Tier-2' },
+              { label: 'Tier-3', value: 'Tier-3' }
+            ]
+          },
+          {
+            key: 'foreshadowingRole',
+            label: 'Foreshadowing Role',
+            type: 'select',
+            options: [
+              { label: 'None', value: '' },
+              { label: '埋设', value: '埋设' },
+              { label: '推进', value: '推进' },
+              { label: '回收', value: '回收' },
+              { label: '校准', value: '校准' }
+            ]
+          }
         ]
       },
       {
@@ -547,6 +618,15 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
           { key: 'resistanceSource', label: 'Resistance Source', type: 'textarea', rows: 3 },
           { key: 'keyTurn', label: 'Key Turn', type: 'textarea', rows: 3 },
           { key: 'hook', label: 'Hook', type: 'textarea', rows: 2 }
+        ]
+      },
+      {
+        key: 'spacetime',
+        label: 'Spacetime',
+        fields: [
+          { key: 'temporalAnchor', label: 'Temporal Anchor', type: 'text' },
+          { key: 'spatialAnchor', label: 'Spatial Anchor', type: 'text' },
+          { key: 'timelineCoordinate', label: 'Timeline Coordinate', type: 'text' }
         ]
       },
       {
@@ -573,6 +653,9 @@ export const MODULE_SCHEMAS: Record<DesignModuleKey, ModuleSchema> = {
     listColumns: [
       { key: 'chapterNumber', label: 'Chapter', width: 90 },
       { key: 'chapterTitle', label: 'Title', width: 180 },
+      { key: 'macroPhase', label: 'Phase', width: 70 },
+      { key: 'chapterType', label: 'Type', width: 100 },
+      { key: 'conflictScore', label: 'Conflict', width: 90 },
       { key: 'volume', label: 'Volume', width: 120 }
     ]
   },

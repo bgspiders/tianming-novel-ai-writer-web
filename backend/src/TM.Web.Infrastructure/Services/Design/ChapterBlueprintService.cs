@@ -14,8 +14,8 @@ public class ChapterBlueprintService : IChapterBlueprintService
     public async Task<IReadOnlyList<ChapterBlueprintDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
         query = await _db.ResolveProjectScopeAsync(query, ct);
-        var rows = await _db.ChapterBlueprints.AsQueryable().ApplyFilter(query).ToListAsync(ct);
-        return rows.Select(Map).ToList();
+        var rows = await LoadOrderedAsync(_db.ChapterBlueprints.AsQueryable().ApplyFilter(query), ct);
+        return rows.Select(x => Map(x.Blueprint)).ToList();
     }
 
     public async Task<PagedResult<ChapterBlueprintDto>> ListPagedAsync(DesignListQuery query, CancellationToken ct = default)
@@ -25,8 +25,9 @@ public class ChapterBlueprintService : IChapterBlueprintService
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var filtered = _db.ChapterBlueprints.AsQueryable().ApplyFilter(query);
         var total = await filtered.CountAsync(ct);
-        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        return new PagedResult<ChapterBlueprintDto>(rows.Select(Map).ToList(), total, page, pageSize);
+        var rows = await LoadOrderedAsync(filtered, ct);
+        var pageRows = rows.Skip((page - 1) * pageSize).Take(pageSize).Select(x => Map(x.Blueprint)).ToList();
+        return new PagedResult<ChapterBlueprintDto>(pageRows, total, page, pageSize);
     }
 
     public async Task<ChapterBlueprintDto?> GetAsync(string id, CancellationToken ct = default)
@@ -89,6 +90,44 @@ public class ChapterBlueprintService : IChapterBlueprintService
         e.Factions = i.Factions ?? string.Empty;
         e.ItemsClues = i.ItemsClues ?? string.Empty;
     }
+
+    private async Task<List<OrderedBlueprintRow>> LoadOrderedAsync(IQueryable<ChapterBlueprint> query, CancellationToken ct)
+    {
+        var blueprints = await query.ToListAsync(ct);
+        var chapterIds = blueprints
+            .Select(x => x.ChapterId)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var chapterNumbers = chapterIds.Count == 0
+            ? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            : await _db.Chapters
+                .AsNoTracking()
+                .Where(x => chapterIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.ChapterNumber })
+                .ToDictionaryAsync(x => x.Id, x => x.ChapterNumber, StringComparer.OrdinalIgnoreCase, ct);
+
+        return blueprints
+            .Select(x => new OrderedBlueprintRow(
+                x,
+                chapterNumbers.GetValueOrDefault(x.ChapterId, ExtractChapterNumber(x))))
+            .OrderBy(x => x.ChapterNumber)
+            .ThenBy(x => x.Blueprint.SceneNumber)
+            .ThenBy(x => x.Blueprint.SceneTitle)
+            .ThenBy(x => x.Blueprint.Name)
+            .ToList();
+    }
+
+    private static int ExtractChapterNumber(ChapterBlueprint blueprint)
+    {
+        var source = string.Join(' ', blueprint.Name, blueprint.SceneTitle, blueprint.OneLineStructure);
+        var match = System.Text.RegularExpressions.Regex.Match(source, @"第\s*(\d+)\s*章|章\s*(\d+)");
+        if (!match.Success) return int.MaxValue;
+        var value = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+        return int.TryParse(value, out var number) ? number : int.MaxValue;
+    }
+
+    private sealed record OrderedBlueprintRow(ChapterBlueprint Blueprint, int ChapterNumber);
 
     private static ChapterBlueprintDto Map(ChapterBlueprint e)
         => new(e.Id, e.Name, e.Category, e.CategoryId, e.IsEnabled, e.SourceBookId,

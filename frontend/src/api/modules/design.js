@@ -130,6 +130,9 @@ export const chapterPlansApi = {
     get: async (id) => (await http.get(`/api/design/chapter-plans/${id}`)).data,
     create: async (input) => (await http.post('/api/design/chapter-plans', input)).data,
     update: async (id, input) => (await http.put(`/api/design/chapter-plans/${id}`, input)).data,
+    rewriteSummaries: async (p) => (await http.post('/api/design/chapter-plans/rewrite-summaries', null, {
+        params: buildParams(p)
+    })).data,
     remove: async (id) => {
         await http.delete(`/api/design/chapter-plans/${id}`);
     }

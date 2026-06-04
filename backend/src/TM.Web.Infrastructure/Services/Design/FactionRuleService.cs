@@ -14,7 +14,7 @@ public class FactionRuleService : IFactionRuleService
     public async Task<IReadOnlyList<FactionRuleDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
         query = await _db.ResolveProjectScopeAsync(query, ct);
-        var rows = await _db.FactionRules.AsQueryable().ApplyFilter(query).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(_db.FactionRules.AsQueryable().ApplyFilter(query)).ToListAsync(ct);
         return rows.Select(Map).ToList();
     }
 
@@ -25,7 +25,7 @@ public class FactionRuleService : IFactionRuleService
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var filtered = _db.FactionRules.AsQueryable().ApplyFilter(query);
         var total = await filtered.CountAsync(ct);
-        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(filtered).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return new PagedResult<FactionRuleDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
@@ -87,6 +87,11 @@ public class FactionRuleService : IFactionRuleService
         e.Enemies = i.Enemies ?? "";
         e.NeutralCompetitors = i.NeutralCompetitors ?? "";
     }
+
+    private static IOrderedQueryable<FactionRule> ApplyDefaultOrder(IQueryable<FactionRule> query)
+        => query.OrderBy(x => x.Category)
+            .ThenBy(x => x.FactionType)
+            .ThenBy(x => x.Name);
 
     private static FactionRuleDto Map(FactionRule e)
         => new(e.Id, e.Name, e.Category, e.CategoryId, e.IsEnabled, e.SourceBookId,

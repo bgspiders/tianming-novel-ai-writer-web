@@ -14,7 +14,7 @@ public class LocationRuleService : ILocationRuleService
     public async Task<IReadOnlyList<LocationRuleDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
         query = await _db.ResolveProjectScopeAsync(query, ct);
-        var rows = await _db.LocationRules.AsQueryable().ApplyFilter(query).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(_db.LocationRules.AsQueryable().ApplyFilter(query)).ToListAsync(ct);
         return rows.Select(Map).ToList();
     }
 
@@ -25,7 +25,7 @@ public class LocationRuleService : ILocationRuleService
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var filtered = _db.LocationRules.AsQueryable().ApplyFilter(query);
         var total = await filtered.CountAsync(ct);
-        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(filtered).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return new PagedResult<LocationRuleDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
@@ -91,6 +91,11 @@ public class LocationRuleService : ILocationRuleService
         e.Dangers = i.Dangers ?? new List<string>();
         e.FactionId = string.IsNullOrEmpty(i.FactionId) ? null : i.FactionId;
     }
+
+    private static IOrderedQueryable<LocationRule> ApplyDefaultOrder(IQueryable<LocationRule> query)
+        => query.OrderBy(x => x.Category)
+            .ThenBy(x => x.LocationType)
+            .ThenBy(x => x.Name);
 
     private static LocationRuleDto Map(LocationRule e)
         => new(e.Id, e.Name, e.Category, e.CategoryId, e.IsEnabled, e.SourceBookId,

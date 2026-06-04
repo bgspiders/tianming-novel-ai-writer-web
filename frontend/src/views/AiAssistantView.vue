@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatLineRound, Delete, Plus, Promotion, Refresh } from '@element-plus/icons-vue'
 import { useI18n } from '@/composables/useI18n'
@@ -25,6 +26,7 @@ import { listKeys, listModels, listProviders, type AiApiKey, type AiModel, type 
 
 const workContext = useWorkContextStore()
 const { t } = useI18n()
+const route = useRoute()
 
 const sessions = ref<ChatSession[]>([])
 const messages = ref<ChatMessage[]>([])
@@ -428,7 +430,10 @@ async function refreshSessions() {
   loading.value = true
   try {
     sessions.value = await listChatSessions(workContext.selectedProjectId || null)
-    if (!sessions.value.some((item) => item.id === selectedSessionId.value)) {
+    const querySessionId = typeof route.query.sessionId === 'string' ? route.query.sessionId : ''
+    if (querySessionId && sessions.value.some((item) => item.id === querySessionId)) {
+      selectedSessionId.value = querySessionId
+    } else if (!sessions.value.some((item) => item.id === selectedSessionId.value)) {
       selectedSessionId.value = sessions.value[0]?.id ?? ''
     }
     await refreshMessages()
@@ -680,6 +685,10 @@ onMounted(async () => {
   chatHub.onError(onError)
   chatHub.onRunEvent(onRunEvent)
   await workContext.init()
+  const queryProjectId = typeof route.query.projectId === 'string' ? route.query.projectId : ''
+  if (queryProjectId) {
+    workContext.selectedProjectId = queryProjectId
+  }
   await refreshAiConfig()
   await refreshSessions()
 })

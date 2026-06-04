@@ -51,6 +51,9 @@ public class ChapterPlanConfiguration : IEntityTypeConfiguration<ChapterPlan>
         b.Property(x => x.DependencyModuleVersions)
             .HasConversion(JsonValueConverters.StringIntDictionary)
             .Metadata.SetValueComparer(JsonValueConverters.StringIntDictionaryComparer);
+        b.Property(x => x.AllowedEntities)
+            .HasConversion(JsonValueConverters.StringList)
+            .Metadata.SetValueComparer(JsonValueConverters.StringListComparer);
         b.Property(x => x.ReferencedCharacterNames)
             .HasConversion(JsonValueConverters.StringList)
             .Metadata.SetValueComparer(JsonValueConverters.StringListComparer);

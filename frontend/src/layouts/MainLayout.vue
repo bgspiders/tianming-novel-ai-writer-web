@@ -6,7 +6,6 @@ import {
   Bell,
   ChatDotRound,
   CircleCheck,
-  Cpu,
   Document,
   Edit,
   MagicStick,
@@ -15,7 +14,6 @@ import {
   Notebook,
   Plus,
   Promotion,
-  Setting,
   Sunny,
   SwitchButton,
   UserFilled
@@ -25,6 +23,7 @@ import type { Locale } from '@/i18n'
 import { useThemeStore } from '@/stores/theme'
 import { useWorkContextStore } from '@/stores/workContext'
 import { useAuthStore } from '@/stores/auth'
+import { onboardingGuideSteps } from '@/onboarding/guideSteps'
 
 const route = useRoute()
 const router = useRouter()
@@ -77,6 +76,8 @@ const projectDialogVisible = ref(false)
 const volumeDialogVisible = ref(false)
 const creatingProject = ref(false)
 const creatingVolume = ref(false)
+const guideVisible = ref(false)
+const guideCurrent = ref(0)
 
 const projectForm = reactive({
   name: '',
@@ -156,6 +157,25 @@ async function signOut() {
   }
 }
 
+function startGuide() {
+  guideCurrent.value = 0
+  guideVisible.value = true
+  router.push(onboardingGuideSteps[0].route)
+}
+
+function handleGuideChange(current: number) {
+  const step = onboardingGuideSteps[current]
+  if (!step) return
+  guideCurrent.value = current
+  if (route.path !== step.route) {
+    router.push(step.route)
+  }
+}
+
+function handleGuideClose() {
+  guideVisible.value = false
+}
+
 onMounted(() => {
   workContext.init()
 })
@@ -186,19 +206,9 @@ onMounted(() => {
           <span>{{ t('routes.home') }}</span>
         </el-menu-item>
 
-        <el-menu-item index="/health">
-          <el-icon><Setting /></el-icon>
-          <span>{{ t('layout.menu.healthCheck') }}</span>
-        </el-menu-item>
-
-        <el-menu-item index="/ai-test">
-          <el-icon><Cpu /></el-icon>
-          <span>{{ t('layout.menu.aiStreaming') }}</span>
-        </el-menu-item>
-
         <el-menu-item index="/settings/ai-models">
           <el-icon><MagicStick /></el-icon>
-          <span>{{ t('routes.aiModels') }}</span>
+          <span data-guide="ai-models">{{ t('routes.aiModels') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/settings/themes">
@@ -213,7 +223,7 @@ onMounted(() => {
 
         <el-menu-item index="/editor/chapters">
           <el-icon><Document /></el-icon>
-          <span>{{ t('routes.chapterEditor') }}</span>
+          <span data-guide="chapter-editor">{{ t('routes.chapterEditor') }}</span>
         </el-menu-item>
 
         <el-sub-menu index="design">
@@ -240,12 +250,19 @@ onMounted(() => {
             <span>{{ t('layout.menu.generate') }}</span>
           </template>
           <el-menu-item index="/generate">{{ t('layout.menu.workbench') }}</el-menu-item>
-          <el-menu-item index="/generate/novel-seed">{{ t('layout.menu.novelSeed') }}</el-menu-item>
+          <el-menu-item index="/generate/novel-seed">
+            <span data-guide="novel-seed">{{ t('layout.menu.novelSeed') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/generate/tianming-protocol">{{ t('layout.menu.tianmingProtocol') }}</el-menu-item>
           <el-menu-item index="/generate/outlines">{{ t('layout.menu.outlines') }}</el-menu-item>
           <el-menu-item index="/generate/volume_designs">{{ t('layout.menu.volumeDesigns') }}</el-menu-item>
-          <el-menu-item index="/generate/chapter_plans">{{ t('layout.menu.chapterPlans') }}</el-menu-item>
+          <el-menu-item index="/generate/chapter_plans">
+            <span data-guide="chapter-plans">{{ t('layout.menu.chapterPlans') }}</span>
+          </el-menu-item>
           <el-menu-item index="/generate/chapter_blueprints">{{ t('layout.menu.chapterBlueprints') }}</el-menu-item>
-          <el-menu-item index="/generate/chapters">{{ t('layout.menu.chapterDrafts') }}</el-menu-item>
+          <el-menu-item index="/generate/chapters">
+            <span data-guide="chapter-generation">{{ t('layout.menu.chapterDrafts') }}</span>
+          </el-menu-item>
           <el-menu-item index="/generate/gate">{{ t('layout.menu.generationGate') }}</el-menu-item>
         </el-sub-menu>
 
@@ -256,7 +273,7 @@ onMounted(() => {
 
         <el-menu-item index="/validate">
           <el-icon><CircleCheck /></el-icon>
-          <span>{{ t('layout.menu.validation') }}</span>
+          <span data-guide="validation">{{ t('layout.menu.validation') }}</span>
         </el-menu-item>
 
         <el-menu-item index="/ai-assistant">
@@ -276,7 +293,7 @@ onMounted(() => {
         </div>
 
         <div class="header-right">
-          <div class="work-context">
+          <div class="work-context" data-guide="work-context">
             <el-button
               v-if="!workContext.projects.length"
               type="primary"
@@ -343,6 +360,10 @@ onMounted(() => {
             />
           </el-select>
 
+          <el-button type="primary" plain size="small" class="guide-trigger" @click="startGuide">
+            {{ t('layout.guide.start') }}
+          </el-button>
+
           <el-button class="theme-trigger" @click="router.push('/settings/themes')">
             <span class="theme-pill" :style="{ background: themeStore.effectiveTheme.hero }"></span>
             <span>{{ t('layout.themeStudio') }}</span>
@@ -368,6 +389,30 @@ onMounted(() => {
       </el-main>
     </el-container>
   </el-container>
+
+  <el-tour
+    v-model="guideVisible"
+    v-model:current="guideCurrent"
+    type="primary"
+    :show-close="true"
+    :mask="{ color: 'rgba(8, 12, 24, 0.56)' }"
+    :gap="{ offset: 8, radius: 8 }"
+    :scroll-into-view-options="{ block: 'center', behavior: 'smooth' }"
+    @change="handleGuideChange"
+    @close="handleGuideClose"
+    @finish="handleGuideClose"
+  >
+    <el-tour-step
+      v-for="step in onboardingGuideSteps"
+      :key="step.id"
+      :target="step.target"
+      :title="step.title"
+      :description="step.description"
+      :placement="step.placement"
+      :prev-button-props="{ children: t('layout.guide.previous') }"
+      :next-button-props="{ children: t('layout.guide.next') }"
+    />
+  </el-tour>
 
   <el-dialog v-model="projectDialogVisible" :title="t('layout.dialogs.newProject')" width="420px">
     <el-form :model="projectForm" label-width="80px">
@@ -499,6 +544,12 @@ onMounted(() => {
 
 .theme-trigger {
   border-radius: 999px;
+}
+
+.guide-trigger {
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .theme-pill {

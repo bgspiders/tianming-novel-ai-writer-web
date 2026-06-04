@@ -41,3 +41,34 @@ public sealed record NovelSeedResult(
     int TotalPlannedChapterCount,
     int InitialChapterPlanCount,
     string RawPlan);
+
+public sealed record NovelSeedPlanSummaryDto(
+    string ProjectId,
+    string ProjectName,
+    string? Description,
+    string? SourceBookId,
+    string SourceBookName,
+    string Genre,
+    int VolumeCount,
+    int ChapterCount,
+    int TotalPlannedChapterCount,
+    int InitialChapterPlanCount,
+    int WorldRuleCount,
+    int CharacterRuleCount,
+    int FactionRuleCount,
+    int LocationRuleCount,
+    int OutlineCount,
+    int VolumeDesignCount,
+    int ChapterPlanCount,
+    int ChapterBlueprintCount,
+    int CreativeMaterialCount,
+    string Announcement,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
+
+public sealed record NovelSeedConversationDto(
+    string SessionId,
+    string ProjectId,
+    string Title,
+    string Mode,
+    DateTime LastMessageAt);

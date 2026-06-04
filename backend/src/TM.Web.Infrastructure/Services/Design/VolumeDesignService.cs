@@ -14,7 +14,7 @@ public class VolumeDesignService : IVolumeDesignService
     public async Task<IReadOnlyList<VolumeDesignDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
         query = await _db.ResolveProjectScopeAsync(query, ct);
-        var rows = await _db.VolumeDesigns.AsQueryable().ApplyFilter(query).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(_db.VolumeDesigns.AsQueryable().ApplyFilter(query)).ToListAsync(ct);
         return rows.Select(Map).ToList();
     }
 
@@ -25,7 +25,7 @@ public class VolumeDesignService : IVolumeDesignService
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var filtered = _db.VolumeDesigns.AsQueryable().ApplyFilter(query);
         var total = await filtered.CountAsync(ct);
-        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(filtered).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return new PagedResult<VolumeDesignDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
@@ -92,6 +92,13 @@ public class VolumeDesignService : IVolumeDesignService
         e.ReferencedFactionNames = i.ReferencedFactionNames ?? new List<string>();
         e.ReferencedLocationNames = i.ReferencedLocationNames ?? new List<string>();
     }
+
+    private static IOrderedQueryable<VolumeDesign> ApplyDefaultOrder(IQueryable<VolumeDesign> query)
+        => query.OrderBy(x => x.VolumeNumber == 0 ? int.MaxValue : x.VolumeNumber)
+            .ThenBy(x => x.StartChapter == 0 ? int.MaxValue : x.StartChapter)
+            .ThenBy(x => x.EndChapter == 0 ? int.MaxValue : x.EndChapter)
+            .ThenBy(x => x.VolumeTitle)
+            .ThenBy(x => x.Name);
 
     private static VolumeDesignDto Map(VolumeDesign e)
         => new(e.Id, e.Name, e.Category, e.CategoryId, e.IsEnabled, e.SourceBookId,

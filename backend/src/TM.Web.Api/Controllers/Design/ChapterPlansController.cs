@@ -53,6 +53,26 @@ public class ChapterPlansController : ControllerBase
     public Task<ChapterPlanDto> Update(string id, [FromBody] ChapterPlanUpsertDto input, CancellationToken ct)
         => _svc.UpdateAsync(id, input, ct);
 
+    [HttpPost("rewrite-summaries")]
+    public Task<ChapterPlanSummaryRewriteResultDto> RewriteSummaries(
+        [FromQuery] string? categoryId,
+        [FromQuery] string? sourceBookId,
+        [FromQuery] string? keyword,
+        [FromQuery] bool? isEnabled,
+        [FromQuery] DateTime? updatedFrom,
+        [FromQuery] DateTime? updatedTo,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] bool includeUncategorized = false,
+        [FromQuery] string? projectId = null,
+        CancellationToken ct = default)
+    {
+        var query = new DesignListQuery(
+            categoryId, sourceBookId, keyword, isEnabled,
+            updatedFrom, updatedTo, page, pageSize, includeUncategorized, projectId);
+        return _svc.RewriteSummariesAsync(query, ct);
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {

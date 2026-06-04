@@ -20,6 +20,7 @@ export const messages: TranslationDictionary = {
       designModules: '设计模块',
       generationWorkbench: '生成工作台',
       novelSeed: 'AI 开书',
+      tianmingProtocol: '天命协议',
       chapterGeneration: '章节生成',
       generationGate: '生成闸门',
       generationPlanning: '生成规划',
@@ -57,6 +58,11 @@ export const messages: TranslationDictionary = {
         volumeCreateFailed: '创建卷失败。',
         logoutFailed: '退出登录失败。'
       },
+      guide: {
+        start: '新手引导',
+        previous: '上一步',
+        next: '下一步'
+      },
       dialogs: {
         newProject: '新建项目',
         newVolume: '新建卷',
@@ -70,10 +76,9 @@ export const messages: TranslationDictionary = {
         create: '创建'
       },
       menu: {
-        healthCheck: '健康检查',
-        aiStreaming: 'AI 流式测试',
         generate: '生成',
         novelSeed: 'AI 开书',
+        tianmingProtocol: '天命协议',
         writerEditor: '写作编辑器',
         validation: '校验',
         worldRules: '世界规则',
@@ -1317,6 +1322,7 @@ export const messages: TranslationDictionary = {
       designModules: 'Design Modules',
       generationWorkbench: 'Generation Workbench',
       novelSeed: 'Novel Seed',
+      tianmingProtocol: 'Tianming Protocol',
       chapterGeneration: 'Chapter Generation',
       generationGate: 'Generation Gate',
       generationPlanning: 'Generation Planning',
@@ -1354,6 +1360,11 @@ export const messages: TranslationDictionary = {
         volumeCreateFailed: 'Failed to create volume.',
         logoutFailed: 'Failed to logout.'
       },
+      guide: {
+        start: 'Guide',
+        previous: 'Previous',
+        next: 'Next'
+      },
       dialogs: {
         newProject: 'New Project',
         newVolume: 'New Volume',
@@ -1367,10 +1378,9 @@ export const messages: TranslationDictionary = {
         create: 'Create'
       },
       menu: {
-        healthCheck: 'Health Check',
-        aiStreaming: 'AI Streaming',
         generate: 'Generate',
         novelSeed: 'Novel Seed',
+        tianmingProtocol: 'Tianming Protocol',
         writerEditor: 'Writer Editor',
         validation: 'Validation',
         worldRules: 'World Rules',

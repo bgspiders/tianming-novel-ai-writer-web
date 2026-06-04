@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Edit, FolderAdd, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { Delete, Edit, FolderAdd, MagicStick, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { useI18n } from '@/composables/useI18n'
 import { useWorkContextStore } from '@/stores/workContext'
 import {
@@ -68,6 +68,7 @@ const moduleKey = computed<DesignModuleKey>(() => {
 const moduleMeta = computed(() => DESIGN_MODULES.find((item) => item.key === moduleKey.value)!)
 const schema = computed(() => MODULE_SCHEMAS[moduleKey.value])
 const localizedModuleLabel = computed(() => t(`design.modules.${moduleKey.value}`))
+const canRegenerateFromNovelSeed = computed(() => moduleKey.value === 'chapter_plans' || moduleKey.value === 'chapter_blueprints')
 
 const apiMap: Record<DesignModuleKey, DesignApi> = {
   world_rules: worldRulesApi,
@@ -241,6 +242,33 @@ async function bindSourceBookToProject() {
   }
 }
 
+function goNovelSeedRegenerate() {
+  router.push('/generate/novel-seed')
+}
+
+async function rewriteChapterPlanSummaries() {
+  try {
+    await ElMessageBox.confirm(
+      '将按当前项目、源书、分类和筛选条件批量重写章节计划简介。标题、章节号和实体引用不会修改。是否继续？',
+      t('layout.dialogs.confirm'),
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  rewritingChapterPlanSummaries.value = true
+  try {
+    const result = await chapterPlansApi.rewriteSummaries(buildListParams())
+    ElMessage.success(`已重写 ${result.updatedCount} 条章节计划简介`)
+    await refreshItems()
+  } catch (err) {
+    ElMessage.error((err as Error).message ?? '批量重写章节计划简介失败')
+  } finally {
+    rewritingChapterPlanSummaries.value = false
+  }
+}
+
 const categoryTree = ref<CategoryTreeNode[]>([])
 const loadingCategories = ref(false)
 const selectedCategoryId = ref<string | null>(null)
@@ -386,6 +414,7 @@ const loadingItems = ref(false)
 const backgroundAnalyzingId = ref('')
 const generatingCreativeMaterialId = ref('')
 const buildingSkeletonId = ref('')
+const rewritingChapterPlanSummaries = ref(false)
 const keyword = ref('')
 const isEnabledFilter = ref<'all' | 'enabled' | 'disabled'>('all')
 const includeUncategorized = ref(false)
@@ -1114,6 +1143,27 @@ onBeforeUnmount(() => {
             <div class="head-actions">
               <el-button v-if="moduleKey === 'book_analyses'" size="small" @click="openBookAnalysisImport">
                 {{ t('design.labels.crawlImport') }}
+              </el-button>
+              <el-button
+                v-if="canRegenerateFromNovelSeed"
+                size="small"
+                type="primary"
+                plain
+                :icon="MagicStick"
+                @click="goNovelSeedRegenerate"
+              >
+                去 AI 开书重新生成
+              </el-button>
+              <el-button
+                v-if="moduleKey === 'chapter_plans'"
+                size="small"
+                type="warning"
+                plain
+                :icon="MagicStick"
+                :loading="rewritingChapterPlanSummaries"
+                @click="rewriteChapterPlanSummaries"
+              >
+                批量重写简介
               </el-button>
               <el-input
                 v-model="keyword"

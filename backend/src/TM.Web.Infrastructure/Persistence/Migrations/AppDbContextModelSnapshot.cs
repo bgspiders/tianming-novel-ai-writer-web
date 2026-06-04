@@ -1335,6 +1335,14 @@ namespace TM.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AllowedEntities")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BufferRole")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("ChapterNumber")
                         .HasColumnType("INTEGER");
 
@@ -1346,7 +1354,19 @@ namespace TM.Web.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ChapterType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CharacterArcProgress")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ConflictScore")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CoreEvent")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -1365,6 +1385,14 @@ namespace TM.Web.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ForeshadowingRole")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ForeshadowingTier")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Hook")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -1372,7 +1400,14 @@ namespace TM.Web.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsSingularityEvent")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("KeyTurn")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MacroPhase")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -1411,6 +1446,30 @@ namespace TM.Web.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("SourceBookId")
                         .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SpatialAnchor")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StatusMarkers")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TacticalArcId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TacticalArcTitle")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TemporalAnchor")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TimelineCoordinate")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")

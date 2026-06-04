@@ -5,7 +5,13 @@ import { ElMessage } from 'element-plus'
 import { MagicStick, Notebook, Cpu, DocumentAdd, CollectionTag } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { listProviderConfigs, type AiProviderConfig } from '@/api/modules/ai'
-import { generateNovelSeed, type NovelSeedResult } from '@/api/modules/novelSeed'
+import {
+  generateNovelSeed,
+  getOrCreateNovelSeedConversation,
+  listNovelSeedPlans,
+  type NovelSeedPlanSummary,
+  type NovelSeedResult
+} from '@/api/modules/novelSeed'
 import { chatHub } from '@/signalr/chat'
 import { useAiTestStore } from '@/stores/aiTest'
 import { useWorkContextStore } from '@/stores/workContext'
@@ -19,7 +25,10 @@ const configs = ref<AiProviderConfig[]>([])
 const selectedConfigId = ref('')
 const loadingConfigs = ref(false)
 const generating = ref(false)
+const loadingPlans = ref(false)
 const result = ref<NovelSeedResult | null>(null)
+const plans = ref<NovelSeedPlanSummary[]>([])
+const selectedPlanId = ref('')
 const currentRunId = ref('')
 const streamText = ref('')
 const streamStatus = ref('idle')
@@ -43,6 +52,7 @@ const form = reactive({
 const selectedConfig = computed(() =>
   configs.value.find((item) => item.providerId === selectedConfigId.value) ?? null
 )
+const selectedPlan = computed(() => plans.value.find((item) => item.projectId === selectedPlanId.value) ?? plans.value[0] ?? null)
 
 const totalChapters = computed(() => form.volumeCount * form.chaptersPerVolume)
 const estimatedTotalWords = computed(() => totalChapters.value * form.estimatedWordsPerChapter)
@@ -59,6 +69,20 @@ async function loadConfigs() {
     ElMessage.error((err as Error).message || '加载 AI 配置失败。')
   } finally {
     loadingConfigs.value = false
+  }
+}
+
+async function loadPlans() {
+  loadingPlans.value = true
+  try {
+    plans.value = await listNovelSeedPlans()
+    if (!plans.value.some((item) => item.projectId === selectedPlanId.value)) {
+      selectedPlanId.value = plans.value[0]?.projectId ?? ''
+    }
+  } catch (err) {
+    ElMessage.error((err as Error).message || '加载开书计划失败。')
+  } finally {
+    loadingPlans.value = false
   }
 }
 
@@ -119,6 +143,8 @@ async function submit() {
     await workContext.refreshProjects()
     workContext.selectedProjectId = created.project.id
     workContext.selectedVolumeId = created.volumes[0]?.id ?? ''
+    await loadPlans()
+    selectedPlanId.value = created.project.id
     aiStore.saveToStorage()
     ElMessage.success(`已创建《${created.project.name}》`)
   } catch (err) {
@@ -135,6 +161,24 @@ async function submit() {
 function openProject() {
   if (!result.value) return
   router.push('/generate/chapters')
+}
+
+async function continuePlanConversation(plan = selectedPlan.value) {
+  if (!plan) return
+  const conversation = await getOrCreateNovelSeedConversation(
+    plan.projectId,
+    selectedConfigId.value || null,
+    aiForm.value.model || null
+  )
+  workContext.selectedProjectId = plan.projectId
+  await workContext.refreshProjects()
+  router.push({
+    path: '/ai-assistant',
+    query: {
+      projectId: plan.projectId,
+      sessionId: conversation.sessionId
+    }
+  })
 }
 
 function onToken(token: string) {
@@ -164,6 +208,7 @@ onMounted(() => {
   chatHub.onCompleted(onCompleted)
   chatHub.onError(onError)
   void loadConfigs()
+  void loadPlans()
 })
 
 onBeforeUnmount(async () => {
@@ -188,6 +233,47 @@ onBeforeUnmount(async () => {
       </el-button>
     </header>
 
+    <section class="panel plan-board">
+      <div class="panel-title">
+        <el-icon><DocumentAdd /></el-icon>
+        <span>开书计划公告</span>
+        <small>{{ plans.length }} 个计划</small>
+      </div>
+      <div class="plan-layout" v-loading="loadingPlans">
+        <aside class="plan-list">
+          <button
+            v-for="plan in plans"
+            :key="plan.projectId"
+            type="button"
+            class="plan-item"
+            :class="{ active: plan.projectId === selectedPlanId }"
+            @click="selectedPlanId = plan.projectId"
+          >
+            <strong>{{ plan.projectName }}</strong>
+            <span>{{ plan.volumeCount }} 卷 / {{ plan.totalPlannedChapterCount }} 章 / {{ plan.genre || '未填写题材' }}</span>
+          </button>
+          <el-empty v-if="!loadingPlans && plans.length === 0" description="还没有开书计划。" :image-size="80" />
+        </aside>
+        <article v-if="selectedPlan" class="plan-notice">
+          <div class="notice-head">
+            <div>
+              <h2>{{ selectedPlan.projectName }}</h2>
+              <p>{{ selectedPlan.description || selectedPlan.sourceBookName }}</p>
+            </div>
+            <el-button type="primary" @click="continuePlanConversation(selectedPlan)">继续会话</el-button>
+          </div>
+          <p class="announcement">{{ selectedPlan.announcement }}</p>
+          <div class="notice-metrics">
+            <div><strong>{{ selectedPlan.characterRuleCount }}</strong><span>角色</span></div>
+            <div><strong>{{ selectedPlan.factionRuleCount }}</strong><span>势力</span></div>
+            <div><strong>{{ selectedPlan.locationRuleCount }}</strong><span>地点</span></div>
+            <div><strong>{{ selectedPlan.chapterPlanCount }}</strong><span>章节计划</span></div>
+            <div><strong>{{ selectedPlan.chapterBlueprintCount }}</strong><span>蓝图</span></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section class="seed-grid">
       <div class="panel main-panel">
         <div class="panel-title">
@@ -201,6 +287,7 @@ onBeforeUnmount(async () => {
               type="textarea"
               :rows="8"
               placeholder="例如：一个被流放的机械祭司，在潮汐都市里追查旧神引擎失控真相，逐步建立自己的地下秩序。"
+              @keydown.enter.exact.prevent="submit"
             />
           </el-form-item>
           <div class="form-row">
@@ -382,6 +469,123 @@ h1 {
   font-weight: 700;
 }
 
+.panel-title small {
+  margin-left: auto;
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.plan-board {
+  padding-bottom: 16px;
+}
+
+.plan-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 14px;
+  min-height: 190px;
+}
+
+.plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 270px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.plan-item {
+  width: 100%;
+  border: 1px solid var(--tm-border);
+  border-radius: 8px;
+  background: var(--tm-bg);
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-item.active {
+  border-color: var(--tm-primary);
+  background: color-mix(in srgb, var(--tm-primary) 8%, var(--tm-bg));
+}
+
+.plan-item strong,
+.plan-item span {
+  display: block;
+}
+
+.plan-item strong {
+  color: var(--tm-fg);
+}
+
+.plan-item span {
+  margin-top: 5px;
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
+}
+
+.plan-notice {
+  border: 1px solid var(--tm-border);
+  border-radius: 8px;
+  background: var(--tm-bg);
+  padding: 16px;
+}
+
+.notice-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.notice-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.notice-head p,
+.announcement {
+  color: var(--tm-fg-secondary);
+  line-height: 1.7;
+}
+
+.notice-head p {
+  margin: 6px 0 0;
+}
+
+.announcement {
+  margin: 14px 0;
+}
+
+.notice-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.notice-metrics div {
+  border: 1px solid var(--tm-border);
+  border-radius: 6px;
+  background: var(--tm-surface);
+  padding: 10px;
+}
+
+.notice-metrics strong,
+.notice-metrics span {
+  display: block;
+}
+
+.notice-metrics strong {
+  color: var(--tm-fg);
+  font-size: 18px;
+}
+
+.notice-metrics span {
+  color: var(--tm-fg-secondary);
+  font-size: 12px;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -459,10 +663,12 @@ h1 {
 }
 
 @media (max-width: 1200px) {
+  .plan-layout,
   .seed-grid {
     grid-template-columns: 1fr;
   }
 
+  .notice-metrics,
   .result-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

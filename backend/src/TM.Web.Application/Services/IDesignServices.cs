@@ -101,6 +101,7 @@ public interface IChapterPlanService
     Task<ChapterPlanDto?> GetAsync(string id, CancellationToken ct = default);
     Task<ChapterPlanDto> CreateAsync(ChapterPlanUpsertDto input, CancellationToken ct = default);
     Task<ChapterPlanDto> UpdateAsync(string id, ChapterPlanUpsertDto input, CancellationToken ct = default);
+    Task<ChapterPlanSummaryRewriteResultDto> RewriteSummariesAsync(DesignListQuery query, CancellationToken ct = default);
     Task DeleteAsync(string id, CancellationToken ct = default);
 }
 
@@ -118,5 +119,45 @@ public interface INovelSeedService
 {
     Task<TM.Web.Application.Dtos.Generate.NovelSeedResult> GenerateAsync(
         TM.Web.Application.Dtos.Generate.NovelSeedRequest request,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<TM.Web.Application.Dtos.Generate.NovelSeedPlanSummaryDto>> ListPlansAsync(
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedConversationDto> GetOrCreateConversationAsync(
+        string projectId,
+        string? providerId = null,
+        string? modelCode = null,
+        CancellationToken ct = default);
+}
+
+public interface ITianmingProtocolService
+{
+    IReadOnlyList<TM.Web.Application.Dtos.Generate.TianmingProtocolDescriptorDto> ListProtocols();
+
+    IReadOnlyList<TM.Web.Application.Dtos.Generate.TianmingKnowledgeBaseFileDto> ListKnowledgeBaseFiles();
+
+    Task<TM.Web.Application.Dtos.Generate.TianmingKnowledgeBaseBindingStatusDto> GetKnowledgeBaseStatusAsync(
+        string projectId,
+        string? sourceBookId = null,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.TianmingKnowledgeBaseFileDto> GetKnowledgeBaseFileAsync(
+        string key,
+        string projectId,
+        string? sourceBookId = null,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<TM.Web.Application.Dtos.Generate.TianmingKnowledgeBaseFileDto>> ExportKnowledgeBaseAsync(
+        string projectId,
+        string? sourceBookId = null,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.TianmingKnowledgeBaseFileDto> ImportKnowledgeBaseFileAsync(
+        TM.Web.Application.Dtos.Generate.TianmingKnowledgeBaseImportRequest request,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.TianmingProtocolResultDto> RunAsync(
+        TM.Web.Application.Dtos.Generate.TianmingProtocolRequest request,
         CancellationToken ct = default);
 }

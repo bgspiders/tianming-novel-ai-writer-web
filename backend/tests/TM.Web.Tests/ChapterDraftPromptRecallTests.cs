@@ -144,6 +144,9 @@ public class ChapterDraftPromptRecallTests
                 ElapsedMs = 1
             });
         }
+
+        public Task<AiTestResult> CompleteAsync(AiTestRequest request, CancellationToken ct = default)
+            => StreamAsync(request, ct);
     }
 
     private sealed class FakeEditorService : IEditorService

@@ -14,7 +14,7 @@ public class OutlineService : IOutlineService
     public async Task<IReadOnlyList<OutlineDto>> ListAsync(DesignListQuery query, CancellationToken ct = default)
     {
         query = await _db.ResolveProjectScopeAsync(query, ct);
-        var rows = await _db.Outlines.AsQueryable().ApplyFilter(query).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(_db.Outlines.AsQueryable().ApplyFilter(query)).ToListAsync(ct);
         return rows.Select(Map).ToList();
     }
 
@@ -25,7 +25,7 @@ public class OutlineService : IOutlineService
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var filtered = _db.Outlines.AsQueryable().ApplyFilter(query);
         var total = await filtered.CountAsync(ct);
-        var rows = await filtered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var rows = await ApplyDefaultOrder(filtered).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return new PagedResult<OutlineDto>(rows.Select(Map).ToList(), total, page, pageSize);
     }
 
@@ -83,6 +83,10 @@ public class OutlineService : IOutlineService
         e.VolumeDivision = i.VolumeDivision ?? string.Empty;
         e.OutlineOverview = i.OutlineOverview ?? string.Empty;
     }
+
+    private static IOrderedQueryable<Outline> ApplyDefaultOrder(IQueryable<Outline> query)
+        => query.OrderBy(x => x.TotalChapterCount == 0 ? int.MaxValue : x.TotalChapterCount)
+            .ThenBy(x => x.Name);
 
     private static OutlineDto Map(Outline e)
         => new(e.Id, e.Name, e.Category, e.CategoryId, e.IsEnabled, e.SourceBookId,

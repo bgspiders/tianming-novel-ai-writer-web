@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { storeToRefs } from 'pinia'
 import { Delete, Edit, Plus, RefreshRight } from '@element-plus/icons-vue'
-import { useI18n } from '@/composables/useI18n'
 import {
   createProviderConfig,
   deleteProviderConfig,
@@ -13,8 +13,14 @@ import {
   type AiRemoteModelOption,
   updateProviderConfig
 } from '@/api/modules/ai'
+import { postTestCompletion } from '@/api/modules/aiTest'
+import { useI18n } from '@/composables/useI18n'
+import { chatHub } from '@/signalr/chat'
+import { useAiTestStore } from '@/stores/aiTest'
 
 const { t } = useI18n()
+const testStore = useAiTestStore()
+const { form: testForm, output, status, error, isStreaming } = storeToRefs(testStore)
 
 type PlatformOption = {
   code: string
@@ -45,6 +51,8 @@ const editorMode = ref<'create' | 'edit'>('create')
 const editorProviderId = ref('')
 const saving = ref(false)
 const discoveringModels = ref(false)
+const currentRunId = ref('')
+const testMeta = ref<{ chunkCount: number; charCount: number; elapsedMs: number; finishReason?: string } | null>(null)
 
 const editorForm = ref<AiProviderConfigUpsert>({
   platformCode: 'openai',
@@ -74,6 +82,23 @@ const selectedConfig = computed(() =>
   configs.value.find((item) => item.providerId === selectedConfigId.value) ?? null
 )
 
+function onToken(token: string) {
+  testStore.appendToken(token)
+}
+
+function onStatus(nextStatus: string) {
+  status.value = nextStatus
+}
+
+function onCompleted(reason: string) {
+  status.value = `completed (${reason})`
+}
+
+function onError(message: string) {
+  error.value = message
+  status.value = 'error'
+}
+
 async function refreshConfigs(keepSelection = true) {
   loading.value = true
   try {
@@ -81,11 +106,20 @@ async function refreshConfigs(keepSelection = true) {
     if (!keepSelection || !configs.value.some((item) => item.providerId === selectedConfigId.value)) {
       selectedConfigId.value = configs.value[0]?.providerId ?? ''
     }
+    applySelectedConfigToTest()
   } catch (err) {
     ElMessage.error((err as Error).message ?? t('aiModels.messages.providersLoadFailed'))
   } finally {
     loading.value = false
   }
+}
+
+function applySelectedConfigToTest() {
+  const config = selectedConfig.value
+  if (!config) return
+  testForm.value.configId = config.providerId
+  testForm.value.endpoint = config.defaultEndpoint || testForm.value.endpoint
+  testForm.value.model = config.modelCode || testForm.value.model
 }
 
 function resetEditor() {
@@ -246,8 +280,90 @@ async function removeConfig(config: AiProviderConfig) {
 }
 
 onMounted(() => {
+  testStore.loadFromStorage()
+  chatHub.onToken(onToken)
+  chatHub.onStatus(onStatus)
+  chatHub.onCompleted(onCompleted)
+  chatHub.onError(onError)
   refreshConfigs()
 })
+
+onBeforeUnmount(async () => {
+  chatHub.offToken(onToken)
+  chatHub.offStatus(onStatus)
+  chatHub.offCompleted(onCompleted)
+  chatHub.offError(onError)
+
+  if (currentRunId.value) {
+    await chatHub.leaveRun(currentRunId.value)
+  }
+})
+
+watch(selectedConfigId, () => {
+  applySelectedConfigToTest()
+})
+
+async function submitModelTest() {
+  applySelectedConfigToTest()
+  const hasResolvedKey = Boolean(testForm.value.apiKey || testForm.value.configId)
+  if (!testForm.value.endpoint || !hasResolvedKey || !testForm.value.model || !testForm.value.prompt) {
+    ElMessage.warning(t('aiTest.messages.required'))
+    return
+  }
+
+  testStore.reset()
+  testMeta.value = null
+  isStreaming.value = true
+
+  const runId = crypto.randomUUID()
+  currentRunId.value = runId
+
+  try {
+    await chatHub.joinRun(runId)
+  } catch (err) {
+    isStreaming.value = false
+    ElMessage.error(
+      t('aiTest.messages.signalrFailed', {
+        message: (err as Error).message ?? t('aiTest.messages.unknownError')
+      })
+    )
+    return
+  }
+
+  try {
+    const result = await postTestCompletion({
+      runId,
+      configId: testForm.value.configId || null,
+      endpoint: testForm.value.endpoint,
+      apiKey: testForm.value.apiKey,
+      model: testForm.value.model,
+      prompt: testForm.value.prompt,
+      systemPrompt: testForm.value.systemPrompt || undefined,
+      temperature: testForm.value.temperature,
+      maxTokens: testForm.value.maxTokens
+    })
+
+    testMeta.value = {
+      chunkCount: result.chunkCount,
+      charCount: result.charCount,
+      elapsedMs: result.elapsedMs,
+      finishReason: result.finishReason
+    }
+    testStore.saveToStorage()
+  } catch (err) {
+    error.value = (err as Error).message ?? t('aiTest.messages.requestFailed')
+    ElMessage.error(error.value)
+  } finally {
+    isStreaming.value = false
+    await chatHub.leaveRun(runId)
+    currentRunId.value = ''
+  }
+}
+
+function clearModelTest() {
+  testStore.reset()
+  testMeta.value = null
+}
 </script>
 
 <template>
@@ -341,6 +457,79 @@ onMounted(() => {
             class="notes-alert"
             :title="selectedConfig.notes"
           />
+
+          <section class="test-panel">
+            <div class="test-head">
+              <div>
+                <h3>{{ t('aiTest.title') }}</h3>
+                <p>{{ t('aiTest.memoryOnly') }}</p>
+              </div>
+              <el-space>
+                <el-button :disabled="isStreaming" @click="clearModelTest">{{ t('aiTest.actions.clear') }}</el-button>
+                <el-button type="primary" :loading="isStreaming" @click="submitModelTest">
+                  {{ isStreaming ? t('aiTest.actions.running') : t('aiTest.actions.send') }}
+                </el-button>
+              </el-space>
+            </div>
+
+            <el-form :model="testForm" label-position="top" class="test-form" :disabled="isStreaming">
+              <el-form-item :label="t('aiTest.labels.endpoint')">
+                <el-input v-model="testForm.endpoint" :placeholder="selectedConfig.defaultEndpoint || t('aiTest.placeholders.endpoint')" />
+              </el-form-item>
+              <el-form-item :label="t('aiTest.labels.model')">
+                <el-input v-model="testForm.model" :placeholder="selectedConfig.modelCode || t('aiTest.placeholders.model')" />
+              </el-form-item>
+              <el-form-item :label="t('aiTest.labels.apiKey')">
+                <el-input
+                  v-model="testForm.apiKey"
+                  type="password"
+                  show-password
+                  :placeholder="selectedConfig.hasKey ? t('aiTest.labels.noSavedKey') : t('aiTest.placeholders.apiKey')"
+                />
+              </el-form-item>
+              <el-form-item :label="t('aiTest.labels.maxTokens')">
+                <el-input-number v-model="testForm.maxTokens" :min="64" :max="8192" :step="64" />
+              </el-form-item>
+              <el-form-item :label="t('aiTest.labels.systemPrompt')" class="span-2">
+                <el-input
+                  v-model="testForm.systemPrompt"
+                  type="textarea"
+                  :rows="2"
+                  :placeholder="t('aiTest.placeholders.systemPrompt')"
+                />
+              </el-form-item>
+              <el-form-item :label="t('aiTest.labels.userPrompt')" class="span-2">
+                <el-input v-model="testForm.prompt" type="textarea" :rows="3" />
+              </el-form-item>
+              <el-form-item :label="t('aiTest.labels.temperature')">
+                <el-input-number v-model="testForm.temperature" :min="0" :max="2" :step="0.1" />
+              </el-form-item>
+            </el-form>
+
+            <div class="status-row">
+              <el-tag size="small" :type="status === 'error' ? 'danger' : 'info'">
+                {{ t('aiTest.status.label', { status }) }}
+              </el-tag>
+              <el-tag v-if="testMeta" size="small" type="success">
+                {{ t('aiTest.status.chunks') }}: {{ testMeta.chunkCount }} |
+                {{ t('aiTest.status.chars') }}: {{ testMeta.charCount }} |
+                {{ testMeta.elapsedMs }}ms |
+                {{ testMeta.finishReason || t('aiTest.status.completed') }}
+              </el-tag>
+            </div>
+
+            <el-alert
+              v-if="error"
+              :title="error"
+              type="error"
+              show-icon
+              :closable="false"
+              class="test-error"
+            />
+
+            <div v-if="output" class="test-output">{{ output }}</div>
+            <el-empty v-else :description="t('aiTest.status.noOutput')" :image-size="80" />
+          </section>
         </template>
 
         <el-empty v-else :description="t('aiModels.provider.selectedEmpty')" />
@@ -609,6 +798,71 @@ onMounted(() => {
   margin-top: 14px;
 }
 
+.test-panel {
+  margin-top: 16px;
+  border: 1px solid rgba(25, 69, 112, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, #ffffff, #fbfcfe),
+    radial-gradient(circle at top right, rgba(49, 121, 187, 0.08), transparent 38%);
+  padding: 16px;
+}
+
+.test-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.test-head h3 {
+  margin: 0;
+  color: #172236;
+  font-size: 17px;
+}
+
+.test-head p {
+  margin: 5px 0 0;
+  color: #65758c;
+  font-size: 12px;
+}
+
+.test-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.test-form .span-2 {
+  grid-column: 1 / -1;
+}
+
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+
+.test-error {
+  margin-bottom: 10px;
+}
+
+.test-output {
+  min-height: 120px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid rgba(24, 66, 109, 0.12);
+  border-radius: 12px;
+  background: #f7fbff;
+  color: #1d2a3a;
+  padding: 13px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.8;
+}
+
 .editor-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
@@ -712,6 +966,10 @@ onMounted(() => {
   }
 
   .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .test-form {
     grid-template-columns: 1fr;
   }
 

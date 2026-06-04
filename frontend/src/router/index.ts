@@ -21,18 +21,6 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'routes.home' }
       },
       {
-        path: 'health',
-        name: 'health',
-        component: () => import('@/views/HealthView.vue'),
-        meta: { titleKey: 'routes.health' }
-      },
-      {
-        path: 'ai-test',
-        name: 'ai-test',
-        component: () => import('@/views/AiTestView.vue'),
-        meta: { titleKey: 'routes.aiTest' }
-      },
-      {
         path: 'settings/ai-models',
         name: 'ai-models',
         component: () => import('@/views/AiModelsView.vue'),
@@ -77,6 +65,12 @@ const routes: RouteRecordRaw[] = [
         name: 'novel-seed',
         component: () => import('@/views/generate/NovelSeedView.vue'),
         meta: { titleKey: 'routes.novelSeed' }
+      },
+      {
+        path: 'generate/tianming-protocol',
+        name: 'tianming-protocol',
+        component: () => import('@/views/generate/TianmingProtocolView.vue'),
+        meta: { titleKey: 'routes.tianmingProtocol' }
       },
       {
         path: 'generate/chapters',

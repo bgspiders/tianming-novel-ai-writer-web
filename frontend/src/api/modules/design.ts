@@ -485,9 +485,24 @@ export interface ChapterPlan extends DesignBase {
   chapterTheme: string
   readerExperienceGoal: string
   mainGoal: string
+  macroPhase: string
+  tacticalArcId: string
+  tacticalArcTitle: string
+  chapterType: string
+  conflictScore: string
+  coreEvent: string
+  allowedEntities: string[]
   resistanceSource: string
   keyTurn: string
   hook: string
+  statusMarkers: string
+  temporalAnchor: string
+  spatialAnchor: string
+  timelineCoordinate: string
+  isSingularityEvent: boolean
+  bufferRole: string
+  foreshadowingTier: string
+  foreshadowingRole: string
   worldInfoDrop: string
   characterArcProgress: string
   mainPlotProgress: string
@@ -498,6 +513,12 @@ export interface ChapterPlan extends DesignBase {
 }
 
 export type ChapterPlanUpsert = Omit<ChapterPlan, 'id' | 'createdAt' | 'updatedAt'>
+
+export interface ChapterPlanSummaryRewriteResult {
+  matchedCount: number
+  updatedCount: number
+  items: ChapterPlan[]
+}
 
 export const chapterPlansApi = {
   list: async (p?: DesignListParams): Promise<ChapterPlan[]> =>
@@ -510,6 +531,10 @@ export const chapterPlansApi = {
     (await http.post<ChapterPlan>('/api/design/chapter-plans', input)).data,
   update: async (id: string, input: ChapterPlanUpsert): Promise<ChapterPlan> =>
     (await http.put<ChapterPlan>(`/api/design/chapter-plans/${id}`, input)).data,
+  rewriteSummaries: async (p: DesignListParams): Promise<ChapterPlanSummaryRewriteResult> =>
+    (await http.post<ChapterPlanSummaryRewriteResult>('/api/design/chapter-plans/rewrite-summaries', null, {
+      params: buildParams(p)
+    })).data,
   remove: async (id: string): Promise<void> => {
     await http.delete(`/api/design/chapter-plans/${id}`)
   }

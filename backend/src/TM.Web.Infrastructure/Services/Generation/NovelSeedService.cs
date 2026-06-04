@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using TM.Web.Application.Dtos;
 using TM.Web.Application.Dtos.Core;
@@ -7,7 +8,10 @@ using TM.Web.Application.Services;
 using TM.Web.Domain.Entities.Core;
 using TM.Web.Domain.Entities.Design;
 using TM.Web.Domain.Entities.Generate;
+using TM.Web.Domain.Entities.Runtime;
 using TM.Web.Infrastructure.Persistence;
+
+[assembly: InternalsVisibleTo("TM.Web.Tests")]
 
 namespace TM.Web.Infrastructure.Services.Generation;
 
@@ -95,6 +99,123 @@ public sealed class NovelSeedService : INovelSeedService
             plan.RawJson);
     }
 
+    public async Task<IReadOnlyList<NovelSeedPlanSummaryDto>> ListPlansAsync(CancellationToken ct = default)
+    {
+        var projects = await _db.Projects.AsNoTracking()
+            .Where(p => p.CurrentSourceBookId != null)
+            .OrderByDescending(p => p.UpdatedAt)
+            .Take(100)
+            .ToListAsync(ct);
+        if (projects.Count == 0) return Array.Empty<NovelSeedPlanSummaryDto>();
+
+        var sourceBookIds = projects
+            .Select(p => p.CurrentSourceBookId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct()
+            .ToList();
+        var projectIds = projects.Select(p => p.Id).ToList();
+
+        var sourceBooks = await _db.SourceBooks.AsNoTracking()
+            .Where(s => sourceBookIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, ct);
+
+        var volumeCounts = await _db.Volumes.AsNoTracking()
+            .Where(v => projectIds.Contains(v.ProjectId))
+            .GroupBy(v => v.ProjectId)
+            .Select(g => new { ProjectId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ProjectId, x => x.Count, ct);
+
+        var chapterCounts = await _db.Chapters.AsNoTracking()
+            .Where(c => projectIds.Contains(c.ProjectId))
+            .GroupBy(c => c.ProjectId)
+            .Select(g => new { ProjectId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ProjectId, x => x.Count, ct);
+
+        var sourceStats = await BuildSourceStatsAsync(sourceBookIds, ct);
+
+        return projects
+            .Where(project =>
+            {
+                var source = project.CurrentSourceBookId != null && sourceBooks.TryGetValue(project.CurrentSourceBookId, out var s) ? s : null;
+                if (source?.Author == "AI") return true;
+                return project.CurrentSourceBookId != null
+                       && sourceStats.TryGetValue(project.CurrentSourceBookId, out var stats)
+                       && stats.CreativeMaterialCount + stats.ChapterPlanCount + stats.VolumeDesignCount > 0;
+            })
+            .Select(project =>
+            {
+                var source = project.CurrentSourceBookId != null && sourceBooks.TryGetValue(project.CurrentSourceBookId, out var s) ? s : null;
+                var stats = project.CurrentSourceBookId != null && sourceStats.TryGetValue(project.CurrentSourceBookId, out var st)
+                    ? st
+                    : SourceStats.Empty;
+                var volumeCount = volumeCounts.GetValueOrDefault(project.Id);
+                var chapterCount = chapterCounts.GetValueOrDefault(project.Id);
+                return new NovelSeedPlanSummaryDto(
+                    project.Id,
+                    project.Name,
+                    project.Description,
+                    project.CurrentSourceBookId,
+                    source?.Name ?? "未绑定源书",
+                    source?.Genre ?? string.Empty,
+                    volumeCount,
+                    chapterCount,
+                    source?.ChapterCount ?? stats.ChapterPlanCount,
+                    stats.ChapterPlanCount,
+                    stats.WorldRuleCount,
+                    stats.CharacterRuleCount,
+                    stats.FactionRuleCount,
+                    stats.LocationRuleCount,
+                    stats.OutlineCount,
+                    stats.VolumeDesignCount,
+                    stats.ChapterPlanCount,
+                    stats.ChapterBlueprintCount,
+                    stats.CreativeMaterialCount,
+                    BuildAnnouncement(project, source, stats, volumeCount),
+                    project.CreatedAt,
+                    project.UpdatedAt);
+            })
+            .ToList();
+    }
+
+    public async Task<NovelSeedConversationDto> GetOrCreateConversationAsync(
+        string projectId,
+        string? providerId = null,
+        string? modelCode = null,
+        CancellationToken ct = default)
+    {
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(x => x.Id == projectId, ct)
+            ?? throw new InvalidOperationException($"项目不存在：{projectId}");
+
+        var title = $"开书计划：{project.Name}";
+        var session = await _db.ChatSessions
+            .Where(x => x.ProjectId == projectId && x.Mode == "plan")
+            .OrderByDescending(x => x.LastMessageAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (session == null)
+        {
+            session = new ChatSession
+            {
+                ProjectId = projectId,
+                Title = title,
+                Mode = "plan",
+                ProviderId = string.IsNullOrWhiteSpace(providerId) ? null : providerId.Trim(),
+                ModelCode = string.IsNullOrWhiteSpace(modelCode) ? null : modelCode.Trim(),
+                LastMessageAt = DateTime.UtcNow
+            };
+            _db.ChatSessions.Add(session);
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(session.Title)) session.Title = title;
+            if (!string.IsNullOrWhiteSpace(providerId)) session.ProviderId = providerId.Trim();
+            if (!string.IsNullOrWhiteSpace(modelCode)) session.ModelCode = modelCode.Trim();
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return new NovelSeedConversationDto(session.Id, projectId, session.Title, session.Mode, session.LastMessageAt);
+    }
+
     private async Task<GeneratedNovelPlan> GeneratePlanAsync(NovelSeedRequest request, string apiKey, CancellationToken ct)
     {
         var runId = string.IsNullOrWhiteSpace(request.RunId) ? Guid.NewGuid().ToString("N") : request.RunId;
@@ -115,6 +236,47 @@ public sealed class NovelSeedService : INovelSeedService
                    ?? throw new InvalidOperationException("AI 未返回可解析的小说规划 JSON。");
         plan.RawJson = raw;
         return plan;
+    }
+
+    private async Task<Dictionary<string, SourceStats>> BuildSourceStatsAsync(IReadOnlyList<string?> sourceBookIds, CancellationToken ct)
+    {
+        var ids = sourceBookIds.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).Distinct().ToList();
+        var result = ids.ToDictionary(id => id, _ => SourceStats.Empty);
+        if (ids.Count == 0) return result;
+
+        foreach (var item in await CountBySourceAsync(_db.WorldRules.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { WorldRuleCount = item.Count };
+        foreach (var item in await CountBySourceAsync(_db.CharacterRules.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { CharacterRuleCount = item.Count };
+        foreach (var item in await CountBySourceAsync(_db.FactionRules.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { FactionRuleCount = item.Count };
+        foreach (var item in await CountBySourceAsync(_db.LocationRules.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { LocationRuleCount = item.Count };
+        foreach (var item in await CountBySourceAsync(_db.Outlines.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { OutlineCount = item.Count };
+        foreach (var item in await CountBySourceAsync(_db.VolumeDesigns.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { VolumeDesignCount = item.Count };
+        foreach (var item in await CountBySourceAsync(_db.ChapterPlans.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { ChapterPlanCount = item.Count };
+        foreach (var item in await CountBySourceAsync(_db.ChapterBlueprints.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { ChapterBlueprintCount = item.Count };
+        foreach (var item in await CountBySourceAsync(_db.CreativeMaterials.AsNoTracking().Where(x => ids.Contains(x.SourceBookId!)), ct))
+            result[item.SourceBookId] = result[item.SourceBookId] with { CreativeMaterialCount = item.Count };
+
+        return result;
+    }
+
+    private static Task<List<SourceCount>> CountBySourceAsync<T>(IQueryable<T> query, CancellationToken ct) where T : TM.Web.Domain.Common.BusinessDataBase
+        => query
+            .Where(x => x.SourceBookId != null)
+            .GroupBy(x => x.SourceBookId!)
+            .Select(g => new SourceCount(g.Key, g.Count()))
+            .ToListAsync(ct);
+
+    private static string BuildAnnouncement(Project project, SourceBook? source, SourceStats stats, int volumeCount)
+    {
+        var totalChapters = source?.ChapterCount > 0 ? source.ChapterCount : stats.ChapterPlanCount;
+        return $"《{project.Name}》开书计划已建立：{volumeCount} 卷 / {totalChapters} 章，已沉淀角色 {stats.CharacterRuleCount}、势力 {stats.FactionRuleCount}、地点 {stats.LocationRuleCount}、章节计划 {stats.ChapterPlanCount}、蓝图 {stats.ChapterBlueprintCount}。可继续在会话中补充世界观、人物关系、卷节奏或重写规划。";
     }
 
     private static string BuildPrompt(NovelSeedRequest request)
@@ -223,9 +385,24 @@ public sealed class NovelSeedService : INovelSeedService
               "title": "章节标题",
               "summary": "章节摘要",
               "mainGoal": "章节目标",
+              "macroPhase": "起/承/转/合",
+              "tacticalArcId": "弧光1.1",
+              "tacticalArcTitle": "战术弧光标题",
+              "chapterType": "主线/峰值/缓冲-对话/缓冲-线索/缓冲-代价",
+              "conflictScore": "★★★☆☆",
+              "coreEvent": "本章必须发生的核心事件",
+              "allowedEntities": ["本章准入实体"],
               "conflict": "阻力来源",
               "keyTurn": "关键转折",
               "hook": "章节钩子",
+              "statusMarkers": "【状态：xxx】或留空",
+              "temporalAnchor": "时间锚点",
+              "spatialAnchor": "地点锚点",
+              "timelineCoordinate": "四维时空坐标",
+              "isSingularityEvent": false,
+              "bufferRole": "缓冲职责或留空",
+              "foreshadowingTier": "Tier-1/Tier-2/Tier-3 或留空",
+              "foreshadowingRole": "埋设/推进/回收/校准 或留空",
               "characters": ["出场角色"],
               "factions": ["出场势力"],
               "locations": ["出场地点"]
@@ -264,8 +441,12 @@ public sealed class NovelSeedService : INovelSeedService
         {
             var volumeNumber = ((i - 1) / request.ChaptersPerVolume) + 1;
             var volume = volumes.First(v => v.VolumeNumber == volumeNumber);
-            var item = plan.Chapters.FirstOrDefault(x => x.Number == i)
-                       ?? BuildFallbackChapterPlan(i, volumeNumber, request, plan);
+            var item = NormalizeChapterPlan(
+                plan.Chapters.FirstOrDefault(x => x.Number == i),
+                i,
+                volumeNumber,
+                request,
+                plan);
             yield return new Chapter
             {
                 ProjectId = projectId,
@@ -286,8 +467,12 @@ public sealed class NovelSeedService : INovelSeedService
         for (var i = 1; i <= total; i++)
         {
             var volumeNumber = ((i - 1) / request.ChaptersPerVolume) + 1;
-            yield return plan.Chapters.FirstOrDefault(x => x.Number == i)
-                         ?? BuildFallbackChapterPlan(i, volumeNumber, request, plan);
+            yield return NormalizeChapterPlan(
+                plan.Chapters.FirstOrDefault(x => x.Number == i),
+                i,
+                volumeNumber,
+                request,
+                plan);
         }
     }
 
@@ -343,50 +528,215 @@ public sealed class NovelSeedService : INovelSeedService
         var characterNames = plan.Characters.Select(x => x.Name).Where(x => !string.IsNullOrWhiteSpace(x)).Take(3).ToList();
         var factionNames = plan.Factions.Select(x => x.Name).Where(x => !string.IsNullOrWhiteSpace(x)).Take(2).ToList();
         var locationNames = plan.Locations.Select(x => x.Name).Where(x => !string.IsNullOrWhiteSpace(x)).Take(2).ToList();
+        var primaryCharacter = PickByChapter(characterNames, chapterInVolume);
+        var primaryFaction = PickByChapter(factionNames, chapterInVolume);
+        var primaryLocation = PickByChapter(locationNames, chapterInVolume);
+        var action = GetChapterAction(chapterInVolume, request.ChaptersPerVolume);
+        var concreteGoal = FirstNonEmpty(volume.StageGoal, $"推进{volumeTitle}的阶段目标");
+        var coreEvent = BuildFallbackCoreEvent(primaryCharacter, primaryFaction, primaryLocation, action, concreteGoal, chapterInVolume);
+        var summary = BuildFallbackSummary(volumeTitle, chapterInVolume, theme, coreEvent, conflict, stage.KeyTurn, stage.Hook);
 
         return new GeneratedChapterPlan
         {
             Number = chapterNumber,
             VolumeNumber = volumeNumber,
             Title = title,
-            Summary = $"{volumeTitle}第 {chapterInVolume} 章，围绕“{theme}”推进：{stage.Summary}",
-            MainGoal = FirstNonEmpty(volume.StageGoal, $"推进{volumeTitle}的阶段目标"),
+            Summary = summary,
+            MainGoal = coreEvent,
+            MacroPhase = stage.Phase,
+            TacticalArcId = $"弧光{volumeNumber}.{Math.Max(1, (int)Math.Ceiling((double)chapterInVolume / Math.Max(1, request.ChaptersPerVolume / 4)))}",
+            TacticalArcTitle = stage.TitleSuffix,
+            ChapterType = stage.ChapterType,
+            ConflictScore = stage.ConflictScore,
+            CoreEvent = coreEvent,
+            AllowedEntities = characterNames.Concat(factionNames).Concat(locationNames).ToList(),
             Conflict = conflict,
             KeyTurn = stage.KeyTurn,
             Hook = stage.Hook,
+            TemporalAnchor = $"第 {volumeNumber} 卷第 {chapterInVolume} 章时段",
+            SpatialAnchor = locationNames.FirstOrDefault() ?? string.Empty,
+            TimelineCoordinate = $"卷{volumeNumber}/章{chapterNumber}/阶段{stage.Phase}",
+            IsSingularityEvent = chapterInVolume == request.ChaptersPerVolume,
+            BufferRole = stage.BufferRole,
+            ForeshadowingTier = stage.ChapterType.Contains("线索", StringComparison.OrdinalIgnoreCase) ? "Tier-2" : string.Empty,
+            ForeshadowingRole = stage.ChapterType.Contains("线索", StringComparison.OrdinalIgnoreCase) ? "推进" : string.Empty,
             Characters = characterNames,
             Factions = factionNames,
             Locations = locationNames
         };
     }
 
-    private static (string TitleSuffix, string Summary, string KeyTurn, string Hook) GetChapterStage(int chapterInVolume, int chaptersPerVolume)
+    private static GeneratedChapterPlan NormalizeChapterPlan(
+        GeneratedChapterPlan? source,
+        int chapterNumber,
+        int volumeNumber,
+        NovelSeedRequest request,
+        GeneratedNovelPlan plan)
+    {
+        var fallback = BuildFallbackChapterPlan(chapterNumber, volumeNumber, request, plan);
+        if (source == null) return fallback;
+
+        source.Number = source.Number > 0 ? source.Number : chapterNumber;
+        source.VolumeNumber = source.VolumeNumber > 0 ? source.VolumeNumber : volumeNumber;
+        source.Title = FirstNonEmpty(source.Title, fallback.Title);
+        source.Summary = FirstNonEmpty(source.Summary, fallback.Summary);
+        source.MainGoal = FirstNonEmpty(source.MainGoal, fallback.MainGoal);
+        source.MacroPhase = FirstNonEmpty(source.MacroPhase, fallback.MacroPhase);
+        source.TacticalArcId = FirstNonEmpty(source.TacticalArcId, fallback.TacticalArcId);
+        source.TacticalArcTitle = FirstNonEmpty(source.TacticalArcTitle, fallback.TacticalArcTitle);
+        source.ChapterType = FirstNonEmpty(source.ChapterType, fallback.ChapterType);
+        source.ConflictScore = FirstNonEmpty(source.ConflictScore, fallback.ConflictScore);
+        source.CoreEvent = FirstNonEmpty(source.CoreEvent, source.Summary, fallback.CoreEvent);
+        source.AllowedEntities = source.AllowedEntities.Count > 0
+            ? source.AllowedEntities
+            : fallback.AllowedEntities;
+        source.Conflict = FirstNonEmpty(source.Conflict, fallback.Conflict);
+        source.KeyTurn = FirstNonEmpty(source.KeyTurn, fallback.KeyTurn);
+        source.Hook = FirstNonEmpty(source.Hook, fallback.Hook);
+        source.StatusMarkers = FirstNonEmpty(source.StatusMarkers, $"阶段:{source.MacroPhase};类型:{source.ChapterType}");
+        source.TemporalAnchor = FirstNonEmpty(source.TemporalAnchor, fallback.TemporalAnchor);
+        source.SpatialAnchor = FirstNonEmpty(source.SpatialAnchor, fallback.SpatialAnchor);
+        source.TimelineCoordinate = FirstNonEmpty(source.TimelineCoordinate, fallback.TimelineCoordinate);
+        source.IsSingularityEvent = source.IsSingularityEvent || fallback.IsSingularityEvent;
+        source.BufferRole = FirstNonEmpty(source.BufferRole, fallback.BufferRole);
+        source.ForeshadowingTier = FirstNonEmpty(source.ForeshadowingTier, fallback.ForeshadowingTier);
+        source.ForeshadowingRole = FirstNonEmpty(source.ForeshadowingRole, fallback.ForeshadowingRole);
+        source.Characters = source.Characters.Count > 0 ? source.Characters : fallback.Characters;
+        source.Factions = source.Factions.Count > 0 ? source.Factions : fallback.Factions;
+        source.Locations = source.Locations.Count > 0 ? source.Locations : fallback.Locations;
+        return source;
+    }
+
+    internal static IReadOnlyList<string> BuildFallbackChapterSummariesForTest(NovelSeedRequest request)
+    {
+        var plan = new GeneratedNovelPlan
+        {
+            ProjectTitle = "测试书",
+            Logline = "主角调查尸潮源头并对抗财团封锁。",
+            Theme = "觉醒、打脸、建立道法克尸认知",
+            Characters =
+            {
+                new GeneratedCharacterPlan { Name = "许易明" },
+                new GeneratedCharacterPlan { Name = "沈栀" },
+                new GeneratedCharacterPlan { Name = "白僵群" }
+            },
+            Factions =
+            {
+                new GeneratedFactionPlan { Name = "潮汐财团" },
+                new GeneratedFactionPlan { Name = "火属学生团" }
+            },
+            Locations =
+            {
+                new GeneratedLocationPlan { Name = "第三潮汐塔" },
+                new GeneratedLocationPlan { Name = "地下管道" }
+            },
+            Volumes =
+            {
+                new GeneratedVolumePlan
+                {
+                    Number = 1,
+                    Title = "第一卷 觉醒试炼",
+                    Theme = "觉醒、打脸、建立道法克尸认知",
+                    StageGoal = "收集线索、建立关系并暴露阻力",
+                    MainConflict = "潮汐财团封锁真相，白僵群持续突袭。"
+                }
+            }
+        };
+
+        var total = Math.Min(request.InitialChapterPlanCount, request.ChaptersPerVolume);
+        return Enumerable.Range(1, total)
+            .Select(i => BuildFallbackChapterPlan(i, 1, request, plan).Summary)
+            .ToList();
+    }
+
+    private static (string Phase, string TitleSuffix, string Summary, string KeyTurn, string Hook, string ChapterType, string ConflictScore, string BufferRole)
+        GetChapterStage(int chapterInVolume, int chaptersPerVolume)
     {
         if (chapterInVolume <= 1)
         {
-            return ("开局落点", "建立本卷新局面、新目标与即时压力。", "主角发现本卷核心问题并被迫入局。", "新的线索或危机在章末出现。");
+            return ("起", "开局落点", "建立本卷新局面、新目标与即时压力。", "主角发现本卷核心问题并被迫入局。", "新的线索或危机在章末出现。", "主线", "★★★☆☆", string.Empty);
         }
 
         var ratio = (double)chapterInVolume / Math.Max(1, chaptersPerVolume);
         if (ratio < 0.25)
         {
-            return ("线索展开", "围绕阶段目标搜集线索、建立关系并暴露阻力。", "关键角色或势力改变主角的行动路径。", "更高层级的阻力浮出水面。");
+            return ("起", "线索展开", "围绕阶段目标搜集线索、建立关系并暴露阻力。", "关键角色或势力改变主角的行动路径。", "更高层级的阻力浮出水面。", "缓冲-线索", "★★☆☆☆", "线索滴灌");
         }
         if (ratio < 0.55)
         {
-            return ("冲突升级", "主角主动推进计划，代价、误判和外部压迫同步加重。", "原计划被反制，主角必须调整策略。", "胜利条件被重新定义。");
+            return ("承", "冲突升级", "主角主动推进计划，代价、误判和外部压迫同步加重。", "原计划被反制，主角必须调整策略。", "胜利条件被重新定义。", "主线", "★★★☆☆", string.Empty);
         }
         if (ratio < 0.8)
         {
-            return ("反转压迫", "本卷主冲突进入高压段，隐藏真相和人物选择开始碰撞。", "关键真相改变敌我格局。", "主角获得机会，同时暴露更大风险。");
+            return ("转", "反转压迫", "本卷主冲突进入高压段，隐藏真相和人物选择开始碰撞。", "关键真相改变敌我格局。", "主角获得机会，同时暴露更大风险。", "峰值", "★★★★☆", string.Empty);
         }
         if (chapterInVolume < chaptersPerVolume)
         {
-            return ("决战前夜", "本卷矛盾收束，主角整合资源并付出明确代价。", "主角做出不可回头的选择。", "最终冲突被推到眼前。");
+            return ("合", "决战前夜", "本卷矛盾收束，主角整合资源并付出明确代价。", "主角做出不可回头的选择。", "最终冲突被推到眼前。", "缓冲-代价", "★★★★☆", "峰前代价");
         }
 
-        return ("卷末收束", "解决本卷阶段冲突，留下下一卷的新问题。", "本卷目标达成或失败，但世界格局被改变。", "新的长期危机或奖励在结尾出现。");
+        return ("合", "卷末收束", "解决本卷阶段冲突，留下下一卷的新问题。", "本卷目标达成或失败，但世界格局被改变。", "新的长期危机或奖励在结尾出现。", "峰值", "★★★★★", string.Empty);
     }
+
+    private static string PickByChapter(IReadOnlyList<string> values, int chapterInVolume)
+        => values.Count == 0 ? string.Empty : values[(chapterInVolume - 1) % values.Count];
+
+    private static string GetChapterAction(int chapterInVolume, int chaptersPerVolume)
+    {
+        var actions = new[]
+        {
+            "锁定第一处异常痕迹",
+            "追问目击者并交换情报",
+            "潜入边缘区域确认线索",
+            "与对立方完成第一次试探",
+            "拆解误导信息并校准目标",
+            "临时结盟推进调查",
+            "正面突破一处封锁",
+            "付出代价换取关键证据",
+            "揭开隐藏关系链",
+            "逼迫幕后势力提前出手",
+            "整合资源准备决断",
+            "用阶段成果引出下一轮危机"
+        };
+        if (chapterInVolume >= chaptersPerVolume) return actions[^1];
+        return actions[(chapterInVolume - 1) % actions.Length];
+    }
+
+    private static string BuildFallbackCoreEvent(
+        string character,
+        string faction,
+        string location,
+        string action,
+        string goal,
+        int chapterInVolume)
+    {
+        var actor = FirstNonEmpty(character, "主角");
+        var place = string.IsNullOrWhiteSpace(location) ? string.Empty : $"在{location}";
+        var opponent = string.IsNullOrWhiteSpace(faction) ? string.Empty : $"，同时牵出{faction}的反应";
+        var focus = BuildChapterFocus(chapterInVolume);
+        return $"{actor}{place}{action}，以{focus}作为切口，推进“{goal}”{opponent}";
+    }
+
+    private static string BuildChapterFocus(int chapterInVolume)
+    {
+        var evidenceKinds = new[] { "异常符痕", "目击证词", "尸气残留", "账册缺口", "阵法回响" };
+        var pressureKinds = new[] { "封锁压力", "舆论误导", "资源断供", "身份暴露", "时间倒逼", "同伴分歧", "敌方试探" };
+        var choiceKinds = new[] { "试探", "交换", "潜入", "反制" };
+        return $"{evidenceKinds[(chapterInVolume - 1) % evidenceKinds.Length]}、{pressureKinds[(chapterInVolume - 1) % pressureKinds.Length]}与{choiceKinds[(chapterInVolume - 1) % choiceKinds.Length]}";
+    }
+
+    private static string BuildFallbackSummary(
+        string volumeTitle,
+        int chapterInVolume,
+        string theme,
+        string coreEvent,
+        string conflict,
+        string keyTurn,
+        string hook)
+        => $"{volumeTitle}第 {chapterInVolume} 章，{coreEvent}。主题落在“{theme}”；阻力来自{TrimSentenceEnd(conflict)}。转折：{TrimSentenceEnd(keyTurn)}；章末钩子：{TrimSentenceEnd(hook)}";
+
+    private static string TrimSentenceEnd(string value)
+        => value.Trim().TrimEnd('。', '；', ';', '.', '，', ',');
 
     private DesignCounts CreateDesignData(
         string sourceBookId,
@@ -561,9 +911,26 @@ public sealed class NovelSeedService : INovelSeedService
                 EstimatedWordCount = $"{request.EstimatedWordsPerChapter}",
                 ChapterTheme = chapter.Summary,
                 MainGoal = chapter.MainGoal,
+                MacroPhase = chapter.MacroPhase,
+                TacticalArcId = chapter.TacticalArcId,
+                TacticalArcTitle = chapter.TacticalArcTitle,
+                ChapterType = chapter.ChapterType,
+                ConflictScore = chapter.ConflictScore,
+                CoreEvent = FirstNonEmpty(chapter.CoreEvent, chapter.Summary),
+                AllowedEntities = chapter.AllowedEntities.Count > 0
+                    ? chapter.AllowedEntities
+                    : chapter.Characters.Concat(chapter.Factions).Concat(chapter.Locations).ToList(),
                 ResistanceSource = chapter.Conflict,
                 KeyTurn = chapter.KeyTurn,
                 Hook = chapter.Hook,
+                StatusMarkers = chapter.StatusMarkers,
+                TemporalAnchor = chapter.TemporalAnchor,
+                SpatialAnchor = chapter.SpatialAnchor,
+                TimelineCoordinate = chapter.TimelineCoordinate,
+                IsSingularityEvent = chapter.IsSingularityEvent,
+                BufferRole = chapter.BufferRole,
+                ForeshadowingTier = chapter.ForeshadowingTier,
+                ForeshadowingRole = chapter.ForeshadowingRole,
                 MainPlotProgress = chapter.Summary,
                 ReferencedCharacterNames = chapter.Characters,
                 ReferencedFactionNames = chapter.Factions,
@@ -707,6 +1074,22 @@ public sealed class NovelSeedService : INovelSeedService
         public int CreativeMaterials { get; set; }
     }
 
+    private sealed record SourceCount(string SourceBookId, int Count);
+
+    private sealed record SourceStats(
+        int WorldRuleCount,
+        int CharacterRuleCount,
+        int FactionRuleCount,
+        int LocationRuleCount,
+        int OutlineCount,
+        int VolumeDesignCount,
+        int ChapterPlanCount,
+        int ChapterBlueprintCount,
+        int CreativeMaterialCount)
+    {
+        public static SourceStats Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+
     private sealed class GeneratedNovelPlan
     {
         public string RawJson { get; set; } = string.Empty;
@@ -798,9 +1181,24 @@ public sealed class NovelSeedService : INovelSeedService
         public string Title { get; set; } = string.Empty;
         public string Summary { get; set; } = string.Empty;
         public string MainGoal { get; set; } = string.Empty;
+        public string MacroPhase { get; set; } = string.Empty;
+        public string TacticalArcId { get; set; } = string.Empty;
+        public string TacticalArcTitle { get; set; } = string.Empty;
+        public string ChapterType { get; set; } = string.Empty;
+        public string ConflictScore { get; set; } = string.Empty;
+        public string CoreEvent { get; set; } = string.Empty;
+        public List<string> AllowedEntities { get; set; } = new();
         public string Conflict { get; set; } = string.Empty;
         public string KeyTurn { get; set; } = string.Empty;
         public string Hook { get; set; } = string.Empty;
+        public string StatusMarkers { get; set; } = string.Empty;
+        public string TemporalAnchor { get; set; } = string.Empty;
+        public string SpatialAnchor { get; set; } = string.Empty;
+        public string TimelineCoordinate { get; set; } = string.Empty;
+        public bool IsSingularityEvent { get; set; }
+        public string BufferRole { get; set; } = string.Empty;
+        public string ForeshadowingTier { get; set; } = string.Empty;
+        public string ForeshadowingRole { get; set; } = string.Empty;
         public List<string> Characters { get; set; } = new();
         public List<string> Factions { get; set; } = new();
         public List<string> Locations { get; set; } = new();
