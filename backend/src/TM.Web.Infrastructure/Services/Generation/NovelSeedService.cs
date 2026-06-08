@@ -43,6 +43,27 @@ public sealed class NovelSeedService : INovelSeedService
         var apiKey = await ResolveApiKeyAsync(request, ct);
         var plan = await GeneratePlanAsync(request, apiKey, ct);
 
+        return await CreateFromPlanAsync(request, plan, ct);
+    }
+
+    internal async Task<NovelSeedResult> CreateFromRawPlanAsync(
+        NovelSeedRequest request,
+        string rawPlan,
+        CancellationToken ct = default)
+    {
+        Validate(request);
+        var raw = ExtractJson(rawPlan);
+        var plan = JsonSerializer.Deserialize<GeneratedNovelPlan>(raw, JsonOptions)
+                   ?? throw new InvalidOperationException("分步开书产物不是可解析的小说规划 JSON。");
+        plan.RawJson = raw;
+        return await CreateFromPlanAsync(request, plan, ct);
+    }
+
+    private async Task<NovelSeedResult> CreateFromPlanAsync(
+        NovelSeedRequest request,
+        GeneratedNovelPlan plan,
+        CancellationToken ct)
+    {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         var project = new Project
@@ -95,6 +116,8 @@ public sealed class NovelSeedService : INovelSeedService
             designCounts.ChapterPlans,
             designCounts.ChapterBlueprints,
             designCounts.CreativeMaterials,
+            designCounts.Foreshadowings,
+            designCounts.Timelines,
             request.VolumeCount * request.ChaptersPerVolume,
             GetInitialChapterPlanCount(request),
             plan.RawJson);
@@ -305,6 +328,8 @@ public sealed class NovelSeedService : INovelSeedService
         - chapters 总数不超过 {{chapterSampleLimit}} 条；后端只创建首批章节计划/蓝图，其余章节以后按卷/批次生成。
         - chapters.number 使用全书绝对章节号，例如第 2 卷第 1 章是 {{request.ChaptersPerVolume + 1}}。
         - 全书总章节数为 {{totalChapters}}；不要为了列出全部章节导致截断。
+        - 必须生成 foreshadowings：至少 3 条，覆盖主线伏笔、角色秘密、世界规则或关键物品。
+        - 必须生成 timelines：覆盖 chapters 中每个代表性章节，按 chapterNumber 对齐。
 
         只返回 JSON，结构必须如下：
         {
@@ -402,11 +427,31 @@ public sealed class NovelSeedService : INovelSeedService
               "timelineCoordinate": "四维时空坐标",
               "isSingularityEvent": false,
               "bufferRole": "缓冲职责或留空",
+              "foreshadowingName": "伏笔名称或留空",
               "foreshadowingTier": "Tier-1/Tier-2/Tier-3 或留空",
               "foreshadowingRole": "埋设/推进/回收/校准 或留空",
               "characters": ["出场角色"],
               "factions": ["出场势力"],
               "locations": ["出场地点"]
+            }
+          ],
+          "foreshadowings": [
+            {
+              "name": "伏笔名称",
+              "tier": "Tier-1/Tier-2/Tier-3",
+              "setupChapter": 1,
+              "payoffChapter": 12,
+              "role": "它在长篇里的职责",
+              "description": "埋设、推进、回收方式说明"
+            }
+          ],
+          "timelines": [
+            {
+              "chapterNumber": 1,
+              "timePeriod": "时间段",
+              "elapsedTime": "距上一章经过多久",
+              "keyTimeEvent": "本章对主线/伏笔/角色状态造成的关键变化",
+              "importance": "high/normal/low"
             }
           ]
         }
@@ -559,6 +604,9 @@ public sealed class NovelSeedService : INovelSeedService
             TimelineCoordinate = $"卷{volumeNumber}/章{chapterNumber}/阶段{stage.Phase}",
             IsSingularityEvent = chapterInVolume == request.ChaptersPerVolume,
             BufferRole = stage.BufferRole,
+            ForeshadowingName = stage.ChapterType.Contains("线索", StringComparison.OrdinalIgnoreCase)
+                ? $"{FirstNonEmpty(primaryLocation, volumeTitle)}{stage.TitleSuffix}线索"
+                : string.Empty,
             ForeshadowingTier = stage.ChapterType.Contains("线索", StringComparison.OrdinalIgnoreCase) ? "Tier-2" : string.Empty,
             ForeshadowingRole = stage.ChapterType.Contains("线索", StringComparison.OrdinalIgnoreCase) ? "推进" : string.Empty,
             Characters = characterNames,
@@ -600,6 +648,7 @@ public sealed class NovelSeedService : INovelSeedService
         source.TimelineCoordinate = FirstNonEmpty(source.TimelineCoordinate, fallback.TimelineCoordinate);
         source.IsSingularityEvent = source.IsSingularityEvent || fallback.IsSingularityEvent;
         source.BufferRole = FirstNonEmpty(source.BufferRole, fallback.BufferRole);
+        source.ForeshadowingName = FirstNonEmpty(source.ForeshadowingName, fallback.ForeshadowingName);
         source.ForeshadowingTier = FirstNonEmpty(source.ForeshadowingTier, fallback.ForeshadowingTier);
         source.ForeshadowingRole = FirstNonEmpty(source.ForeshadowingRole, fallback.ForeshadowingRole);
         source.Characters = source.Characters.Count > 0 ? source.Characters : fallback.Characters;
@@ -943,6 +992,7 @@ public sealed class NovelSeedService : INovelSeedService
                 BufferRole = chapter.BufferRole,
                 ForeshadowingTier = chapter.ForeshadowingTier,
                 ForeshadowingRole = chapter.ForeshadowingRole,
+                Foreshadowing = chapter.ForeshadowingName,
                 MainPlotProgress = chapter.Summary,
                 ReferencedCharacterNames = chapter.Characters,
                 ReferencedFactionNames = chapter.Factions,
@@ -966,8 +1016,8 @@ public sealed class NovelSeedService : INovelSeedService
                 Development = chapter.Conflict,
                 Turning = chapter.KeyTurn,
                 Ending = chapter.Hook,
-                InfoDrop = chapter.Summary,
-                Cast = string.Join("、", chapter.Characters),
+                InfoDrop = BuildBlueprintInfoDrop(chapter),
+                Cast = BuildBlueprintCast(chapter),
                 Locations = string.Join("、", chapter.Locations),
                 Factions = string.Join("、", chapter.Factions),
                 ItemsClues = chapter.Hook
@@ -975,12 +1025,14 @@ public sealed class NovelSeedService : INovelSeedService
             counts.ChapterBlueprints++;
         }
 
-        SeedInitialTrackingFacts(sourceBookId, plan, characterRules, factionRules, locationRules, chapters, planningChapters);
+        var trackingCounts = SeedInitialTrackingFacts(sourceBookId, plan, characterRules, factionRules, locationRules, chapters, planningChapters);
+        counts.Foreshadowings = trackingCounts.Foreshadowings;
+        counts.Timelines = trackingCounts.Timelines;
 
         return counts;
     }
 
-    private void SeedInitialTrackingFacts(
+    private (int Foreshadowings, int Timelines) SeedInitialTrackingFacts(
         string sourceBookId,
         GeneratedNovelPlan plan,
         IReadOnlyList<CharacterRule> characterRules,
@@ -989,7 +1041,7 @@ public sealed class NovelSeedService : INovelSeedService
         IReadOnlyList<Chapter> chapters,
         IReadOnlyList<GeneratedChapterPlan> planningChapters)
     {
-        if (chapters.Count == 0) return;
+        if (chapters.Count == 0) return (0, 0);
 
         var projectId = chapters[0].ProjectId;
         var firstChapter = chapters.OrderBy(x => x.ChapterNumber).First();
@@ -1100,19 +1152,16 @@ public sealed class NovelSeedService : INovelSeedService
             });
         }
 
+        var timelineCount = 0;
+        foreach (var timeline in BuildInitialTimelines(projectId, sourceBookId, plan, planningChapters, chapterMap))
+        {
+            _db.ChapterTimelines.Add(timeline);
+            timelineCount++;
+        }
+
         foreach (var chapter in planningChapters.Where(x => chapterMap.ContainsKey(x.Number)))
         {
             var storedChapter = chapterMap[chapter.Number];
-            _db.ChapterTimelines.Add(new ChapterTimeline
-            {
-                ProjectId = projectId,
-                SourceBookId = sourceBookId,
-                ChapterId = storedChapter.Id,
-                TimePeriod = FirstNonEmpty(chapter.TemporalAnchor, chapter.TimelineCoordinate, $"第 {chapter.Number} 章时段"),
-                ElapsedTime = chapter.TimelineCoordinate,
-                KeyTimeEvent = FirstNonEmpty(chapter.CoreEvent, chapter.Summary, chapter.MainGoal),
-                Importance = chapter.IsSingularityEvent ? "high" : "normal"
-            });
             _db.PlotPoints.Add(new PlotPoint
             {
                 ProjectId = projectId,
@@ -1126,10 +1175,14 @@ public sealed class NovelSeedService : INovelSeedService
             });
         }
 
-        foreach (var foreshadowing in BuildInitialForeshadowings(projectId, sourceBookId, planningChapters))
+        var foreshadowingCount = 0;
+        foreach (var foreshadowing in BuildInitialForeshadowings(projectId, sourceBookId, plan, planningChapters))
         {
             _db.Foreshadowings.Add(foreshadowing);
+            foreshadowingCount++;
         }
+
+        return (foreshadowingCount, timelineCount);
     }
 
     private static IReadOnlyList<(string Name, string Type, string Tier, string Event, string Description)> BuildInitialConflicts(
@@ -1155,27 +1208,103 @@ public sealed class NovelSeedService : INovelSeedService
             .ToList();
     }
 
+    private static IReadOnlyList<ChapterTimeline> BuildInitialTimelines(
+        string projectId,
+        string sourceBookId,
+        GeneratedNovelPlan plan,
+        IReadOnlyList<GeneratedChapterPlan> planningChapters,
+        IReadOnlyDictionary<int, Chapter> chapterMap)
+    {
+        if (plan.Timelines.Count > 0)
+        {
+            return plan.Timelines
+                .Where(x => chapterMap.ContainsKey(x.ChapterNumber))
+                .GroupBy(x => x.ChapterNumber)
+                .Select(x => x.First())
+                .OrderBy(x => x.ChapterNumber)
+                .Select(x =>
+                {
+                    var chapter = chapterMap[x.ChapterNumber];
+                    var planChapter = planningChapters.FirstOrDefault(p => p.Number == x.ChapterNumber);
+                    return new ChapterTimeline
+                    {
+                        ProjectId = projectId,
+                        SourceBookId = sourceBookId,
+                        ChapterId = chapter.Id,
+                        TimePeriod = FirstNonEmpty(x.TimePeriod, planChapter?.TemporalAnchor, planChapter?.TimelineCoordinate, $"第 {x.ChapterNumber} 章时段"),
+                        ElapsedTime = FirstNonEmpty(x.ElapsedTime, planChapter?.TimelineCoordinate),
+                        KeyTimeEvent = FirstNonEmpty(x.KeyTimeEvent, planChapter?.CoreEvent, planChapter?.Summary, chapter.Summary, chapter.Title),
+                        Importance = FirstNonEmpty(x.Importance, planChapter?.IsSingularityEvent == true ? "high" : "normal")
+                    };
+                })
+                .ToList();
+        }
+
+        return planningChapters
+            .Where(x => chapterMap.ContainsKey(x.Number))
+            .Select(chapter =>
+            {
+                var storedChapter = chapterMap[chapter.Number];
+                return new ChapterTimeline
+                {
+                    ProjectId = projectId,
+                    SourceBookId = sourceBookId,
+                    ChapterId = storedChapter.Id,
+                    TimePeriod = FirstNonEmpty(chapter.TemporalAnchor, chapter.TimelineCoordinate, $"第 {chapter.Number} 章时段"),
+                    ElapsedTime = chapter.TimelineCoordinate,
+                    KeyTimeEvent = FirstNonEmpty(chapter.CoreEvent, chapter.Summary, chapter.MainGoal),
+                    Importance = chapter.IsSingularityEvent ? "high" : "normal"
+                };
+            })
+            .ToList();
+    }
+
     private static IReadOnlyList<Foreshadowing> BuildInitialForeshadowings(
         string projectId,
         string sourceBookId,
+        GeneratedNovelPlan plan,
         IReadOnlyList<GeneratedChapterPlan> planningChapters)
     {
+        if (plan.Foreshadowings.Count > 0)
+        {
+            return plan.Foreshadowings
+                .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+                .GroupBy(x => x.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(x => x.First())
+                .Take(20)
+                .Select(x => new Foreshadowing
+                {
+                    ProjectId = projectId,
+                    SourceBookId = sourceBookId,
+                    Name = x.Name.Trim(),
+                    Tier = NormalizeTier(FirstNonEmpty(x.Tier, "Tier-2")),
+                    IsSetup = true,
+                    IsResolved = false,
+                    IsOverdue = false,
+                    ExpectedSetupChapter = FormatChapterLabel(x.SetupChapter),
+                    ExpectedPayoffChapter = FormatChapterLabel(x.PayoffChapter),
+                    ActualSetupChapter = FormatChapterLabel(x.SetupChapter),
+                    OverdueSuggestion = FirstNonEmpty(x.Role, x.Description, "后续章节需回收或升级该伏笔。")
+                })
+                .ToList();
+        }
+
         var seeded = planningChapters
-            .Where(x => !string.IsNullOrWhiteSpace(x.Hook) || !string.IsNullOrWhiteSpace(x.ForeshadowingTier))
+            .Where(x => !string.IsNullOrWhiteSpace(x.ForeshadowingName) || !string.IsNullOrWhiteSpace(x.Hook) || !string.IsNullOrWhiteSpace(x.ForeshadowingTier))
             .Take(8)
             .Select(x => new Foreshadowing
             {
                 ProjectId = projectId,
                 SourceBookId = sourceBookId,
-                Name = FirstNonEmpty(x.Hook, x.CoreEvent, $"第 {x.Number} 章伏笔"),
+                Name = FirstNonEmpty(x.ForeshadowingName, x.Hook, x.CoreEvent, $"第 {x.Number} 章伏笔"),
                 Tier = FirstNonEmpty(x.ForeshadowingTier, x.IsSingularityEvent ? "Tier-1" : "Tier-2"),
                 IsSetup = true,
                 IsResolved = false,
                 IsOverdue = false,
-                ExpectedSetupChapter = $"{x.Number}",
-                ExpectedPayoffChapter = $"{Math.Max(x.Number + 2, x.Number)}",
-                ActualSetupChapter = $"{x.Number}",
-                OverdueSuggestion = "后续章节需回收或升级该伏笔。"
+                ExpectedSetupChapter = FormatChapterLabel(x.Number),
+                ExpectedPayoffChapter = FormatChapterLabel(Math.Max(x.Number + 2, x.Number)),
+                ActualSetupChapter = FormatChapterLabel(x.Number),
+                OverdueSuggestion = FirstNonEmpty(x.ForeshadowingRole, "后续章节需回收或升级该伏笔。")
             })
             .ToList();
 
@@ -1193,13 +1322,37 @@ public sealed class NovelSeedService : INovelSeedService
                     Name = FirstNonEmpty(first.CoreEvent, first.Summary, "主线伏笔"),
                     Tier = "Tier-2",
                     IsSetup = true,
-                    ExpectedSetupChapter = $"{first.Number}",
-                    ExpectedPayoffChapter = $"{first.Number + 2}",
-                    ActualSetupChapter = $"{first.Number}",
+                    ExpectedSetupChapter = FormatChapterLabel(first.Number),
+                    ExpectedPayoffChapter = FormatChapterLabel(first.Number + 2),
+                    ActualSetupChapter = FormatChapterLabel(first.Number),
                     OverdueSuggestion = "后续章节需回收或升级该伏笔。"
                 }
             };
     }
+
+    private static string BuildBlueprintInfoDrop(GeneratedChapterPlan chapter)
+        => JoinNonEmpty(
+            chapter.Summary,
+            string.IsNullOrWhiteSpace(chapter.TemporalAnchor) ? string.Empty : $"时间：{chapter.TemporalAnchor}",
+            string.IsNullOrWhiteSpace(chapter.SpatialAnchor) ? string.Empty : $"地点：{chapter.SpatialAnchor}",
+            string.IsNullOrWhiteSpace(chapter.TimelineCoordinate) ? string.Empty : $"时间线：{chapter.TimelineCoordinate}");
+
+    private static string BuildBlueprintCast(GeneratedChapterPlan chapter)
+        => JoinNonEmpty(
+            string.Join("、", chapter.Characters),
+            string.IsNullOrWhiteSpace(chapter.ForeshadowingName) ? string.Empty : $"伏笔：{chapter.ForeshadowingName}",
+            string.IsNullOrWhiteSpace(chapter.ForeshadowingRole) ? string.Empty : $"职责：{chapter.ForeshadowingRole}");
+
+    private static string FormatChapterLabel(int chapterNumber)
+        => chapterNumber > 0 ? $"第{chapterNumber}章" : string.Empty;
+
+    private static string NormalizeTier(string? tier)
+        => tier?.Trim() switch
+        {
+            "Tier-1" => "Tier-1",
+            "Tier-2" => "Tier-2",
+            _ => "Tier-3"
+        };
 
     private static string PickCharacterLocation(
         string characterName,
@@ -1339,6 +1492,8 @@ public sealed class NovelSeedService : INovelSeedService
         public int ChapterPlans { get; set; }
         public int ChapterBlueprints { get; set; }
         public int CreativeMaterials { get; set; }
+        public int Foreshadowings { get; set; }
+        public int Timelines { get; set; }
     }
 
     private sealed record SourceCount(string SourceBookId, int Count);
@@ -1371,6 +1526,8 @@ public sealed class NovelSeedService : INovelSeedService
         public List<GeneratedLocationPlan> Locations { get; set; } = new();
         public List<GeneratedVolumePlan> Volumes { get; set; } = new();
         public List<GeneratedChapterPlan> Chapters { get; set; } = new();
+        public List<GeneratedForeshadowingPlan> Foreshadowings { get; set; } = new();
+        public List<GeneratedTimelinePlan> Timelines { get; set; } = new();
     }
 
     private sealed class GeneratedWorldPlan
@@ -1464,10 +1621,30 @@ public sealed class NovelSeedService : INovelSeedService
         public string TimelineCoordinate { get; set; } = string.Empty;
         public bool IsSingularityEvent { get; set; }
         public string BufferRole { get; set; } = string.Empty;
+        public string ForeshadowingName { get; set; } = string.Empty;
         public string ForeshadowingTier { get; set; } = string.Empty;
         public string ForeshadowingRole { get; set; } = string.Empty;
         public List<string> Characters { get; set; } = new();
         public List<string> Factions { get; set; } = new();
         public List<string> Locations { get; set; } = new();
+    }
+
+    private sealed class GeneratedForeshadowingPlan
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Tier { get; set; } = "Tier-2";
+        public int SetupChapter { get; set; }
+        public int PayoffChapter { get; set; }
+        public string Role { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+    }
+
+    private sealed class GeneratedTimelinePlan
+    {
+        public int ChapterNumber { get; set; }
+        public string TimePeriod { get; set; } = string.Empty;
+        public string ElapsedTime { get; set; } = string.Empty;
+        public string KeyTimeEvent { get; set; } = string.Empty;
+        public string Importance { get; set; } = "normal";
     }
 }

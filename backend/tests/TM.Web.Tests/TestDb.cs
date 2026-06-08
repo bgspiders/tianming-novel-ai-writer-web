@@ -11,12 +11,15 @@ internal static class TestDb
         var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
 
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite(connection)
-            .Options;
+        var options = CreateOptions(connection);
 
         var db = new AppDbContext(options);
         await db.Database.EnsureCreatedAsync();
         return (db, connection);
     }
+
+    public static DbContextOptions<AppDbContext> CreateOptions(SqliteConnection connection)
+        => new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite(connection)
+            .Options;
 }

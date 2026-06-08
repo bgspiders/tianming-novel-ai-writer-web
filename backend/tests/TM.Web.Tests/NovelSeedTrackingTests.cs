@@ -60,6 +60,53 @@ public class NovelSeedTrackingTests
             .Should().Be(2);
     }
 
+    [Fact]
+    public async Task GenerateAsync_uses_explicit_ai_foreshadowings_and_timelines()
+    {
+        var (db, connection) = await TestDb.CreateAsync();
+        await using var _ = connection;
+        await using var __ = db;
+
+        var service = new NovelSeedService(
+            db,
+            new StubAiCompletionService(BuildPlanJsonWithExplicitTracking()),
+            new StubAiApiKeyService());
+
+        var result = await service.GenerateAsync(new NovelSeedRequest
+        {
+            Description = "赛博玄幻，沈栀潜入第三潮汐塔。",
+            Genre = "赛博玄幻",
+            VolumeCount = 1,
+            ChaptersPerVolume = 3,
+            InitialChapterPlanCount = 3,
+            CreateChapters = true,
+            CreateDesignData = true,
+            ApiKey = "sk-test",
+            Endpoint = "https://example.com/v1",
+            Model = "test-model"
+        });
+
+        var projectId = result.Project.Id;
+        var sourceBookId = result.Project.CurrentSourceBookId;
+        var foreshadowing = await db.Foreshadowings.SingleAsync(x =>
+            x.ProjectId == projectId
+            && x.SourceBookId == sourceBookId
+            && x.Name == "父亲声音的来源");
+        var timeline = await db.ChapterTimelines.SingleAsync(x =>
+            x.ProjectId == projectId
+            && x.SourceBookId == sourceBookId
+            && x.TimePeriod == "第一夜后半");
+
+        result.ForeshadowingCount.Should().BeGreaterThanOrEqualTo(1);
+        result.TimelineCount.Should().Be(3);
+        foreshadowing.Tier.Should().Be("Tier-1");
+        foreshadowing.ExpectedSetupChapter.Should().Be("第1章");
+        foreshadowing.ExpectedPayoffChapter.Should().Be("第12章");
+        foreshadowing.OverdueSuggestion.Should().Contain("贯穿前期潜入线");
+        timeline.KeyTimeEvent.Should().Be("沈栀用维修终端进入塔内，潜入线正式开始。");
+        timeline.ElapsedTime.Should().Be("承接第一章后半小时");
+    }
+
     private static string BuildPlanJson()
         => """
         {
@@ -191,6 +238,51 @@ public class NovelSeedTrackingTests
               "factions": ["潮汐财团"],
               "locations": ["第三潮汐塔"]
             }
+          ]
+        }
+        """;
+
+    private static string BuildPlanJsonWithExplicitTracking()
+        => """
+        {
+          "projectTitle": "潮汐塔潜入线",
+          "logline": "沈栀潜入第三潮汐塔，揭开潮汐财团实验。",
+          "genre": "赛博玄幻",
+          "theme": "真相与代价",
+          "tone": "悬疑压迫",
+          "world": {
+            "name": "潮汐城",
+            "oneLineSummary": "潮汐能量改造城市秩序。",
+            "powerSystem": "潮汐术式",
+            "cosmology": "潮汐周期影响灵能。",
+            "specialLaws": "第三潮汐不得被直视。",
+            "hardRules": "潮汐塔内所有记忆都会被记录。",
+            "statusQuo": "潮汐财团控制城市资源。"
+          },
+          "characters": [
+            { "name": "沈栀", "type": "主角", "identity": "潜入者", "want": "潜入第三潮汐塔", "need": "确认实验真相" }
+          ],
+          "factions": [
+            { "name": "潮汐财团", "type": "企业势力", "goal": "隐藏永生实验", "territory": "第三潮汐塔" }
+          ],
+          "locations": [
+            { "name": "第三潮汐塔", "type": "核心地点", "description": "财团封锁的实验塔。" }
+          ],
+          "volumes": [
+            { "number": 1, "title": "第三潮汐", "theme": "潜入与真相", "stageGoal": "进入第三潮汐塔并取得实验线索。", "mainConflict": "沈栀与潮汐财团的潜入封锁冲突。" }
+          ],
+          "chapters": [
+            { "number": 1, "volumeNumber": 1, "title": "塔外潮声", "summary": "沈栀抵达塔外。", "mainGoal": "找到进入路径。", "coreEvent": "沈栀接近第三潮汐塔。", "conflict": "财团封锁外围。", "keyTurn": "陆衡发来坐标。", "hook": "塔内传来父亲声音。", "temporalAnchor": "第一夜", "spatialAnchor": "第三潮汐塔外环", "timelineCoordinate": "卷1/章1/潜入前", "foreshadowingName": "父亲声音的来源", "foreshadowingTier": "Tier-1", "foreshadowingRole": "埋设", "characters": ["沈栀"], "factions": ["潮汐财团"], "locations": ["第三潮汐塔"] },
+            { "number": 2, "volumeNumber": 1, "title": "内线终端", "summary": "陆衡交出维修终端。", "mainGoal": "突破门禁。", "coreEvent": "沈栀使用维修终端潜入。", "conflict": "塔内权限收缩。", "keyTurn": "终端暴露隐藏楼层。", "hook": "董事会警报被静默触发。", "temporalAnchor": "第一夜后半", "spatialAnchor": "第三潮汐塔维修层", "timelineCoordinate": "卷1/章2/潜入中", "foreshadowingName": "父亲声音的来源", "foreshadowingTier": "Tier-1", "foreshadowingRole": "推进", "characters": ["沈栀"], "factions": ["潮汐财团"], "locations": ["第三潮汐塔"] },
+            { "number": 3, "volumeNumber": 1, "title": "潮汐密钥", "summary": "沈栀取得密钥。", "mainGoal": "拿到实验数据入口。", "coreEvent": "潮汐密钥被激活。", "conflict": "财团反追踪锁定沈栀。", "keyTurn": "密钥记录沈栀的记忆。", "hook": "陆衡身份即将暴露。", "temporalAnchor": "第二日凌晨", "spatialAnchor": "第三潮汐塔中枢", "timelineCoordinate": "卷1/章3/密钥激活", "characters": ["沈栀"], "factions": ["潮汐财团"], "locations": ["第三潮汐塔"] }
+          ],
+          "foreshadowings": [
+            { "name": "父亲声音的来源", "tier": "Tier-1", "setupChapter": 1, "payoffChapter": 12, "role": "贯穿前期潜入线，推动沈栀深入第三潮汐塔。" }
+          ],
+          "timelines": [
+            { "chapterNumber": 1, "timePeriod": "第一夜", "elapsedTime": "开篇", "keyTimeEvent": "沈栀抵达第三潮汐塔外环，确认潜入口。", "importance": "high" },
+            { "chapterNumber": 2, "timePeriod": "第一夜后半", "elapsedTime": "承接第一章后半小时", "keyTimeEvent": "沈栀用维修终端进入塔内，潜入线正式开始。", "importance": "high" },
+            { "chapterNumber": 3, "timePeriod": "第二日凌晨", "elapsedTime": "潜入后数小时", "keyTimeEvent": "潮汐密钥被激活，财团反追踪启动。", "importance": "normal" }
           ]
         }
         """;

@@ -249,7 +249,7 @@ function goNovelSeedRegenerate() {
 async function rewriteChapterPlanSummaries() {
   try {
     await ElMessageBox.confirm(
-      '将按当前项目、源书、分类和筛选条件批量重写章节计划简介。标题、章节号和实体引用不会修改。是否继续？',
+      '将按当前项目、源书、分类和筛选条件批量重写章节计划标题与简介，并自动处理重复标题/同质简介。是否继续？',
       t('layout.dialogs.confirm'),
       { type: 'warning' }
     )
@@ -260,10 +260,10 @@ async function rewriteChapterPlanSummaries() {
   rewritingChapterPlanSummaries.value = true
   try {
     const result = await chapterPlansApi.rewriteSummaries(buildListParams())
-    ElMessage.success(`已重写 ${result.updatedCount} 条章节计划简介`)
+    ElMessage.success(`已重写 ${result.updatedCount} 条章节计划标题/简介`)
     await refreshItems()
   } catch (err) {
-    ElMessage.error((err as Error).message ?? '批量重写章节计划简介失败')
+    ElMessage.error((err as Error).message ?? '批量重写章节计划标题/简介失败')
   } finally {
     rewritingChapterPlanSummaries.value = false
   }
@@ -1163,7 +1163,7 @@ onBeforeUnmount(() => {
                 :loading="rewritingChapterPlanSummaries"
                 @click="rewriteChapterPlanSummaries"
               >
-                批量重写简介
+                批量重写标题/简介
               </el-button>
               <el-input
                 v-model="keyword"

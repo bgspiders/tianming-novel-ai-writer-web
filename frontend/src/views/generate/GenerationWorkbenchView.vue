@@ -1,73 +1,146 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from '@/composables/useI18n'
-import { packageGenerationContext, type PackageContextResult } from '@/api/modules/generation'
+import {
+  getGenerationFlowStatus,
+  getPromptRunSnapshot,
+  listPromptRunSnapshots,
+  packageGenerationContext,
+  type GenerationFlowStatus,
+  type PackageContextResult,
+  type PromptRunSnapshot
+} from '@/api/modules/generation'
 import { useWorkContextStore } from '@/stores/workContext'
 
 const workContext = useWorkContextStore()
 const { t } = useI18n()
 const packaging = ref(false)
+const loadingStatus = ref(false)
+const loadingSnapshots = ref(false)
 const packageResult = ref<PackageContextResult | null>(null)
+const flowStatus = ref<GenerationFlowStatus | null>(null)
+const promptSnapshots = ref<PromptRunSnapshot[]>([])
+const snapshotDrawer = ref(false)
+const selectedSnapshot = ref<PromptRunSnapshot | null>(null)
 
-const cards = computed(() => [
+const fallbackCards = [
   {
-    title: t('generationWorkbench.cards.outlines.title'),
+    key: 'novel_seed',
+    title: 'AI 开书',
+    path: '/generate/novel-seed',
+    icon: '1',
+    desc: '从描述或分步工作流生成整书故事、元信息、分卷、章节卡和基础设定。'
+  },
+  {
+    key: 'knowledge_base',
+    title: '五件套绑定',
+    path: '/generate/tianming-protocol',
+    icon: '2',
+    desc: '绑定世界基石、世界观规则、角色档案、档案事件、文风样本，运行缺失检测。'
+  },
+  {
+    key: 'outline',
+    title: '大纲/规划',
     path: '/generate/outlines',
-    icon: 'O',
-    desc: t('generationWorkbench.cards.outlines.desc'),
-    ready: true
+    icon: '3',
+    desc: '维护整书大纲、分卷目标、阶段推进和长期结构。'
   },
   {
-    title: t('generationWorkbench.cards.volumes.title'),
-    path: '/generate/volume_designs',
-    icon: 'V',
-    desc: t('generationWorkbench.cards.volumes.desc'),
-    ready: true
-  },
-  {
-    title: t('generationWorkbench.cards.chapterPlans.title'),
+    key: 'chapter_plans',
+    title: '章节计划',
     path: '/generate/chapter_plans',
-    icon: 'P',
-    desc: t('generationWorkbench.cards.chapterPlans.desc'),
-    ready: true
+    icon: '4',
+    desc: '确认章节标题、简介、核心事件、实体准入、冲突值和宏观阶段。'
   },
   {
-    title: t('generationWorkbench.cards.blueprints.title'),
+    key: 'chapter_blueprints',
+    title: '章节蓝图',
     path: '/generate/chapter_blueprints',
-    icon: 'B',
-    desc: t('generationWorkbench.cards.blueprints.desc'),
-    ready: true
+    icon: '5',
+    desc: '把章节拆成场景卡，确认场景顺序、信息增量、POV、钩子和伏笔职责。'
   },
   {
-    title: t('generationWorkbench.cards.package.title'),
+    key: 'tracking',
+    title: '叙事追踪',
+    path: '/generate/tracking',
+    icon: '6',
+    desc: '维护伏笔账本和时间线，控制长篇连续生成的因果、回收和时间推进。'
+  },
+  {
+    key: 'preflight',
+    title: '生成预检',
+    path: '/generate/chapters',
+    icon: '7',
+    desc: '在章节生成页执行预检，确认项目、分卷、章节计划和蓝图可用。'
+  },
+  {
+    key: 'draft',
+    title: '场景/正文',
+    path: '/generate/chapters',
+    icon: '8',
+    desc: '按场景生成正文，合成章节，或启用后台批量自动生成。'
+  },
+  {
+    key: 'validation',
+    title: '体检',
+    path: '/validate',
+    icon: '9',
+    desc: '校验事实、角色、地点、伏笔、章节连续性和生成质量。'
+  },
+  {
+    key: 'archive',
+    title: '存档/打包',
     path: '/generate',
-    icon: '包',
-    desc: t('generationWorkbench.cards.package.desc'),
-    ready: true
-  },
-  {
-    title: t('generationWorkbench.cards.preview.title'),
-    path: '/generate/chapters',
-    icon: '阅',
-    desc: t('generationWorkbench.cards.preview.desc'),
-    ready: true
-  },
-  {
-    title: t('generationWorkbench.cards.draftChapters.title'),
-    path: '/generate/chapters',
-    icon: '写',
-    desc: t('generationWorkbench.cards.draftChapters.desc'),
-    ready: true
-  },
-  {
-    title: t('generationWorkbench.cards.gate.title'),
-    path: '/generate/gate',
-    icon: 'G',
-    desc: t('generationWorkbench.cards.gate.desc'),
-    ready: true
+    icon: '10',
+    desc: '打包当前上下文快照，保留 manifest、模块 hash 和后续生成依据。'
   }
-])
+]
+
+const cards = computed(() => {
+  const steps = flowStatus.value?.steps ?? []
+  return fallbackCards.map((card) => {
+    const step = steps.find((item) => item.key === card.key)
+    return {
+      ...card,
+      ready: step?.status === 'ready',
+      count: step?.count ?? 0,
+      message: step?.message ?? card.desc,
+      lastUpdatedAt: step?.lastUpdatedAt ?? null,
+      path: step?.path || card.path
+    }
+  })
+})
+
+const nextSuggestion = computed(() =>
+  workContext.selectedProjectId
+    ? flowStatus.value?.nextSuggestion || '正在读取当前项目的生成流程状态。'
+    : '先选择或创建项目，再查看生成流程状态。'
+)
+
+async function refreshFlow() {
+  if (!workContext.selectedProjectId) {
+    flowStatus.value = null
+    promptSnapshots.value = []
+    return
+  }
+
+  loadingStatus.value = true
+  loadingSnapshots.value = true
+  try {
+    const [status, snapshots] = await Promise.all([
+      getGenerationFlowStatus(workContext.selectedProjectId),
+      listPromptRunSnapshots({ projectId: workContext.selectedProjectId, take: 12 })
+    ])
+    flowStatus.value = status
+    promptSnapshots.value = snapshots
+  } catch (err) {
+    ElMessage.error((err as Error).message || '加载生成流程状态失败。')
+  } finally {
+    loadingStatus.value = false
+    loadingSnapshots.value = false
+  }
+}
 
 async function runPackaging() {
   if (!workContext.selectedProjectId) {
@@ -87,12 +160,39 @@ async function runPackaging() {
         files: packageResult.value.fileCount
       })
     )
+    await refreshFlow()
   } catch (err) {
     ElMessage.error((err as Error).message || t('generationWorkbench.messages.packageFailed'))
   } finally {
     packaging.value = false
   }
 }
+
+async function openSnapshot(item: PromptRunSnapshot) {
+  selectedSnapshot.value = item
+  snapshotDrawer.value = true
+  try {
+    selectedSnapshot.value = await getPromptRunSnapshot(item.id)
+  } catch (err) {
+    ElMessage.error((err as Error).message || '加载 Prompt 快照详情失败。')
+  }
+}
+
+function formatTime(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : '暂无'
+}
+
+onMounted(() => {
+  void refreshFlow()
+})
+
+watch(
+  () => workContext.selectedProjectId,
+  () => {
+    packageResult.value = null
+    void refreshFlow()
+  }
+)
 </script>
 
 <template>
@@ -124,23 +224,36 @@ async function runPackaging() {
       </el-card>
     </section>
 
-    <div class="card-grid">
-      <component
-        :is="card.ready && card.path ? 'router-link' : 'div'"
-        v-for="card in cards"
-        :key="card.title"
-        :to="card.ready && card.path ? card.path : undefined"
-        class="module-card"
-        :class="{ disabled: !card.ready }"
-      >
-        <span class="card-icon">{{ card.icon }}</span>
-        <span class="card-title">{{ card.title }}</span>
-        <span class="card-desc">{{ card.desc }}</span>
-        <el-tag size="small" :type="card.ready ? 'success' : 'warning'">
-          {{ card.ready ? t('generationWorkbench.cardStatus.ready') : t('generationWorkbench.cardStatus.pending') }}
-        </el-tag>
-      </component>
-    </div>
+    <section class="flow-panel">
+      <div class="flow-head">
+        <div>
+          <h2>完整生成流程</h2>
+          <p>{{ nextSuggestion }}</p>
+        </div>
+        <el-button :loading="loadingStatus || loadingSnapshots" @click="refreshFlow">刷新状态</el-button>
+      </div>
+      <div class="card-grid" v-loading="loadingStatus">
+        <component
+          :is="card.ready && card.path ? 'router-link' : 'div'"
+          v-for="card in cards"
+          :key="card.title"
+          :to="card.ready && card.path ? card.path : undefined"
+          class="module-card"
+          :class="{ disabled: !card.ready }"
+        >
+          <span class="card-icon">{{ card.icon }}</span>
+          <span class="card-title">
+            {{ card.title }}
+            <em>{{ card.count }}</em>
+          </span>
+          <span class="card-desc">{{ card.message }}</span>
+          <span class="card-time">最近更新：{{ formatTime(card.lastUpdatedAt) }}</span>
+          <el-tag size="small" :type="card.ready ? 'success' : 'warning'">
+            {{ card.ready ? t('generationWorkbench.cardStatus.ready') : t('generationWorkbench.cardStatus.pending') }}
+          </el-tag>
+        </component>
+      </div>
+    </section>
 
     <el-card shadow="never" class="package-panel">
       <div class="package-head">
@@ -161,6 +274,52 @@ async function runPackaging() {
         <div>{{ t('generationWorkbench.labels.packageTime', { value: new Date(packageResult.publishedAt).toLocaleString() }) }}</div>
       </div>
     </el-card>
+
+    <el-card shadow="never" class="snapshot-panel">
+      <div class="package-head">
+        <div>
+          <div class="package-title">Prompt 运行快照</div>
+          <div class="package-desc">查看当前项目最近生成时使用的上下文、Prompt 摘要、输出摘要和错误信息。</div>
+        </div>
+        <el-button :loading="loadingSnapshots" @click="refreshFlow">刷新快照</el-button>
+      </div>
+
+      <el-empty v-if="!loadingSnapshots && promptSnapshots.length === 0" description="暂无 Prompt 运行快照。" :image-size="72" />
+      <div v-else class="snapshot-list" v-loading="loadingSnapshots">
+        <button
+          v-for="item in promptSnapshots"
+          :key="item.id"
+          type="button"
+          class="snapshot-item"
+          @click="openSnapshot(item)"
+        >
+          <strong>{{ item.source }} <span v-if="item.stepKey">/ {{ item.stepKey }}</span></strong>
+          <span>{{ item.model || '未记录模型' }} / {{ item.success ? '成功' : '失败' }} / {{ formatTime(item.createdAt) }}</span>
+          <small>{{ item.outputSummary || item.error || '暂无输出摘要' }}</small>
+        </button>
+      </div>
+    </el-card>
+
+    <el-drawer v-model="snapshotDrawer" title="Prompt 运行快照" size="52%">
+      <div v-if="selectedSnapshot" class="snapshot-detail">
+        <div class="detail-grid">
+          <div><span>来源</span><strong>{{ selectedSnapshot.source }}</strong></div>
+          <div><span>模型</span><strong>{{ selectedSnapshot.model || '未记录' }}</strong></div>
+          <div><span>状态</span><strong>{{ selectedSnapshot.success ? '成功' : '失败' }}</strong></div>
+          <div><span>耗时</span><strong>{{ selectedSnapshot.elapsedMs }} ms</strong></div>
+          <div><span>上下文 Hash</span><strong>{{ selectedSnapshot.contextHash || '无' }}</strong></div>
+          <div><span>时间</span><strong>{{ formatTime(selectedSnapshot.createdAt) }}</strong></div>
+        </div>
+        <h3>上下文摘要</h3>
+        <pre>{{ selectedSnapshot.contextSummary || '暂无' }}</pre>
+        <h3>Prompt 摘要</h3>
+        <pre>{{ selectedSnapshot.promptSummary || '暂无' }}</pre>
+        <h3>输出摘要</h3>
+        <pre>{{ selectedSnapshot.outputSummary || '暂无' }}</pre>
+        <h3 v-if="selectedSnapshot.error">错误</h3>
+        <pre v-if="selectedSnapshot.error">{{ selectedSnapshot.error }}</pre>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -216,7 +375,31 @@ h1 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
-.package-panel {
+.flow-panel {
+  border: 1px solid #dfe8e5;
+  border-radius: 18px;
+  background: #fffef8;
+  padding: 18px;
+}
+.flow-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.flow-head h2 {
+  margin: 0;
+  color: #1f332f;
+  font-size: 20px;
+}
+.flow-head p {
+  margin: 6px 0 0;
+  color: #6b7773;
+  line-height: 1.6;
+}
+.package-panel,
+.snapshot-panel {
   border-radius: 18px;
   background: #fffef8;
 }
@@ -242,7 +425,7 @@ h1 {
   color: #3d4c49;
 }
 .module-card {
-  min-height: 150px;
+  min-height: 154px;
   padding: 20px;
   border: 1px solid #dfe8e5;
   border-radius: 18px;
@@ -269,6 +452,7 @@ h1 {
 .card-icon {
   width: 36px;
   height: 36px;
+  min-width: 36px;
   border-radius: 10px;
   display: grid;
   place-items: center;
@@ -279,11 +463,94 @@ h1 {
 .card-title {
   font-size: 18px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.card-title em {
+  font-style: normal;
+  font-size: 13px;
+  color: #55736e;
+  background: #edf5f2;
+  border-radius: 999px;
+  padding: 2px 8px;
 }
 .card-desc {
   color: #6b7773;
   line-height: 1.6;
   flex: 1;
+}
+.card-time {
+  color: #87928e;
+  font-size: 12px;
+}
+.snapshot-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.snapshot-item {
+  width: 100%;
+  border: 1px solid #dfe8e5;
+  background: #fffdf8;
+  border-radius: 12px;
+  padding: 12px 14px;
+  text-align: left;
+  display: grid;
+  gap: 5px;
+  cursor: pointer;
+}
+.snapshot-item:hover {
+  border-color: #7aa49b;
+}
+.snapshot-item strong {
+  color: #1f332f;
+}
+.snapshot-item span,
+.snapshot-item small {
+  color: #6b7773;
+  line-height: 1.5;
+}
+.snapshot-detail {
+  display: grid;
+  gap: 16px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.detail-grid div {
+  border: 1px solid #e4ebe8;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+.detail-grid span {
+  color: #87928e;
+  font-size: 12px;
+}
+.detail-grid strong {
+  color: #1f332f;
+  word-break: break-all;
+}
+.snapshot-detail h3 {
+  margin: 0;
+  color: #1f332f;
+  font-size: 15px;
+}
+.snapshot-detail pre {
+  margin: 0;
+  border-radius: 10px;
+  background: #f7faf8;
+  border: 1px solid #e4ebe8;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #344440;
+  line-height: 1.6;
 }
 @media (max-width: 1080px) {
   .hero,
@@ -294,6 +561,10 @@ h1 {
   .package-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

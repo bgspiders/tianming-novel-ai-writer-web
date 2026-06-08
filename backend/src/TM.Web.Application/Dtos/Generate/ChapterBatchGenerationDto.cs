@@ -71,6 +71,35 @@ public sealed class ChapterBatchGenerationPreviewItemDto
     public bool HasContent { get; set; }
 
     public string Source { get; set; } = string.Empty;
+
+    public List<ChapterBatchGenerationScenePreviewDto> Scenes { get; set; } = new();
+}
+
+public sealed class ChapterBatchGenerationScenePreviewDto
+{
+    public int SceneNumber { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Summary { get; set; } = string.Empty;
+
+    public string Goal { get; set; } = string.Empty;
+
+    public string Conflict { get; set; } = string.Empty;
+
+    public string Hook { get; set; } = string.Empty;
+
+    public string ForeshadowingName { get; set; } = string.Empty;
+
+    public string ForeshadowingRole { get; set; } = string.Empty;
+
+    public string TimeAnchor { get; set; } = string.Empty;
+
+    public string LocationAnchor { get; set; } = string.Empty;
+
+    public string ElapsedFromPrevious { get; set; } = string.Empty;
+
+    public string TimelineEffect { get; set; } = string.Empty;
 }
 
 public sealed class ChapterBatchGenerationAcceptedDto

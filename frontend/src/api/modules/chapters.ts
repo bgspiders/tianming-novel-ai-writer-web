@@ -172,6 +172,22 @@ export interface ChapterBatchGenerationPreviewItem {
   exists: boolean
   hasContent: boolean
   source: string
+  scenes: ChapterBatchGenerationScenePreview[]
+}
+
+export interface ChapterBatchGenerationScenePreview {
+  sceneNumber: number
+  title: string
+  summary: string
+  goal: string
+  conflict: string
+  hook: string
+  foreshadowingName: string
+  foreshadowingRole: string
+  timeAnchor: string
+  locationAnchor: string
+  elapsedFromPrevious: string
+  timelineEffect: string
 }
 
 export interface ChapterBatchGenerationAccepted {
@@ -198,6 +214,130 @@ export interface ChapterBatchGenerationStatus {
   startedAt?: string | null
   finishedAt?: string | null
   cancelRequested: boolean
+}
+
+export interface GenerationCheckItem {
+  code: string
+  severity: 'fatal' | 'warning' | 'info' | string
+  message: string
+  suggestion: string
+}
+
+export interface GenerationPreflightRequest {
+  projectId: string
+  volumeId?: string | null
+  chapterId?: string | null
+  requireChapterPlan?: boolean
+  requireSceneBlueprints?: boolean
+}
+
+export interface GenerationPreflightResult {
+  id: string
+  projectId: string
+  volumeId?: string | null
+  chapterId?: string | null
+  passed: boolean
+  fatalCount: number
+  warningCount: number
+  items: GenerationCheckItem[]
+  createdAt: string
+}
+
+export interface EnsureSceneBlueprintsRequest {
+  projectId: string
+  chapterId: string
+}
+
+export interface EnsureSceneBlueprintsResult {
+  projectId: string
+  chapterId: string
+  createdCount: number
+  existingCount: number
+  scenes: ChapterBatchGenerationScenePreview[]
+}
+
+export interface ConfirmChapterGenerationPreviewRequest {
+  projectId: string
+  chapterId: string
+  preview: ChapterBatchGenerationPreviewItem
+}
+
+export interface ConfirmChapterGenerationPreviewResult {
+  projectId: string
+  chapterId: string
+  title: string
+  summary: string
+  sceneCount: number
+  scenes: ChapterBatchGenerationScenePreview[]
+}
+
+export interface SceneDraftRequest {
+  runId: string
+  projectId: string
+  chapterId: string
+  sceneNumber: number
+  configId?: string | null
+  endpoint: string
+  providerId?: string | null
+  apiKeyId?: string | null
+  apiKey: string
+  model: string
+  systemPrompt?: string
+  prompt: string
+  temperature?: number
+  maxTokens?: number
+}
+
+export interface SceneDraftResult {
+  recordId: string
+  runId: string
+  projectId: string
+  chapterId: string
+  sceneNumber: number
+  sceneTitle: string
+  content: string
+  charCount: number
+  finishReason?: string | null
+  elapsedMs: number
+  success: boolean
+  error?: string | null
+}
+
+export interface SceneComposeRequest {
+  projectId: string
+  chapterId: string
+  saveToChapter?: boolean
+}
+
+export interface SceneComposeResult {
+  projectId: string
+  chapterId: string
+  sceneCount: number
+  wordCount: number
+  content: string
+  savedToChapter: boolean
+}
+
+export interface ChapterAnalysisRequest {
+  projectId: string
+  chapterId: string
+  minWordCount?: number
+  maxDuplicateTitleWindow?: number
+  updateChapterSummary?: boolean
+}
+
+export interface ChapterAnalysisResult {
+  id: string
+  projectId: string
+  chapterId: string
+  passed: boolean
+  shouldPauseBatch: boolean
+  wordCount: number
+  coherenceScore: number
+  qualityScore: number
+  summary: string
+  items: GenerationCheckItem[]
+  createdAt: string
 }
 
 function buildEditorListParams(params?: ChapterListParams): Record<string, string> | undefined {
@@ -307,4 +447,44 @@ export async function listChapterBatchGenerationJobs(projectId?: string | null):
 
 export async function cancelChapterBatchGeneration(jobId: string): Promise<void> {
   await http.post(`/api/generation/chapter-batch-jobs/${jobId}/cancel`)
+}
+
+export async function runGenerationPreflight(input: GenerationPreflightRequest): Promise<GenerationPreflightResult> {
+  const { data } = await http.post<GenerationPreflightResult>('/api/generation/preflight', input)
+  return data
+}
+
+export async function ensureSceneBlueprints(input: EnsureSceneBlueprintsRequest): Promise<EnsureSceneBlueprintsResult> {
+  const { data } = await http.post<EnsureSceneBlueprintsResult>(
+    `/api/generation/chapters/${input.chapterId}/scene-blueprints/ensure`,
+    input
+  )
+  return data
+}
+
+export async function confirmChapterGenerationPreview(
+  input: ConfirmChapterGenerationPreviewRequest
+): Promise<ConfirmChapterGenerationPreviewResult> {
+  const { data } = await http.post<ConfirmChapterGenerationPreviewResult>(
+    `/api/generation/chapters/${input.chapterId}/preview/confirm`,
+    input
+  )
+  return data
+}
+
+export async function generateSceneDraft(input: SceneDraftRequest): Promise<SceneDraftResult> {
+  const { data } = await http.post<SceneDraftResult>(`/api/generation/chapters/${input.chapterId}/scene-draft`, input, {
+    timeout: 3 * 60_000
+  })
+  return data
+}
+
+export async function composeSceneDrafts(input: SceneComposeRequest): Promise<SceneComposeResult> {
+  const { data } = await http.post<SceneComposeResult>(`/api/generation/chapters/${input.chapterId}/scene-compose`, input)
+  return data
+}
+
+export async function analyzeGeneratedChapter(input: ChapterAnalysisRequest): Promise<ChapterAnalysisResult> {
+  const { data } = await http.post<ChapterAnalysisResult>(`/api/generation/chapters/${input.chapterId}/analysis`, input)
+  return data
 }

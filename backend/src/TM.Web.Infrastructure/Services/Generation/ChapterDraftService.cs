@@ -1,5 +1,8 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TM.Web.Application.Dtos;
 using TM.Web.Application.Dtos.Generate;
@@ -24,6 +27,7 @@ public class ChapterDraftService : IChapterDraftService
     private readonly IChapterService _chapters;
     private readonly IEditorService _editor;
     private readonly IGenerationGateService _generationGate;
+    private readonly IContextPackagingService _contexts;
     private readonly GenerationStateService _generationState;
     private readonly IValidationService _validation;
     private readonly AppDbContext _db;
@@ -35,8 +39,10 @@ public class ChapterDraftService : IChapterDraftService
         IChapterService chapters,
         IEditorService editor,
         IGenerationGateService generationGate,
+        IContextPackagingService contexts,
         GenerationStateService generationState,
         IValidationService validation,
+        IConfiguration configuration,
         AppDbContext db,
         ILogger<ChapterDraftService> logger)
     {
@@ -45,6 +51,7 @@ public class ChapterDraftService : IChapterDraftService
         _chapters = chapters;
         _editor = editor;
         _generationGate = generationGate;
+        _contexts = contexts;
         _generationState = generationState;
         _validation = validation;
         _db = db;
@@ -84,7 +91,12 @@ public class ChapterDraftService : IChapterDraftService
         {
             var attempts = new List<GenerationAttemptLog>();
             var maxRewriteAttempts = Math.Clamp(request.MaxRewriteAttempts, 0, 3);
-            var basePrompt = await BuildPromptWithPlanningContextAsync(request.Prompt, chapter, ct);
+            var context = await _contexts.BuildGenerationContextAsync(new GenerationContextRequest
+            {
+                ProjectId = chapter.ProjectId,
+                ChapterId = chapter.Id
+            }, ct);
+            var basePrompt = await BuildPromptWithPlanningContextAsync(request.Prompt, chapter, context, ct);
             basePrompt = await AppendValidationRepairContextAsync(basePrompt, request.ValidationReportId, request.ChapterId, ct);
             var prompt = basePrompt;
             GenerationGateResultDto? passedGate = null;
@@ -169,6 +181,14 @@ public class ChapterDraftService : IChapterDraftService
             record.RewriteCount = Math.Max(0, attempts.Count - 1);
             record.FinishedAt = DateTime.UtcNow;
             record.Attempts = JsonSerializer.Serialize(attempts.Select(x => x with { Saved = x.Attempt == attempts.Count && request.SaveToChapter }).ToList());
+            AddPromptSnapshot(
+                request,
+                context,
+                prompt,
+                contentToSave,
+                success: true,
+                error: string.Empty,
+                finalResult.ElapsedMs);
             await UpdateStatisticsAsync(request.ProjectId, success: true, rewriteCount: record.RewriteCount, ct);
             await _db.SaveChangesAsync(ct);
 
@@ -249,96 +269,12 @@ public class ChapterDraftService : IChapterDraftService
     private async Task<string> BuildPromptWithPlanningContextAsync(
         string userPrompt,
         Chapter chapter,
+        GenerationContextResult packaged,
         CancellationToken ct)
     {
-        var sourceBookId = await _db.Projects.AsNoTracking()
-            .Where(p => p.Id == chapter.ProjectId)
-            .Select(p => p.CurrentSourceBookId)
-            .FirstOrDefaultAsync(ct);
-
-        var chapterPlan = await FilterBySourceBook(
-                _db.ChapterPlans.AsNoTracking().Where(x => x.IsEnabled),
-                sourceBookId)
-            .Where(x => x.ChapterNumber == chapter.ChapterNumber)
-            .OrderByDescending(x => x.UpdatedAt)
-            .FirstOrDefaultAsync(ct);
-
-        var blueprints = await FilterBySourceBook(
-                _db.ChapterBlueprints.AsNoTracking().Where(x => x.IsEnabled),
-                sourceBookId)
-            .Where(x => x.ChapterId == chapter.Id)
-            .OrderBy(x => x.SceneNumber)
-            .ThenBy(x => x.SceneTitle)
-            .ToListAsync(ct);
-
         var contextLines = new List<string>();
-        if (chapterPlan != null)
-        {
-            contextLines.AddRange(new[]
-            {
-                "# 自动召回的章节规划上下文（优先遵守）",
-                "## ChapterPlan",
-                PromptLine("章节标题", chapterPlan.ChapterTitle),
-                PromptLine("预计字数", chapterPlan.EstimatedWordCount),
-                PromptLine("章节主题", chapterPlan.ChapterTheme),
-                PromptLine("读者体验目标", chapterPlan.ReaderExperienceGoal),
-                PromptLine("主目标", chapterPlan.MainGoal),
-                PromptLine("宏观阶段", chapterPlan.MacroPhase),
-                PromptLine("战术弧光", FirstNonEmpty(chapterPlan.TacticalArcId, chapterPlan.TacticalArcTitle)),
-                PromptLine("章节类型", chapterPlan.ChapterType),
-                PromptLine("冲突值", chapterPlan.ConflictScore),
-                PromptLine("核心事件", chapterPlan.CoreEvent),
-                PromptLine("准入实体", JoinList(chapterPlan.AllowedEntities)),
-                PromptLine("阻力来源", chapterPlan.ResistanceSource),
-                PromptLine("关键转折", chapterPlan.KeyTurn),
-                PromptLine("章节钩子", chapterPlan.Hook),
-                PromptLine("状态标记", chapterPlan.StatusMarkers),
-                PromptLine("时间锚点", chapterPlan.TemporalAnchor),
-                PromptLine("空间锚点", chapterPlan.SpatialAnchor),
-                PromptLine("时空坐标", chapterPlan.TimelineCoordinate),
-                PromptLine("奇点事件", chapterPlan.IsSingularityEvent ? "是" : string.Empty),
-                PromptLine("缓冲职责", chapterPlan.BufferRole),
-                PromptLine("伏笔等级", chapterPlan.ForeshadowingTier),
-                PromptLine("伏笔职责", chapterPlan.ForeshadowingRole),
-                PromptLine("世界信息投放", chapterPlan.WorldInfoDrop),
-                PromptLine("人物弧光推进", chapterPlan.CharacterArcProgress),
-                PromptLine("主线推进", chapterPlan.MainPlotProgress),
-                PromptLine("伏笔安排", chapterPlan.Foreshadowing),
-                PromptLine("出场角色", JoinList(chapterPlan.ReferencedCharacterNames)),
-                PromptLine("出场势力", JoinList(chapterPlan.ReferencedFactionNames)),
-                PromptLine("出场地点", JoinList(chapterPlan.ReferencedLocationNames))
-            }.Where(x => !string.IsNullOrWhiteSpace(x))!);
-        }
-
-        if (blueprints.Count > 0)
-        {
-            if (contextLines.Count == 0)
-            {
-                contextLines.Add("# 自动召回的章节规划上下文（优先遵守）");
-            }
-
-            contextLines.Add("## ChapterBlueprint");
-            foreach (var blueprint in blueprints.Take(12))
-            {
-                contextLines.AddRange(new[]
-                {
-                    $"### 场景 {blueprint.SceneNumber}: {FirstNonEmpty(blueprint.SceneTitle, blueprint.Name)}",
-                    PromptLine("一句话结构", blueprint.OneLineStructure),
-                    PromptLine("节奏曲线", blueprint.PacingCurve),
-                    PromptLine("POV", blueprint.PovCharacter),
-                    PromptLine("预计字数", blueprint.EstimatedWordCount),
-                    PromptLine("开场", blueprint.Opening),
-                    PromptLine("发展", blueprint.Development),
-                    PromptLine("转折", blueprint.Turning),
-                    PromptLine("收束", blueprint.Ending),
-                    PromptLine("信息投放", blueprint.InfoDrop),
-                    PromptLine("出场角色", blueprint.Cast),
-                    PromptLine("地点", blueprint.Locations),
-                    PromptLine("势力", blueprint.Factions),
-                    PromptLine("道具/线索", blueprint.ItemsClues)
-                }.Where(x => !string.IsNullOrWhiteSpace(x))!);
-            }
-        }
+        contextLines.Add("# 自动装配生成上下文（P0/P1/P2/P3，优先遵守）");
+        contextLines.Add(packaged.ContextText);
 
         await AppendRelatedChapterContextAsync(contextLines, chapter, ct);
 
@@ -526,6 +462,40 @@ public class ChapterDraftService : IChapterDraftService
         return normalized.Length <= maxChars
             ? normalized
             : normalized.Substring(0, maxChars) + "...";
+    }
+
+    private void AddPromptSnapshot(
+        ChapterDraftRequest request,
+        GenerationContextResult context,
+        string prompt,
+        string output,
+        bool success,
+        string error,
+        long elapsedMs)
+    {
+        _db.PromptRunSnapshots.Add(new PromptRunSnapshot
+        {
+            RunId = request.RunId,
+            ProjectId = request.ProjectId,
+            ChapterId = request.ChapterId,
+            Source = "chapter_draft",
+            Model = request.Model,
+            Temperature = request.Temperature,
+            MaxTokens = request.MaxTokens,
+            ContextHash = Sha256(context.ContextText),
+            ContextSummary = TruncatePromptField(context.ContextText, 1600) ?? string.Empty,
+            PromptSummary = TruncatePromptField(prompt, 1600) ?? string.Empty,
+            OutputSummary = TruncatePromptField(output, 800) ?? string.Empty,
+            Success = success,
+            Error = error,
+            ElapsedMs = elapsedMs
+        });
+    }
+
+    private static string Sha256(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     private sealed class GenerationGateFailedException : InvalidOperationException

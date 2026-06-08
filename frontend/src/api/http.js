@@ -10,6 +10,10 @@ const http = axios.create({
 function normalizeProblemMessage(data) {
     if (!data)
         return undefined;
+    if (data.rootCauseMessage
+        && data.detail?.includes('An error occurred while saving the entity changes')) {
+        return `${data.detail} 根因：${data.rootCauseMessage}`;
+    }
     if (data.detail)
         return data.detail;
     if (data.title === 'One or more validation errors occurred.') {

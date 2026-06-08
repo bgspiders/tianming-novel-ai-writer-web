@@ -59,9 +59,13 @@ public class ChapterPlanService : IChapterPlanService
     {
         query = await _db.ResolveProjectScopeAsync(query, ct);
         var rows = await ApplyDefaultOrder(_db.ChapterPlans.AsQueryable().ApplyFilter(query)).ToListAsync(ct);
+        var seenTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenSummaries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var plan in rows)
         {
+            plan.ChapterTitle = DeduplicateTitle(plan, seenTitles);
             var summary = BuildSummary(plan);
+            summary = DeduplicateSummary(plan, summary, seenSummaries);
             plan.ChapterTheme = summary;
             plan.MainGoal = BuildCoreEvent(plan);
             plan.CoreEvent = plan.MainGoal;
@@ -145,6 +149,37 @@ public class ChapterPlanService : IChapterPlanService
         return $"{volume}{chapterNumber}，{coreEvent}。主题落在“{theme}”；阻力来自{resistance}。转折：{keyTurn}；章末钩子：{hook}";
     }
 
+    private static string DeduplicateTitle(ChapterPlan plan, HashSet<string> seenTitles)
+    {
+        var title = FirstNonEmpty(plan.ChapterTitle, plan.Name, $"第{plan.ChapterNumber}章");
+        if (seenTitles.Add(NormalizeKey(title))) return title;
+
+        var suffix = plan.ChapterNumber > 0 ? $"第{plan.ChapterNumber}章" : $"重写{seenTitles.Count + 1}";
+        var candidate = $"{title}（{suffix}）";
+        var attempt = 2;
+        while (!seenTitles.Add(NormalizeKey(candidate)))
+        {
+            candidate = $"{title}（{suffix}-{attempt++}）";
+        }
+
+        return candidate;
+    }
+
+    private static string DeduplicateSummary(ChapterPlan plan, string summary, HashSet<string> seenSummaries)
+    {
+        if (seenSummaries.Add(NormalizeKey(summary))) return summary;
+
+        var marker = FirstNonEmpty(plan.ChapterTitle, $"第{plan.ChapterNumber}章");
+        var candidate = $"{summary} 本章差异点：以“{marker}”的独立推进和实体组合校准节奏。";
+        var attempt = 2;
+        while (!seenSummaries.Add(NormalizeKey(candidate)))
+        {
+            candidate = $"{summary} 本章差异点：以“{marker}”的第 {attempt++} 组独立推进校准节奏。";
+        }
+
+        return candidate;
+    }
+
     private static string BuildCoreEvent(ChapterPlan plan)
     {
         var actor = PickByChapter(plan.ReferencedCharacterNames, plan.ChapterNumber, "主角");
@@ -206,6 +241,9 @@ public class ChapterPlanService : IChapterPlanService
 
     private static string TrimSentenceEnd(string value)
         => value.Trim().TrimEnd('。', '；', ';', '.', '，', ',');
+
+    private static string NormalizeKey(string value)
+        => new(value.Where(c => !char.IsWhiteSpace(c) && c is not '，' and not ',' and not '。' and not '；' and not ';').ToArray());
 
     private static ChapterPlanDto Map(ChapterPlan e)
         => new(e.Id, e.Name, e.Category, e.CategoryId, e.IsEnabled, e.SourceBookId,

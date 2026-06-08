@@ -75,6 +75,14 @@ public class AppDbContext : DbContext
     // Runtime
     public DbSet<GenerationRecord> GenerationRecords => Set<GenerationRecord>();
     public DbSet<GenerationStatistics> GenerationStatistics => Set<GenerationStatistics>();
+    public DbSet<GenerationPreflightReport> GenerationPreflightReports => Set<GenerationPreflightReport>();
+    public DbSet<SceneGenerationRecord> SceneGenerationRecords => Set<SceneGenerationRecord>();
+    public DbSet<ChapterAnalysisReport> ChapterAnalysisReports => Set<ChapterAnalysisReport>();
+    public DbSet<ChapterBatchGenerationJobRecord> ChapterBatchGenerationJobRecords => Set<ChapterBatchGenerationJobRecord>();
+    public DbSet<ChapterBatchGenerationJobLog> ChapterBatchGenerationJobLogs => Set<ChapterBatchGenerationJobLog>();
+    public DbSet<NovelSeedWorkflow> NovelSeedWorkflows => Set<NovelSeedWorkflow>();
+    public DbSet<NovelSeedWorkflowStep> NovelSeedWorkflowSteps => Set<NovelSeedWorkflowStep>();
+    public DbSet<PromptRunSnapshot> PromptRunSnapshots => Set<PromptRunSnapshot>();
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 

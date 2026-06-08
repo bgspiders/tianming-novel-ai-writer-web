@@ -72,4 +72,44 @@ public class ChapterPlanSummaryRewriteTests
         var untouched = db.ChapterPlans.Single(x => x.SourceBookId == "book-b");
         untouched.ChapterTheme.Should().Be("不应该被改");
     }
+
+    [Fact]
+    public async Task RewriteSummariesAsync_deduplicates_repeated_titles_and_summaries()
+    {
+        var (db, connection) = await TestDb.CreateAsync();
+        await using var _ = connection;
+        await using var __ = db;
+
+        db.ChapterPlans.AddRange(
+            new ChapterPlan
+            {
+                SourceBookId = "book-a",
+                ChapterNumber = 1,
+                ChapterTitle = "线索展开",
+                ChapterTheme = "重复简介",
+                MainGoal = "调查档案",
+                ReferencedCharacterNames = new List<string> { "沈栀" },
+                ReferencedLocationNames = new List<string> { "第三潮汐塔" }
+            },
+            new ChapterPlan
+            {
+                SourceBookId = "book-a",
+                ChapterNumber = 2,
+                ChapterTitle = "线索展开",
+                ChapterTheme = "重复简介",
+                MainGoal = "调查档案",
+                ReferencedCharacterNames = new List<string> { "许易明" },
+                ReferencedLocationNames = new List<string> { "地下管道" }
+            });
+        await db.SaveChangesAsync();
+
+        var service = new ChapterPlanService(db);
+
+        var result = await service.RewriteSummariesAsync(new DesignListQuery(SourceBookId: "book-a"), CancellationToken.None);
+
+        result.Items.Select(x => x.ChapterTitle).Distinct().Should().HaveCount(2);
+        result.Items.Select(x => x.ChapterTheme).Distinct().Should().HaveCount(2);
+        result.Items[0].ChapterTitle.Should().Be("线索展开");
+        result.Items[1].ChapterTitle.Should().Contain("第2章");
+    }
 }

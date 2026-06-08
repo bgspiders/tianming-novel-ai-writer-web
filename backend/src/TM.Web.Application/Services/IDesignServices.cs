@@ -131,6 +131,52 @@ public interface INovelSeedService
         CancellationToken ct = default);
 }
 
+public interface INovelSeedWorkflowService
+{
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedWorkflowDto> CreateAsync(
+        TM.Web.Application.Dtos.Generate.NovelSeedWorkflowCreateRequest request,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedWorkflowDto> UpdateRequestAsync(
+        string workflowId,
+        TM.Web.Application.Dtos.Generate.NovelSeedWorkflowUpdateRequest request,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<TM.Web.Application.Dtos.Generate.NovelSeedWorkflowDto>> ListAsync(
+        int take = 20,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedWorkflowDto?> GetAsync(
+        string workflowId,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedWorkflowStepDto> RunStepAsync(
+        string workflowId,
+        string stepKey,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedWorkflowStepDto> ConfirmStepAsync(
+        string workflowId,
+        string stepKey,
+        bool confirmed,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedWorkflowStepPreviewDto> GetStepPreviewAsync(
+        string workflowId,
+        string stepKey,
+        CancellationToken ct = default);
+
+    Task<TM.Web.Application.Dtos.Generate.NovelSeedWorkflowStepDto> RewriteStepFragmentAsync(
+        string workflowId,
+        string stepKey,
+        TM.Web.Application.Dtos.Generate.NovelSeedWorkflowStepRewriteRequest request,
+        CancellationToken ct = default);
+
+    Task DeleteAsync(
+        string workflowId,
+        CancellationToken ct = default);
+}
+
 public interface ITianmingProtocolService
 {
     IReadOnlyList<TM.Web.Application.Dtos.Generate.TianmingProtocolDescriptorDto> ListProtocols();

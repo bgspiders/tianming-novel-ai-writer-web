@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TM.Web.Application.Dtos;
 using TM.Web.Application.Dtos.Ai;
@@ -76,6 +77,13 @@ public class ChapterDraftPromptRecallTests
         ai.CapturedPrompt.Should().NotContain("第五章当前章节");
         ai.CapturedPrompt.Should().NotContain("SUMMARY_TAIL_SHOULD_BE_TRUNCATED");
         ai.CapturedPrompt.Should().NotContain("SNIPPET_TAIL_SHOULD_BE_TRUNCATED");
+        db.PromptRunSnapshots.Should().ContainSingle(x =>
+            x.RunId == "run-1"
+            && x.ProjectId == project.Id
+            && x.ChapterId == current.Id
+            && x.Source == "chapter_draft"
+            && x.ContextHash.Length == 64
+            && x.OutputSummary.Contains("生成正文"));
     }
 
     private static ChapterDraftService CreateService(
@@ -88,8 +96,10 @@ public class ChapterDraftPromptRecallTests
             new FakeChapterService(),
             editor,
             new PassingGenerationGateService(),
+            new ContextPackagingService(db, new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build()),
             new GenerationStateService(db),
             new NoOpValidationService(),
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build(),
             db,
             NullLogger<ChapterDraftService>.Instance);
 

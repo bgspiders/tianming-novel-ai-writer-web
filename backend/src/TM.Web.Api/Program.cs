@@ -19,6 +19,7 @@ using TM.Web.Infrastructure.Services.Generation;
 using TM.Web.Infrastructure.Services.Import;
 using TM.Web.Infrastructure.Services.Notification;
 using TM.Web.Infrastructure.Services.Recall;
+using TM.Web.Infrastructure.Services.Tracking;
 using TM.Web.Infrastructure.Services.Validation;
 using TM.Web.LegacyBridge.Compatibility;
 using TM.Web.LegacyBridge.Generation;
@@ -106,10 +107,15 @@ builder.Services.AddScoped<IVolumeService, VolumeService>();
 builder.Services.AddScoped<IChapterService, ChapterService>();
 builder.Services.AddScoped<IEditorService, EditorService>();
 builder.Services.AddScoped<GenerationStateService>();
-builder.Services.AddScoped<INovelSeedService, NovelSeedService>();
+builder.Services.AddScoped<NovelSeedService>();
+builder.Services.AddScoped<INovelSeedService>(sp => sp.GetRequiredService<NovelSeedService>());
+builder.Services.AddScoped<INovelSeedWorkflowService, NovelSeedWorkflowService>();
 builder.Services.AddScoped<ITianmingProtocolService, TianmingProtocolService>();
 builder.Services.AddScoped<IContextPackagingService, ContextPackagingService>();
 builder.Services.AddScoped<IChapterDraftService, ChapterDraftService>();
+builder.Services.AddScoped<IGenerationPreflightService, GenerationPreflightService>();
+builder.Services.AddScoped<ISceneGenerationService, SceneGenerationService>();
+builder.Services.AddScoped<IChapterAnalysisService, ChapterAnalysisService>();
 builder.Services.AddScoped<IWorldRuleService, WorldRuleService>();
 builder.Services.AddScoped<ICharacterRuleService, CharacterRuleService>();
 builder.Services.AddScoped<IFactionRuleService, FactionRuleService>();
@@ -124,6 +130,7 @@ builder.Services.AddScoped<IChapterPlanService, ChapterPlanService>();
 builder.Services.AddScoped<IChapterBlueprintService, ChapterBlueprintService>();
 builder.Services.AddScoped<IChapterEditorService, ChapterEditorService>();
 builder.Services.AddScoped<IChapterRecallService, ChapterRecallService>();
+builder.Services.AddScoped<INarrativeTrackingService, NarrativeTrackingService>();
 builder.Services.AddScoped<IValidationService, ValidationService>();
 builder.Services.AddScoped<IChatAssistantService, ChatAssistantService>();
 
@@ -132,11 +139,9 @@ builder.WebHost.ConfigureKestrel((ctx, kestrel) =>
     var explicitUrls = ctx.Configuration["ASPNETCORE_URLS"];
     if (string.IsNullOrWhiteSpace(explicitUrls))
     {
-        var bindHost = ctx.HostingEnvironment.IsDevelopment() ? "127.0.0.1" : "0.0.0.0";
         var port = int.TryParse(ctx.Configuration["Server:Port"], out var p) ? p : 38721;
         kestrel.ListenAnyIP(port);
         kestrel.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
-        Console.WriteLine($"[Kestrel] Binding to {bindHost}:{port}");
     }
 });
 
@@ -155,6 +160,8 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
     await AuthSchemaCompatibility.EnsureAuthTablesAsync(db);
     await ChapterPlanSchemaCompatibility.EnsureProtocolColumnsAsync(db);
+    await ChapterBatchGenerationSchemaCompatibility.EnsureTablesAsync(db);
+    await NovelSeedWorkflowSchemaCompatibility.EnsureTablesAsync(db);
     await AiProviderSeeder.SeedAsync(db);
 }
 
@@ -207,8 +214,33 @@ app.MapHub<ChatHub>("/hubs/chat");
 
 app.MapFallbackToFile("index.html");
 
-app.Logger.LogInformation("TM Web API started. Swagger at /swagger");
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    var configuredUrls = app.Urls.Count > 0
+        ? string.Join(", ", app.Urls)
+        : builder.Configuration["ASPNETCORE_URLS"] ?? $"http://localhost:{builder.Configuration["Server:Port"] ?? "38721"}";
+    var swaggerUrl = app.Environment.IsDevelopment()
+        ? $"{configuredUrls.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "http://localhost:38721"}/swagger"
+        : "开发环境启用";
+
+    Console.WriteLine();
+    Console.WriteLine("┌──────────────────────────────────────────────┐");
+    Console.WriteLine("│  天命 Web · AI 网文写作助手                  │");
+    Console.WriteLine("│  启动成功                                    │");
+    Console.WriteLine($"│  API:     {TrimForBanner(configuredUrls),-35} │");
+    Console.WriteLine("│  Web:     http://localhost:38720             │");
+    Console.WriteLine($"│  Swagger: {TrimForBanner(swaggerUrl),-35} │");
+    Console.WriteLine("└──────────────────────────────────────────────┘");
+    Console.WriteLine();
+});
 
 app.Run();
 
 return 0;
+
+static string TrimForBanner(string value)
+{
+    const int max = 35;
+    if (string.IsNullOrWhiteSpace(value)) return "-";
+    return value.Length <= max ? value : value[..(max - 3)] + "...";
+}

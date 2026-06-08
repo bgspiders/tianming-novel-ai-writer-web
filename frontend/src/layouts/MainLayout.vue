@@ -359,6 +359,7 @@ onBeforeUnmount(() => {
           <el-menu-item index="/generate/chapters">
             <span data-guide="chapter-generation">{{ t('layout.menu.chapterDrafts') }}</span>
           </el-menu-item>
+          <el-menu-item index="/generate/tracking">{{ t('layout.menu.narrativeTracking') }}</el-menu-item>
           <el-menu-item index="/generate/gate">{{ t('layout.menu.generationGate') }}</el-menu-item>
         </el-sub-menu>
 

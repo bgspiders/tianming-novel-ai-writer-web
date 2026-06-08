@@ -10,20 +10,30 @@ import { useWorkContextStore } from '@/stores/workContext'
 import { useAiTestStore } from '@/stores/aiTest'
 import { chatHub } from '@/signalr/chat'
 import {
+  analyzeGeneratedChapter,
   cancelChapterBatchGeneration,
+  composeSceneDrafts,
+  confirmChapterGenerationPreview,
   createChapter,
   deleteChapter,
   generateChapterDraft,
+  generateSceneDraft,
   getChapterBatchGenerationStatus,
   getChapter,
+  ensureSceneBlueprints,
   listChapters,
   listChapterBatchGenerationJobs,
   previewChapterBatchGeneration,
   queueChapterBatchGeneration,
+  runGenerationPreflight,
   saveChapterContent,
   type Chapter,
+  type ChapterAnalysisResult,
   type ChapterBatchGenerationPreviewItem,
-  type ChapterBatchGenerationStatus
+  type ChapterBatchGenerationStatus,
+  type ConfirmChapterGenerationPreviewResult,
+  type GenerationPreflightResult,
+  type SceneDraftResult
 } from '@/api/modules/chapters'
 
 const workContext = useWorkContextStore()
@@ -59,6 +69,20 @@ const autoJobId = ref('')
 const autoJobStatus = ref<ChapterBatchGenerationStatus | null>(null)
 const autoPreviewing = ref(false)
 const autoPreviewItems = ref<ChapterBatchGenerationPreviewItem[]>([])
+const generationMode = ref<'single' | 'batch'>('single')
+const workflowLoading = ref(false)
+const sceneGenerating = ref(false)
+const sceneComposing = ref(false)
+const analyzingChapter = ref(false)
+const ensuringSceneBlueprints = ref(false)
+const confirmingPreview = ref(false)
+const loopRunning = ref(false)
+const loopStage = ref('')
+const loopLog = ref<string[]>([])
+const confirmedPreview = ref<ConfirmChapterGenerationPreviewResult | null>(null)
+const preflightResult = ref<GenerationPreflightResult | null>(null)
+const sceneDraftResult = ref<SceneDraftResult | null>(null)
+const chapterAnalysisResult = ref<ChapterAnalysisResult | null>(null)
 let autoPollTimer: ReturnType<typeof window.setInterval> | null = null
 const autoProgress = reactive({
   total: 0,
@@ -92,6 +116,12 @@ const autoForm = reactive({
   autoContinuityMode: true
 })
 
+const workflowForm = reactive({
+  sceneNumber: 1,
+  scenePrompt: '按当前章节蓝图生成这个场景正文，保持与上一场景连贯。',
+  minWordCount: 2500
+})
+
 const selectedConfig = computed(() =>
   configs.value.find((item) => item.providerId === selectedConfigId.value) ?? null
 )
@@ -105,6 +135,73 @@ const autoJobStatusLabel = computed(() => {
   const statusValue = autoJobStatus.value?.status ?? (autoGenerating.value ? 'running' : 'idle')
   return t(`chapterGeneration.batch.status.${statusValue}`)
 })
+
+const selectedPreviewItem = computed(() => {
+  if (!selectedChapter.value) return null
+  return autoPreviewItems.value.find((item) => item.chapterNumber === selectedChapter.value?.chapterNumber)
+    ?? (autoPreviewItems.value.length === 1 ? autoPreviewItems.value[0] : null)
+})
+
+const generationModeLabel = computed(() =>
+  generationMode.value === 'single' ? '单章精写闭环' : '批量连续生成'
+)
+
+const generationModeDescription = computed(() =>
+  generationMode.value === 'single'
+    ? '当前只处理选中的这一章：确认标题和场景蓝图后，按场景写正文、合成并分析。'
+    : '按章节号连续生成多章：先确认标题简介，再交给后台队列自动生成并保存。'
+)
+
+const generationModeToggleText = computed(() =>
+  generationMode.value === 'single' ? '切换到批量连续生成' : '切换到单章精写闭环'
+)
+
+const canEnsureSceneBlueprints = computed(() =>
+  Boolean(
+    selectedChapter.value
+    && workContext.selectedProjectId
+    && preflightResult.value?.items.some((item) => item.code === 'missing_scene_blueprints')
+  )
+)
+
+const canConfirmSelectedPreview = computed(() =>
+  Boolean(selectedChapter.value && workContext.selectedProjectId && selectedPreviewItem.value)
+)
+
+const loopProgressPercent = computed(() => {
+  const finished = loopSteps.value.filter((item) => item.status === 'success' || item.status === 'finish').length
+  return Math.round((finished / loopSteps.value.length) * 100)
+})
+
+const loopActiveIndex = computed(() => {
+  const index = loopSteps.value.findIndex((item) => item.status === 'process')
+  return index < 0 ? 0 : index
+})
+
+const loopSteps = computed(() => {
+  const previewReady = Boolean(selectedPreviewItem.value)
+  const confirmed = Boolean(confirmedPreview.value)
+  const preflightPassed = Boolean(preflightResult.value?.passed)
+  const sceneReady = Boolean(sceneDraftResult.value?.success)
+  const composed = Boolean(selectedChapter.value?.wordCount && selectedChapter.value.wordCount > 0)
+  const analyzed = Boolean(chapterAnalysisResult.value)
+  return [
+    buildLoopStep('preview', '标题简介', previewReady),
+    buildLoopStep('confirm', '确认蓝图', confirmed, previewReady),
+    buildLoopStep('preflight', '预检', preflightPassed, confirmed),
+    buildLoopStep('scene', '写正文', sceneReady, preflightPassed),
+    buildLoopStep('compose', '合成正文', composed, sceneReady),
+    buildLoopStep('analysis', '生成后分析', analyzed, composed)
+  ]
+})
+
+function buildLoopStep(key: string, title: string, done: boolean, enabled = true) {
+  return {
+    key,
+    title,
+    status: done ? 'success' : loopStage.value === key ? 'process' : enabled ? 'wait' : 'wait'
+  }
+}
 
 function onToken(token: string) {
   output.value += token
@@ -161,15 +258,27 @@ async function loadSelectedChapter() {
   if (!selectedChapterId.value) {
     selectedChapter.value = null
     output.value = ''
+    resetWorkflowState()
     return
   }
   try {
+    resetWorkflowState()
     selectedChapter.value = await getChapter(selectedChapterId.value)
     output.value = selectedChapter.value.content ?? ''
     buildPromptFromChapter()
   } catch (err) {
     ElMessage.error((err as Error).message || t('chapterGeneration.messages.loadChapterDetailsFailed'))
   }
+}
+
+function resetWorkflowState() {
+  if (loopRunning.value) return
+  confirmedPreview.value = null
+  preflightResult.value = null
+  sceneDraftResult.value = null
+  chapterAnalysisResult.value = null
+  loopStage.value = ''
+  loopLog.value = []
 }
 
 function syncChapterSelectionFromRoute() {
@@ -294,8 +403,17 @@ function appendAutoLog(message: string) {
   autoLog.value = [message, ...autoLog.value].slice(0, 20)
 }
 
+function appendLoopLog(message: string) {
+  loopLog.value = [`${new Date().toLocaleTimeString()} ${message}`, ...loopLog.value].slice(0, 30)
+}
+
+function toggleGenerationMode() {
+  generationMode.value = generationMode.value === 'single' ? 'batch' : 'single'
+}
+
 function clearAutoPreview() {
   autoPreviewItems.value = []
+  confirmedPreview.value = null
 }
 
 async function generateDraftForChapter(chapter: Chapter, silent = false) {
@@ -362,6 +480,249 @@ async function generateDraftForChapter(chapter: Chapter, silent = false) {
   }
 }
 
+async function runPreflightForSelectedChapter() {
+  if (!selectedChapter.value || !workContext.selectedProjectId) {
+    ElMessage.warning(t('chapterGeneration.messages.selectChapterFirst'))
+    return false
+  }
+
+  workflowLoading.value = true
+  loopStage.value = 'preflight'
+  try {
+    preflightResult.value = await runGenerationPreflight({
+      projectId: workContext.selectedProjectId,
+      volumeId: workContext.selectedVolumeId,
+      chapterId: selectedChapter.value.id,
+      requireChapterPlan: true,
+      requireSceneBlueprints: true
+    })
+    if (preflightResult.value.passed) {
+      appendLoopLog('预检通过，可以继续按场景蓝图写正文。')
+      ElMessage.success('生成预检通过，可以按场景蓝图写正文。')
+    } else {
+      appendLoopLog(`预检未通过：${preflightResult.value.fatalCount} 个致命问题。`)
+      ElMessage.warning(`生成预检未通过：${preflightResult.value.fatalCount} 个致命问题。`)
+    }
+    return preflightResult.value.passed
+  } catch (err) {
+    ElMessage.error((err as Error).message || '生成预检失败')
+    return false
+  } finally {
+    workflowLoading.value = false
+    if (!loopRunning.value) loopStage.value = ''
+  }
+}
+
+async function previewSelectedChapterBlueprints() {
+  if (!selectedChapter.value) {
+    ElMessage.warning(t('chapterGeneration.messages.selectChapterFirst'))
+    return false
+  }
+  autoForm.startChapterNumber = selectedChapter.value.chapterNumber
+  autoForm.count = 1
+  autoForm.createMissing = true
+  loopStage.value = 'preview'
+  const ok = await previewBatchDrafts()
+  if (ok) appendLoopLog('已生成标题简介和场景蓝图预览。')
+  if (!loopRunning.value) loopStage.value = ''
+  return ok
+}
+
+async function confirmPreviewForSelectedChapter(rerunPreflight = true) {
+  if (!selectedChapter.value || !workContext.selectedProjectId) {
+    ElMessage.warning(t('chapterGeneration.messages.selectChapterFirst'))
+    return false
+  }
+  if (!selectedPreviewItem.value) {
+    ElMessage.warning('请先生成标题简介和场景蓝图。')
+    return false
+  }
+
+  confirmingPreview.value = true
+  loopStage.value = 'confirm'
+  try {
+    confirmedPreview.value = await confirmChapterGenerationPreview({
+      projectId: workContext.selectedProjectId,
+      chapterId: selectedChapter.value.id,
+      preview: selectedPreviewItem.value
+    })
+    selectedChapter.value = await getChapter(selectedChapter.value.id)
+    chapters.value = chapters.value.map((item) => (item.id === selectedChapter.value!.id ? selectedChapter.value! : item))
+    appendLoopLog(`已确认《${confirmedPreview.value.title}》，落库 ${confirmedPreview.value.sceneCount} 个场景蓝图。`)
+    ElMessage.success(`已确认标题和场景蓝图，并保存 ${confirmedPreview.value.sceneCount} 个场景。`)
+    if (rerunPreflight) {
+      await runPreflightForSelectedChapter()
+    }
+    return true
+  } catch (err) {
+    ElMessage.error((err as Error).message || '确认标题和场景蓝图失败')
+    return false
+  } finally {
+    confirmingPreview.value = false
+    if (!loopRunning.value) loopStage.value = ''
+  }
+}
+
+async function ensureBlueprintsForSelectedChapter() {
+  if (!selectedChapter.value || !workContext.selectedProjectId) {
+    ElMessage.warning(t('chapterGeneration.messages.selectChapterFirst'))
+    return
+  }
+
+  ensuringSceneBlueprints.value = true
+  try {
+    const result = await ensureSceneBlueprints({
+      projectId: workContext.selectedProjectId,
+      chapterId: selectedChapter.value.id
+    })
+    const message = result.createdCount > 0
+      ? `已自动补齐 ${result.createdCount} 个场景蓝图。`
+      : `当前章节已有 ${result.existingCount} 个场景蓝图。`
+    ElMessage.success(message)
+    await runPreflightForSelectedChapter()
+  } catch (err) {
+    ElMessage.error((err as Error).message || '自动补齐场景蓝图失败')
+  } finally {
+    ensuringSceneBlueprints.value = false
+  }
+}
+
+async function generateSelectedSceneDraft() {
+  if (!selectedChapter.value || !validateGenerationSettings(true) || !workContext.selectedProjectId) return false
+
+  sceneGenerating.value = true
+  loopStage.value = 'scene'
+  error.value = ''
+  try {
+    const result = await generateSceneDraft({
+      runId: crypto.randomUUID(),
+      projectId: workContext.selectedProjectId,
+      chapterId: selectedChapter.value.id,
+      sceneNumber: workflowForm.sceneNumber,
+      configId: selectedConfigId.value || null,
+      endpoint: aiForm.value.endpoint,
+      providerId: selectedConfigId.value || null,
+      apiKeyId: null,
+      apiKey: aiForm.value.apiKey,
+      model: aiForm.value.model,
+      systemPrompt: promptForm.systemPrompt,
+      prompt: workflowForm.scenePrompt,
+      temperature: promptForm.temperature,
+      maxTokens: Math.min(promptForm.maxTokens || 4096, 4096)
+    })
+    sceneDraftResult.value = result
+    if (result.success) {
+      output.value = [output.value.trim(), result.content.trim()].filter(Boolean).join('\n\n')
+      appendLoopLog(`场景 ${result.sceneNumber} 已生成：${result.sceneTitle || '未命名场景'}。`)
+      ElMessage.success(`场景 ${result.sceneNumber} 已生成。`)
+      return true
+    } else {
+      error.value = result.error || '场景生成失败'
+      appendLoopLog(`场景 ${workflowForm.sceneNumber} 生成失败：${error.value}`)
+      ElMessage.error(error.value)
+      return false
+    }
+  } catch (err) {
+    error.value = normalizeGenerationError((err as Error).message || '场景生成失败')
+    ElMessage.error(error.value)
+    return false
+  } finally {
+    sceneGenerating.value = false
+    if (!loopRunning.value) loopStage.value = ''
+  }
+}
+
+async function composeSelectedScenes() {
+  if (!selectedChapter.value || !workContext.selectedProjectId) {
+    ElMessage.warning(t('chapterGeneration.messages.selectChapterFirst'))
+    return false
+  }
+
+  sceneComposing.value = true
+  loopStage.value = 'compose'
+  try {
+    const result = await composeSceneDrafts({
+      projectId: workContext.selectedProjectId,
+      chapterId: selectedChapter.value.id,
+      saveToChapter: true
+    })
+    output.value = result.content
+    selectedChapter.value = await getChapter(selectedChapter.value.id)
+    chapters.value = chapters.value.map((item) => (item.id === selectedChapter.value!.id ? selectedChapter.value! : item))
+    appendLoopLog(`已合成 ${result.sceneCount} 个场景并保存正文，约 ${result.wordCount} 字。`)
+    ElMessage.success(`已合成 ${result.sceneCount} 个场景并保存，约 ${result.wordCount} 字。`)
+    return true
+  } catch (err) {
+    ElMessage.error((err as Error).message || '场景合成失败')
+    return false
+  } finally {
+    sceneComposing.value = false
+    if (!loopRunning.value) loopStage.value = ''
+  }
+}
+
+async function analyzeSelectedChapter() {
+  if (!selectedChapter.value || !workContext.selectedProjectId) {
+    ElMessage.warning(t('chapterGeneration.messages.selectChapterFirst'))
+    return false
+  }
+
+  analyzingChapter.value = true
+  loopStage.value = 'analysis'
+  try {
+    chapterAnalysisResult.value = await analyzeGeneratedChapter({
+      projectId: workContext.selectedProjectId,
+      chapterId: selectedChapter.value.id,
+      minWordCount: workflowForm.minWordCount,
+      maxDuplicateTitleWindow: 5,
+      updateChapterSummary: true
+    })
+    selectedChapter.value = await getChapter(selectedChapter.value.id)
+    if (chapterAnalysisResult.value.passed) {
+      appendLoopLog('生成后分析通过，章节闭环完成。')
+      ElMessage.success('章节分析通过，批量生成可继续。')
+    } else {
+      appendLoopLog('生成后分析未通过，建议暂停并修正。')
+      ElMessage.warning('章节分析未通过，建议暂停批量生成并修正。')
+    }
+    return chapterAnalysisResult.value.passed
+  } catch (err) {
+    ElMessage.error((err as Error).message || '章节分析失败')
+    return false
+  } finally {
+    analyzingChapter.value = false
+    if (!loopRunning.value) loopStage.value = ''
+  }
+}
+
+async function runClosedLoopForSelectedChapter() {
+  if (loopRunning.value) return
+  if (!validateGenerationSettings(true)) return
+
+  loopRunning.value = true
+  loopLog.value = []
+  try {
+    appendLoopLog('开始单章闭环生成。')
+    if (!selectedPreviewItem.value && !(await previewSelectedChapterBlueprints())) return
+    if (!(await confirmPreviewForSelectedChapter(false))) return
+    if (!(await runPreflightForSelectedChapter())) return
+
+    const scenes = confirmedPreview.value?.scenes.length
+      ? confirmedPreview.value.scenes
+      : selectedPreviewItem.value?.scenes ?? []
+    for (const scene of scenes) {
+      workflowForm.sceneNumber = scene.sceneNumber
+      if (!(await generateSelectedSceneDraft())) return
+    }
+
+    if (!(await composeSelectedScenes())) return
+    await analyzeSelectedChapter()
+  } finally {
+    loopRunning.value = false
+    loopStage.value = ''
+  }
+}
+
 function applyAutoJobStatus(next: ChapterBatchGenerationStatus) {
   autoJobStatus.value = next
   autoJobId.value = next.jobId
@@ -416,11 +777,14 @@ async function requestStopAutoGeneration() {
 }
 
 async function previewBatchDrafts() {
-  if (autoGenerating.value) return
-  if (!validateGenerationSettings(false)) return
+  if (autoGenerating.value) return false
+  if (!workContext.selectedProjectId || !workContext.selectedVolumeId) {
+    ElMessage.warning(t('chapterGeneration.messages.selectProjectVolumeFirst'))
+    return false
+  }
   if (autoForm.count < 1) {
     ElMessage.warning(t('chapterGeneration.batch.countRequired'))
-    return
+    return false
   }
 
   autoPreviewing.value = true
@@ -433,8 +797,10 @@ async function previewBatchDrafts() {
       createMissing: autoForm.createMissing
     })
     ElMessage.success(t('chapterGeneration.batch.previewReady'))
+    return true
   } catch (err) {
     ElMessage.error((err as Error).message || t('chapterGeneration.batch.previewFailed'))
+    return false
   } finally {
     autoPreviewing.value = false
   }
@@ -486,7 +852,21 @@ async function generateBatchDrafts() {
       previewItems: autoPreviewItems.value.map((item) => ({
         ...item,
         title: item.title.trim(),
-        summary: item.summary.trim()
+        summary: item.summary.trim(),
+        scenes: (item.scenes ?? []).map((scene) => ({
+          ...scene,
+          title: scene.title.trim(),
+          summary: scene.summary.trim(),
+          goal: scene.goal.trim(),
+          conflict: scene.conflict.trim(),
+          hook: scene.hook.trim(),
+          foreshadowingName: scene.foreshadowingName?.trim() ?? '',
+          foreshadowingRole: scene.foreshadowingRole?.trim() ?? '',
+          timeAnchor: scene.timeAnchor?.trim() ?? '',
+          locationAnchor: scene.locationAnchor?.trim() ?? '',
+          elapsedFromPrevious: scene.elapsedFromPrevious?.trim() ?? '',
+          timelineEffect: scene.timelineEffect?.trim() ?? ''
+        }))
       }))
     })
     autoJobId.value = accepted.jobId
@@ -723,7 +1103,17 @@ onBeforeUnmount(async () => {
           </div>
         </template>
 
-        <div class="batch-console">
+        <div class="generation-mode-panel">
+          <div>
+            <div class="generation-mode-panel__title">{{ generationModeLabel }}</div>
+            <div class="generation-mode-panel__subtitle">{{ generationModeDescription }}</div>
+          </div>
+          <el-button size="small" :icon="Refresh" @click="toggleGenerationMode">
+            {{ generationModeToggleText }}
+          </el-button>
+        </div>
+
+        <div v-if="generationMode === 'batch'" class="batch-console">
           <div class="batch-console__head">
             <div>
               <div class="batch-console__title">{{ t('chapterGeneration.batch.title') }}</div>
@@ -816,6 +1206,36 @@ onBeforeUnmount(async () => {
                 </el-button>
               </div>
               <el-table :data="autoPreviewItems" size="small" class="batch-preview__table">
+                <el-table-column type="expand">
+                  <template #default="{ row }">
+                    <div class="batch-scenes">
+                      <div class="batch-scenes__head">
+                        <strong>场景蓝图</strong>
+                        <span>自动生成正文时会按这些场景顺序写入 Prompt。</span>
+                      </div>
+                      <div v-for="scene in row.scenes ?? []" :key="scene.sceneNumber" class="batch-scene">
+                        <div class="batch-scene__title">
+                          <el-tag size="small" type="info">场景 {{ scene.sceneNumber }}</el-tag>
+                          <el-input v-model="scene.title" size="small" placeholder="场景标题" />
+                        </div>
+                        <el-input v-model="scene.summary" size="small" type="textarea" :rows="2" placeholder="场景简介" />
+                        <div class="batch-scene__grid">
+                          <el-input v-model="scene.goal" size="small" placeholder="场景目标" />
+                          <el-input v-model="scene.conflict" size="small" placeholder="场景冲突" />
+                          <el-input v-model="scene.hook" size="small" placeholder="收束钩子" />
+                        </div>
+                        <div class="batch-scene__tracking-grid">
+                          <el-input v-model="scene.foreshadowingName" size="small" placeholder="伏笔名称" />
+                          <el-input v-model="scene.foreshadowingRole" size="small" placeholder="伏笔职责：埋设/推进/回收" />
+                          <el-input v-model="scene.timeAnchor" size="small" placeholder="时间锚点" />
+                          <el-input v-model="scene.locationAnchor" size="small" placeholder="地点锚点" />
+                          <el-input v-model="scene.elapsedFromPrevious" size="small" placeholder="距上一场景/上一章经过" />
+                          <el-input v-model="scene.timelineEffect" size="small" placeholder="时间线影响" />
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </el-table-column>
                 <el-table-column :label="t('chapterGeneration.batch.previewNumber')" prop="chapterNumber" width="72" />
                 <el-table-column :label="t('chapterGeneration.batch.previewTitleColumn')" min-width="180">
                   <template #default="{ row }">
@@ -870,6 +1290,188 @@ onBeforeUnmount(async () => {
               </div>
             </div>
           </el-form>
+        </div>
+
+        <div v-else class="workflow-console">
+          <div class="workflow-console__head">
+            <div>
+              <div class="workflow-console__title">生成流程控制</div>
+              <div class="workflow-console__subtitle">标题简介、场景蓝图、预检、场景正文、合成和分析统一在这里闭环完成。</div>
+            </div>
+            <div class="workflow-console__actions">
+              <el-button
+                size="small"
+                :icon="DocumentChecked"
+                :loading="autoPreviewing && loopStage === 'preview'"
+                :disabled="!selectedChapter || loopRunning || autoGenerating"
+                @click="previewSelectedChapterBlueprints"
+              >
+                生成标题简介
+              </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                plain
+                :loading="confirmingPreview"
+                :disabled="!canConfirmSelectedPreview || loopRunning"
+                @click="() => confirmPreviewForSelectedChapter()"
+              >
+                确认标题和场景蓝图
+              </el-button>
+              <el-button size="small" :loading="workflowLoading" :disabled="!selectedChapter" @click="runPreflightForSelectedChapter">
+                生成前预检
+              </el-button>
+              <el-button
+                v-if="canEnsureSceneBlueprints"
+                size="small"
+                type="primary"
+                plain
+                :loading="ensuringSceneBlueprints"
+                :disabled="workflowLoading"
+                @click="ensureBlueprintsForSelectedChapter"
+              >
+                自动补齐场景蓝图
+              </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                :loading="sceneGenerating"
+                :disabled="!selectedChapter || generating || !preflightResult?.passed"
+                @click="generateSelectedSceneDraft"
+              >
+                写当前场景正文
+              </el-button>
+              <el-button size="small" type="success" :loading="sceneComposing" :disabled="!selectedChapter" @click="composeSelectedScenes">
+                合成正文
+              </el-button>
+              <el-button size="small" type="warning" :loading="analyzingChapter" :disabled="!selectedChapter" @click="analyzeSelectedChapter">
+                生成后分析
+              </el-button>
+              <el-button
+                size="small"
+                type="danger"
+                :icon="VideoPlay"
+                :loading="loopRunning"
+                :disabled="!selectedChapter || generating || autoGenerating"
+                @click="runClosedLoopForSelectedChapter"
+              >
+                一键闭环生成
+              </el-button>
+            </div>
+          </div>
+
+          <div class="workflow-steps">
+            <el-steps :active="loopActiveIndex" finish-status="success" simple>
+              <el-step v-for="item in loopSteps" :key="item.key" :title="item.title" :status="item.status" />
+            </el-steps>
+            <el-progress v-if="loopRunning || loopLog.length" :percentage="loopProgressPercent" :stroke-width="8" />
+          </div>
+
+          <div v-if="selectedPreviewItem" class="single-preview">
+            <div class="single-preview__head">
+              <div>
+                <strong>当前章节标题、简介和场景蓝图</strong>
+                <span>确认后会保存到章节和章节蓝图，再进入正文生成。</span>
+              </div>
+              <el-tag size="small" type="info">第 {{ selectedPreviewItem.chapterNumber }} 章</el-tag>
+            </div>
+            <div class="single-preview__chapter">
+              <el-input v-model="selectedPreviewItem.title" size="small" placeholder="章节标题" />
+              <el-input v-model="selectedPreviewItem.summary" size="small" type="textarea" :rows="2" placeholder="章节简介" />
+            </div>
+            <div class="single-preview__scenes">
+              <div v-for="scene in selectedPreviewItem.scenes ?? []" :key="scene.sceneNumber" class="single-preview-scene">
+                <div class="single-preview-scene__title">
+                  <el-tag size="small" type="info">场景 {{ scene.sceneNumber }}</el-tag>
+                  <el-input v-model="scene.title" size="small" placeholder="场景标题" />
+                </div>
+                <el-input v-model="scene.summary" size="small" type="textarea" :rows="2" placeholder="场景简介" />
+                <div class="single-preview-scene__grid">
+                  <el-input v-model="scene.goal" size="small" placeholder="场景目标" />
+                  <el-input v-model="scene.conflict" size="small" placeholder="场景冲突" />
+                  <el-input v-model="scene.hook" size="small" placeholder="收束钩子" />
+                </div>
+                <div class="single-preview-scene__tracking-grid">
+                  <el-input v-model="scene.foreshadowingName" size="small" placeholder="伏笔名称" />
+                  <el-input v-model="scene.foreshadowingRole" size="small" placeholder="伏笔职责：埋设/推进/回收" />
+                  <el-input v-model="scene.timeAnchor" size="small" placeholder="时间锚点" />
+                  <el-input v-model="scene.locationAnchor" size="small" placeholder="地点锚点" />
+                  <el-input v-model="scene.elapsedFromPrevious" size="small" placeholder="距上一场景/上一章经过" />
+                  <el-input v-model="scene.timelineEffect" size="small" placeholder="时间线影响" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="workflow-controls">
+            <el-form-item label="场景序号">
+              <el-input-number v-model="workflowForm.sceneNumber" :min="1" controls-position="right" />
+            </el-form-item>
+            <el-form-item label="最低字数">
+              <el-input-number v-model="workflowForm.minWordCount" :min="100" :max="8000" :step="100" controls-position="right" />
+            </el-form-item>
+            <el-form-item label="场景要求" class="workflow-controls__prompt">
+              <el-input v-model="workflowForm.scenePrompt" type="textarea" :rows="2" />
+            </el-form-item>
+          </div>
+
+          <div v-if="selectedPreviewItem || confirmedPreview || preflightResult || sceneDraftResult || chapterAnalysisResult" class="workflow-results">
+            <el-alert
+              v-if="selectedPreviewItem"
+              :title="`标题简介已生成：第 ${selectedPreviewItem.chapterNumber} 章《${selectedPreviewItem.title || '-'}》，场景 ${selectedPreviewItem.scenes?.length ?? 0} 个`"
+              type="info"
+              show-icon
+              :closable="false"
+            />
+            <el-alert
+              v-if="confirmedPreview"
+              :title="`标题简介和场景蓝图已确认入库：${confirmedPreview.sceneCount} 个场景`"
+              type="success"
+              show-icon
+              :closable="false"
+            />
+            <el-alert
+              v-if="preflightResult"
+              :title="preflightResult.passed ? '预检通过' : `预检未通过：${preflightResult.fatalCount} 个致命问题，${preflightResult.warningCount} 个警告`"
+              :type="preflightResult.passed ? 'success' : 'warning'"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="preflightResult?.items.length" class="workflow-result-list">
+              <div v-for="item in preflightResult.items" :key="item.code" class="workflow-result-item">
+                <el-tag size="small" :type="item.severity === 'fatal' ? 'danger' : 'warning'">{{ item.severity }}</el-tag>
+                <span>{{ item.message }}</span>
+                <small>{{ item.suggestion }}</small>
+              </div>
+            </div>
+
+            <el-alert
+              v-if="sceneDraftResult"
+              :title="sceneDraftResult.success ? `场景 ${sceneDraftResult.sceneNumber} 已生成：${sceneDraftResult.sceneTitle || '未命名场景'}` : `场景生成失败：${sceneDraftResult.error || '-'}`"
+              :type="sceneDraftResult.success ? 'success' : 'error'"
+              show-icon
+              :closable="false"
+            />
+
+            <el-alert
+              v-if="chapterAnalysisResult"
+              :title="`分析结果：${chapterAnalysisResult.passed ? '通过' : '未通过'}，字数 ${chapterAnalysisResult.wordCount}，连贯 ${chapterAnalysisResult.coherenceScore}/10，质量 ${chapterAnalysisResult.qualityScore}/10`"
+              :type="chapterAnalysisResult.passed ? 'success' : 'warning'"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="chapterAnalysisResult?.items.length" class="workflow-result-list">
+              <div v-for="item in chapterAnalysisResult.items" :key="item.code" class="workflow-result-item">
+                <el-tag size="small" :type="item.severity === 'fatal' ? 'danger' : 'warning'">{{ item.severity }}</el-tag>
+                <span>{{ item.message }}</span>
+                <small>{{ item.suggestion }}</small>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="loopLog.length" class="workflow-log">
+            <div v-for="(item, index) in loopLog" :key="index" class="workflow-log__item">{{ item }}</div>
+          </div>
         </div>
 
         <el-form label-width="110px" class="ai-form" :disabled="generating">
@@ -978,6 +1580,27 @@ onBeforeUnmount(async () => {
 .ai-form {
   max-width: 980px;
 }
+.generation-mode-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+}
+.generation-mode-panel__title {
+  font-weight: 650;
+  line-height: 22px;
+}
+.generation-mode-panel__subtitle {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 2px;
+}
 .batch-console {
   border: 1px solid var(--el-border-color);
   border-radius: 6px;
@@ -985,8 +1608,16 @@ onBeforeUnmount(async () => {
   margin-bottom: 14px;
   background: var(--el-fill-color-extra-light);
 }
+.workflow-console {
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 14px;
+  background: var(--el-bg-color);
+}
 .batch-console__head,
-.batch-progress__meta {
+.batch-progress__meta,
+.workflow-console__head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -997,6 +1628,16 @@ onBeforeUnmount(async () => {
   line-height: 22px;
 }
 .batch-console__subtitle {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 2px;
+}
+.workflow-console__title {
+  font-weight: 650;
+  line-height: 22px;
+}
+.workflow-console__subtitle {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 18px;
@@ -1015,6 +1656,120 @@ onBeforeUnmount(async () => {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+}
+.workflow-console__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.workflow-steps {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.workflow-steps :deep(.el-steps--simple) {
+  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+}
+.single-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+}
+.single-preview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.single-preview__head strong {
+  color: var(--el-text-color-primary);
+}
+.single-preview__head span {
+  display: block;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 2px;
+}
+.single-preview__chapter,
+.single-preview__scenes {
+  display: grid;
+  gap: 8px;
+}
+.single-preview-scene {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-bg-color);
+}
+.single-preview-scene__title {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.single-preview-scene__grid,
+.single-preview-scene__tracking-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.workflow-controls {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(140px, 180px) minmax(280px, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+.workflow-controls :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+.workflow-results {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.workflow-result-list {
+  display: grid;
+  gap: 6px;
+}
+.workflow-result-item {
+  display: grid;
+  grid-template-columns: 72px minmax(160px, 1fr) minmax(180px, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.workflow-result-item small {
+  color: var(--el-text-color-secondary);
+}
+.workflow-log {
+  display: grid;
+  gap: 4px;
+  max-height: 160px;
+  overflow: auto;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+}
+.workflow-log__item {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 18px;
 }
 .batch-controls {
   display: grid;
@@ -1062,6 +1817,45 @@ onBeforeUnmount(async () => {
 .batch-preview__table :deep(.el-textarea__inner) {
   min-height: 48px !important;
   resize: vertical;
+}
+.batch-scenes {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+}
+.batch-scenes__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.batch-scenes__head strong {
+  color: var(--el-text-color-primary);
+}
+.batch-scenes__head span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.batch-scene {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-bg-color);
+}
+.batch-scene__title {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.batch-scene__grid,
+.batch-scene__tracking-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 .batch-progress {
   margin-top: 12px;
@@ -1112,11 +1906,31 @@ onBeforeUnmount(async () => {
   .workspace-grid {
     grid-template-columns: 1fr;
   }
+  .generation-mode-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .batch-controls {
     grid-template-columns: 1fr;
   }
   .batch-console__head,
-  .batch-progress__meta {
+  .batch-progress__meta,
+  .workflow-console__head {
+    flex-direction: column;
+  }
+  .workflow-console__actions {
+    justify-content: flex-start;
+  }
+  .workflow-controls,
+  .workflow-result-item,
+  .single-preview-scene__grid,
+  .single-preview-scene__tracking-grid,
+  .batch-scene__grid,
+  .batch-scene__tracking-grid {
+    grid-template-columns: 1fr;
+  }
+  .single-preview__head {
+    align-items: flex-start;
     flex-direction: column;
   }
 }

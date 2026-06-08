@@ -13,10 +13,18 @@ interface ProblemDetailsPayload {
   detail?: string
   title?: string
   errors?: Record<string, string[]>
+  rootCauseMessage?: string
 }
 
 function normalizeProblemMessage(data?: ProblemDetailsPayload): string | undefined {
   if (!data) return undefined
+
+  if (
+    data.rootCauseMessage
+    && data.detail?.includes('An error occurred while saving the entity changes')
+  ) {
+    return `${data.detail} 根因：${data.rootCauseMessage}`
+  }
 
   if (data.detail) return data.detail
 

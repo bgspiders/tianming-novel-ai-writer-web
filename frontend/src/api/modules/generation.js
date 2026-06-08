@@ -17,3 +17,17 @@ export async function packageGenerationContext(projectId, sourceBookId) {
     });
     return data;
 }
+export async function getGenerationFlowStatus(projectId) {
+    const { data } = await http.get('/api/generation/flow-status', {
+        params: { projectId }
+    });
+    return data;
+}
+export async function listPromptRunSnapshots(params) {
+    const { data } = await http.get('/api/generation/prompt-snapshots', { params });
+    return data;
+}
+export async function getPromptRunSnapshot(id) {
+    const { data } = await http.get(`/api/generation/prompt-snapshots/${id}`);
+    return data;
+}

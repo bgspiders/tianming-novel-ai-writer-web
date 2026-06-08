@@ -38,6 +38,8 @@ public sealed record NovelSeedResult(
     int ChapterPlanCount,
     int ChapterBlueprintCount,
     int CreativeMaterialCount,
+    int ForeshadowingCount,
+    int TimelineCount,
     int TotalPlannedChapterCount,
     int InitialChapterPlanCount,
     string RawPlan);

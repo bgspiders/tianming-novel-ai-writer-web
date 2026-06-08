@@ -85,6 +85,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'routes.generationGate' }
       },
       {
+        path: 'generate/tracking',
+        name: 'narrative-tracking',
+        component: () => import('@/views/generate/NarrativeTrackingView.vue'),
+        meta: { titleKey: 'routes.narrativeTracking' }
+      },
+      {
         path: 'generate/volume-designs',
         redirect: '/generate/volume_designs'
       },

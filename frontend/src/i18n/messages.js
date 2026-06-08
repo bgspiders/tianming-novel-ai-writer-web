@@ -20,6 +20,7 @@ export const messages = {
             tianmingProtocol: '天命协议',
             chapterGeneration: '章节生成',
             generationGate: '生成闸门',
+            narrativeTracking: '叙事追踪',
             generationPlanning: '生成规划',
             editorWorkspace: '写作编辑器',
             validationWorkbench: '校验工作台',
@@ -105,6 +106,7 @@ export const messages = {
                 chapterBlueprints: '章节蓝图',
                 workbench: '工作台',
                 chapterDrafts: '章节草稿',
+                narrativeTracking: '叙事追踪',
                 generationGate: '生成闸门'
             },
             placeholders: {
@@ -1335,6 +1337,7 @@ export const messages = {
             tianmingProtocol: 'Tianming Protocol',
             chapterGeneration: 'Chapter Generation',
             generationGate: 'Generation Gate',
+            narrativeTracking: 'Narrative Tracking',
             generationPlanning: 'Generation Planning',
             editorWorkspace: 'Editor Workspace',
             validationWorkbench: 'Validation Workbench',
@@ -1420,6 +1423,7 @@ export const messages = {
                 chapterBlueprints: 'Chapter Blueprints',
                 workbench: 'Workbench',
                 chapterDrafts: 'Chapter Drafts',
+                narrativeTracking: 'Narrative Tracking',
                 generationGate: 'Generation Gate'
             },
             placeholders: {

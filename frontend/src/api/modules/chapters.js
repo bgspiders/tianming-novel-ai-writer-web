@@ -82,3 +82,29 @@ export async function listChapterBatchGenerationJobs(projectId) {
 export async function cancelChapterBatchGeneration(jobId) {
     await http.post(`/api/generation/chapter-batch-jobs/${jobId}/cancel`);
 }
+export async function runGenerationPreflight(input) {
+    const { data } = await http.post('/api/generation/preflight', input);
+    return data;
+}
+export async function ensureSceneBlueprints(input) {
+    const { data } = await http.post(`/api/generation/chapters/${input.chapterId}/scene-blueprints/ensure`, input);
+    return data;
+}
+export async function confirmChapterGenerationPreview(input) {
+    const { data } = await http.post(`/api/generation/chapters/${input.chapterId}/preview/confirm`, input);
+    return data;
+}
+export async function generateSceneDraft(input) {
+    const { data } = await http.post(`/api/generation/chapters/${input.chapterId}/scene-draft`, input, {
+        timeout: 3 * 60_000
+    });
+    return data;
+}
+export async function composeSceneDrafts(input) {
+    const { data } = await http.post(`/api/generation/chapters/${input.chapterId}/scene-compose`, input);
+    return data;
+}
+export async function analyzeGeneratedChapter(input) {
+    const { data } = await http.post(`/api/generation/chapters/${input.chapterId}/analysis`, input);
+    return data;
+}

@@ -44,4 +44,29 @@ public sealed record ChapterBatchGenerationJob(
 public interface IContextPackagingService
 {
     Task<PackageContextResult> PackageAsync(PackageContextRequest request, CancellationToken ct = default);
+
+    Task<GenerationContextResult> BuildGenerationContextAsync(GenerationContextRequest request, CancellationToken ct = default);
+}
+
+public interface IGenerationPreflightService
+{
+    Task<GenerationPreflightResult> CheckAsync(GenerationPreflightRequest request, CancellationToken ct = default);
+
+    Task<EnsureSceneBlueprintsResult> EnsureSceneBlueprintsAsync(EnsureSceneBlueprintsRequest request, CancellationToken ct = default);
+
+    Task<ConfirmChapterGenerationPreviewResult> ConfirmPreviewAsync(
+        ConfirmChapterGenerationPreviewRequest request,
+        CancellationToken ct = default);
+}
+
+public interface ISceneGenerationService
+{
+    Task<SceneDraftResult> GenerateSceneDraftAsync(SceneDraftRequest request, CancellationToken ct = default);
+
+    Task<SceneComposeResult> ComposeChapterAsync(SceneComposeRequest request, CancellationToken ct = default);
+}
+
+public interface IChapterAnalysisService
+{
+    Task<ChapterAnalysisResult> AnalyzeAsync(ChapterAnalysisRequest request, CancellationToken ct = default);
 }
