@@ -60,6 +60,12 @@ const routes = [
                 meta: { titleKey: 'routes.generationWorkbench' }
             },
             {
+                path: 'generate/planning',
+                name: 'generation-planning',
+                component: () => import('@/views/generate/PlanningWorkspaceView.vue'),
+                meta: { titleKey: 'routes.generationPlanning' }
+            },
+            {
                 path: 'generate/novel-seed',
                 name: 'novel-seed',
                 component: () => import('@/views/generate/NovelSeedView.vue'),

@@ -34,7 +34,20 @@ const workContext = useWorkContextStore()
 const authStore = useAuthStore()
 const { localeStore, t, setLocale } = useI18n()
 
-const activeMenu = computed(() => route.path)
+const activeMenu = computed(() => {
+  if (
+    route.path === '/generate/planning'
+    || /^\/generate\/(outlines|volume_designs|chapter_plans|chapter_blueprints)/.test(route.path)
+  ) {
+    return '/generate/planning'
+  }
+
+  if (route.path === '/generate/gate') {
+    return '/generate/tracking'
+  }
+
+  return route.path
+})
 const headerTitle = computed(() => {
   const titleKey = route.meta.titleKey as string | undefined
   return titleKey ? t(titleKey) : t('app.title')
@@ -334,10 +347,6 @@ onBeforeUnmount(() => {
           <el-menu-item index="/design/plot_rules">{{ t('layout.menu.plotRules') }}</el-menu-item>
           <el-menu-item index="/design/creative_materials">{{ t('layout.menu.creativeMaterials') }}</el-menu-item>
           <el-menu-item index="/design/book_analyses">{{ t('layout.menu.bookAnalyses') }}</el-menu-item>
-          <el-menu-item index="/design/outlines">{{ t('layout.menu.outlines') }}</el-menu-item>
-          <el-menu-item index="/design/volume_designs">{{ t('layout.menu.volumeDesigns') }}</el-menu-item>
-          <el-menu-item index="/design/chapter_plans">{{ t('layout.menu.chapterPlans') }}</el-menu-item>
-          <el-menu-item index="/design/chapter_blueprints">{{ t('layout.menu.chapterBlueprints') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="generate">
@@ -349,18 +358,15 @@ onBeforeUnmount(() => {
           <el-menu-item index="/generate/novel-seed">
             <span data-guide="novel-seed">{{ t('layout.menu.novelSeed') }}</span>
           </el-menu-item>
-          <el-menu-item index="/generate/tianming-protocol">{{ t('layout.menu.tianmingProtocol') }}</el-menu-item>
-          <el-menu-item index="/generate/outlines">{{ t('layout.menu.outlines') }}</el-menu-item>
-          <el-menu-item index="/generate/volume_designs">{{ t('layout.menu.volumeDesigns') }}</el-menu-item>
-          <el-menu-item index="/generate/chapter_plans">
-            <span data-guide="chapter-plans">{{ t('layout.menu.chapterPlans') }}</span>
+          <el-menu-item index="/generate/planning">
+            <span data-guide="chapter-plans">{{ t('layout.menu.generationPlanning') }}</span>
           </el-menu-item>
-          <el-menu-item index="/generate/chapter_blueprints">{{ t('layout.menu.chapterBlueprints') }}</el-menu-item>
           <el-menu-item index="/generate/chapters">
-            <span data-guide="chapter-generation">{{ t('layout.menu.chapterDrafts') }}</span>
+            <span data-guide="chapter-generation">{{ t('layout.menu.chapterWriting') }}</span>
           </el-menu-item>
-          <el-menu-item index="/generate/tracking">{{ t('layout.menu.narrativeTracking') }}</el-menu-item>
-          <el-menu-item index="/generate/gate">{{ t('layout.menu.generationGate') }}</el-menu-item>
+          <el-menu-item index="/generate/tracking">
+            {{ t('layout.menu.trackingAndValidation') }}
+          </el-menu-item>
         </el-sub-menu>
 
         <el-menu-item index="/editor">

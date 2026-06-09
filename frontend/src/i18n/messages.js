@@ -107,7 +107,10 @@ export const messages = {
                 workbench: '工作台',
                 chapterDrafts: '章节草稿',
                 narrativeTracking: '叙事追踪',
-                generationGate: '生成闸门'
+                generationGate: '生成闸门',
+                generationPlanning: '规划',
+                chapterWriting: '写正文',
+                trackingAndValidation: '追踪与体检'
             },
             placeholders: {
                 selectProject: '未选择',
@@ -1424,7 +1427,10 @@ export const messages = {
                 workbench: 'Workbench',
                 chapterDrafts: 'Chapter Drafts',
                 narrativeTracking: 'Narrative Tracking',
-                generationGate: 'Generation Gate'
+                generationGate: 'Generation Gate',
+                generationPlanning: 'Planning',
+                chapterWriting: 'Write Chapters',
+                trackingAndValidation: 'Tracking & Checkup'
             },
             placeholders: {
                 selectProject: 'Not selected',

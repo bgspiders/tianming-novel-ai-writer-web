@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useI18n } from '@/composables/useI18n'
 import {
@@ -14,6 +15,7 @@ import {
 import { useWorkContextStore } from '@/stores/workContext'
 
 const workContext = useWorkContextStore()
+const router = useRouter()
 const { t } = useI18n()
 const packaging = ref(false)
 const loadingStatus = ref(false)
@@ -42,21 +44,21 @@ const fallbackCards = [
   {
     key: 'outline',
     title: '大纲/规划',
-    path: '/generate/outlines',
+    path: '/generate/planning?module=outlines',
     icon: '3',
     desc: '维护整书大纲、分卷目标、阶段推进和长期结构。'
   },
   {
     key: 'chapter_plans',
     title: '章节计划',
-    path: '/generate/chapter_plans',
+    path: '/generate/planning?module=chapter_plans',
     icon: '4',
     desc: '确认章节标题、简介、核心事件、实体准入、冲突值和宏观阶段。'
   },
   {
     key: 'chapter_blueprints',
     title: '章节蓝图',
-    path: '/generate/chapter_blueprints',
+    path: '/generate/planning?module=chapter_blueprints',
     icon: '5',
     desc: '把章节拆成场景卡，确认场景顺序、信息增量、POV、钩子和伏笔职责。'
   },
@@ -107,16 +109,58 @@ const cards = computed(() => {
       count: step?.count ?? 0,
       message: step?.message ?? card.desc,
       lastUpdatedAt: step?.lastUpdatedAt ?? null,
-      path: step?.path || card.path
+      path: normalizeStepPath(step?.path || card.path)
     }
   })
 })
+
+function normalizeStepPath(path: string) {
+  if (path === '/generate/outlines') return '/generate/planning?module=outlines'
+  if (path === '/generate/volume_designs') return '/generate/planning?module=volume_designs'
+  if (path === '/generate/chapter_plans') return '/generate/planning?module=chapter_plans'
+  if (path === '/generate/chapter_blueprints') return '/generate/planning?module=chapter_blueprints'
+  if (path === '/generate/gate') return '/generate/tracking'
+  return path
+}
 
 const nextSuggestion = computed(() =>
   workContext.selectedProjectId
     ? flowStatus.value?.nextSuggestion || '正在读取当前项目的生成流程状态。'
     : '先选择或创建项目，再查看生成流程状态。'
 )
+
+const nextAction = computed(() => {
+  if (!workContext.selectedProjectId) return null
+
+  const suggestionText = normalizeActionText(nextSuggestion.value)
+  const suggestedCard = cards.value.find((card) => {
+    if (!card.path) return false
+    const candidates = [
+      card.key,
+      card.key.replace(/_/g, ''),
+      card.title,
+      card.message,
+      card.desc
+    ].map(normalizeActionText)
+
+    return candidates.some((candidate) => candidate && suggestionText.includes(candidate))
+  })
+
+  const readyCards = cards.value.filter((card) => card.ready && card.path)
+  return suggestedCard ?? readyCards[0] ?? null
+})
+
+function normalizeActionText(value: string) {
+  return value
+    .replace(/^待完成[:：]\s*/, '')
+    .replace(/[\s_/:：，。,.、/()（）-]+/g, '')
+    .toLowerCase()
+}
+
+async function continueNextAction() {
+  if (!nextAction.value) return
+  await router.push(nextAction.value.path)
+}
 
 async function refreshFlow() {
   if (!workContext.selectedProjectId) {
@@ -225,10 +269,17 @@ watch(
     </section>
 
     <section class="flow-panel">
+      <div class="next-action">
+        <div>
+          <span class="next-label">下一步建议</span>
+          <p>{{ nextSuggestion }}</p>
+        </div>
+        <el-button type="primary" :disabled="!nextAction" @click="continueNextAction">继续下一步</el-button>
+      </div>
       <div class="flow-head">
         <div>
           <h2>完整生成流程</h2>
-          <p>{{ nextSuggestion }}</p>
+          <p>下方保留完整流程状态，用于查看每个环节的数据数量和最近更新时间。</p>
         </div>
         <el-button :loading="loadingStatus || loadingSnapshots" @click="refreshFlow">刷新状态</el-button>
       </div>
@@ -239,7 +290,7 @@ watch(
           :key="card.title"
           :to="card.ready && card.path ? card.path : undefined"
           class="module-card"
-          :class="{ disabled: !card.ready }"
+          :class="{ disabled: !card.ready, active: nextAction?.key === card.key }"
         >
           <span class="card-icon">{{ card.icon }}</span>
           <span class="card-title">
@@ -381,6 +432,29 @@ h1 {
   background: #fffef8;
   padding: 18px;
 }
+.next-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid #b9d6cf;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f1faf6 0%, #fff8e6 100%);
+}
+.next-label {
+  display: inline-flex;
+  margin-bottom: 6px;
+  color: #2f6f65;
+  font-size: 13px;
+  font-weight: 800;
+}
+.next-action p {
+  margin: 0;
+  color: #263b36;
+  line-height: 1.6;
+}
 .flow-head {
   display: flex;
   align-items: flex-start;
@@ -440,6 +514,15 @@ h1 {
 .module-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 14px 30px rgba(55, 75, 68, 0.12);
+}
+.module-card.active {
+  border-color: #2f7d72;
+  background: linear-gradient(180deg, #f4fbf8 0%, #fffdf8 100%);
+  box-shadow: 0 16px 34px rgba(47, 125, 114, 0.16);
+}
+.module-card.active .card-icon {
+  background: #2f7d72;
+  color: #fffdf8;
 }
 .module-card.disabled {
   cursor: not-allowed;
@@ -559,6 +642,11 @@ h1 {
   }
 
   .package-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .next-action {
     flex-direction: column;
     align-items: flex-start;
   }

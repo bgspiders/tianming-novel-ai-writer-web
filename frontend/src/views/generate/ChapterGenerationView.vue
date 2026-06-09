@@ -69,7 +69,7 @@ const autoJobId = ref('')
 const autoJobStatus = ref<ChapterBatchGenerationStatus | null>(null)
 const autoPreviewing = ref(false)
 const autoPreviewItems = ref<ChapterBatchGenerationPreviewItem[]>([])
-const generationMode = ref<'single' | 'batch'>('single')
+const generationMode = ref<'single' | 'batch'>('batch')
 const workflowLoading = ref(false)
 const sceneGenerating = ref(false)
 const sceneComposing = ref(false)
@@ -143,13 +143,13 @@ const selectedPreviewItem = computed(() => {
 })
 
 const generationModeLabel = computed(() =>
-  generationMode.value === 'single' ? '单章精写闭环' : '批量连续生成'
+  generationMode.value === 'single' ? '单章精写闭环' : '批量连续生成（推荐）'
 )
 
 const generationModeDescription = computed(() =>
   generationMode.value === 'single'
-    ? '当前只处理选中的这一章：确认标题和场景蓝图后，按场景写正文、合成并分析。'
-    : '按章节号连续生成多章：先确认标题简介，再交给后台队列自动生成并保存。'
+    ? '当前只处理选中的这一章：确认标题和场景蓝图后，按场景写正文、合成并分析。适合精修，不作为首屏默认流程。'
+    : '推荐用于写正文：按章节号连续生成多章，预览确认后交给后台队列自动生成并保存；任务会后台运行，可关闭或切走前台，稍后回来查看进度。'
 )
 
 const generationModeToggleText = computed(() =>
@@ -1096,7 +1096,15 @@ onBeforeUnmount(async () => {
               >
                 {{ t('chapterGeneration.actions.generateFirstChapter') }}
               </el-button>
-              <el-button type="primary" size="small" :icon="VideoPlay" :loading="generating" :disabled="!selectedChapter" @click="generateDraft">
+              <el-button
+                v-if="generationMode === 'single'"
+                type="primary"
+                size="small"
+                :icon="VideoPlay"
+                :loading="generating"
+                :disabled="!selectedChapter"
+                @click="generateDraft"
+              >
                 {{ t('chapterGeneration.actions.generateDraft') }}
               </el-button>
             </div>
@@ -1292,13 +1300,22 @@ onBeforeUnmount(async () => {
           </el-form>
         </div>
 
-        <div v-else class="workflow-console">
-          <div class="workflow-console__head">
-            <div>
-              <div class="workflow-console__title">生成流程控制</div>
-              <div class="workflow-console__subtitle">标题简介、场景蓝图、预检、场景正文、合成和分析统一在这里闭环完成。</div>
-            </div>
-            <div class="workflow-console__actions">
+        <el-collapse v-else class="secondary-collapse">
+          <el-collapse-item name="single-workflow">
+            <template #title>
+              <div class="collapse-title">
+                <span>单章精写、场景生成与预检</span>
+                <small>需要精修单章时再展开，标题简介、场景蓝图、预检、场景正文、合成和分析都保留在这里。</small>
+              </div>
+            </template>
+
+            <div class="workflow-console">
+              <div class="workflow-console__head">
+                <div>
+                  <div class="workflow-console__title">生成流程控制</div>
+                  <div class="workflow-console__subtitle">标题简介、场景蓝图、预检、场景正文、合成和分析统一在这里闭环完成。</div>
+                </div>
+                <div class="workflow-console__actions">
               <el-button
                 size="small"
                 :icon="DocumentChecked"
@@ -1357,17 +1374,17 @@ onBeforeUnmount(async () => {
               >
                 一键闭环生成
               </el-button>
-            </div>
-          </div>
+                </div>
+              </div>
 
-          <div class="workflow-steps">
+              <div class="workflow-steps">
             <el-steps :active="loopActiveIndex" finish-status="success" simple>
               <el-step v-for="item in loopSteps" :key="item.key" :title="item.title" :status="item.status" />
             </el-steps>
             <el-progress v-if="loopRunning || loopLog.length" :percentage="loopProgressPercent" :stroke-width="8" />
-          </div>
+              </div>
 
-          <div v-if="selectedPreviewItem" class="single-preview">
+              <div v-if="selectedPreviewItem" class="single-preview">
             <div class="single-preview__head">
               <div>
                 <strong>当前章节标题、简介和场景蓝图</strong>
@@ -1401,9 +1418,9 @@ onBeforeUnmount(async () => {
                 </div>
               </div>
             </div>
-          </div>
+              </div>
 
-          <div class="workflow-controls">
+              <div class="workflow-controls">
             <el-form-item label="场景序号">
               <el-input-number v-model="workflowForm.sceneNumber" :min="1" controls-position="right" />
             </el-form-item>
@@ -1413,9 +1430,9 @@ onBeforeUnmount(async () => {
             <el-form-item label="场景要求" class="workflow-controls__prompt">
               <el-input v-model="workflowForm.scenePrompt" type="textarea" :rows="2" />
             </el-form-item>
-          </div>
+              </div>
 
-          <div v-if="selectedPreviewItem || confirmedPreview || preflightResult || sceneDraftResult || chapterAnalysisResult" class="workflow-results">
+              <div v-if="selectedPreviewItem || confirmedPreview || preflightResult || sceneDraftResult || chapterAnalysisResult" class="workflow-results">
             <el-alert
               v-if="selectedPreviewItem"
               :title="`标题简介已生成：第 ${selectedPreviewItem.chapterNumber} 章《${selectedPreviewItem.title || '-'}》，场景 ${selectedPreviewItem.scenes?.length ?? 0} 个`"
@@ -1437,13 +1454,6 @@ onBeforeUnmount(async () => {
               show-icon
               :closable="false"
             />
-            <div v-if="preflightResult?.items.length" class="workflow-result-list">
-              <div v-for="item in preflightResult.items" :key="item.code" class="workflow-result-item">
-                <el-tag size="small" :type="item.severity === 'fatal' ? 'danger' : 'warning'">{{ item.severity }}</el-tag>
-                <span>{{ item.message }}</span>
-                <small>{{ item.suggestion }}</small>
-              </div>
-            </div>
 
             <el-alert
               v-if="sceneDraftResult"
@@ -1460,22 +1470,56 @@ onBeforeUnmount(async () => {
               show-icon
               :closable="false"
             />
-            <div v-if="chapterAnalysisResult?.items.length" class="workflow-result-list">
-              <div v-for="item in chapterAnalysisResult.items" :key="item.code" class="workflow-result-item">
-                <el-tag size="small" :type="item.severity === 'fatal' ? 'danger' : 'warning'">{{ item.severity }}</el-tag>
-                <span>{{ item.message }}</span>
-                <small>{{ item.suggestion }}</small>
+
+            <el-collapse
+              v-if="preflightResult?.items.length || chapterAnalysisResult?.items.length"
+              class="detail-collapse"
+            >
+              <el-collapse-item name="workflow-result-details">
+                <template #title>
+                  <div class="collapse-title">
+                    <span>预检详情与分析明细</span>
+                    <small>仅在需要定位问题、补齐蓝图或复盘质量时展开。</small>
+                  </div>
+                </template>
+
+                <div v-if="preflightResult?.items.length" class="workflow-result-list">
+                  <div v-for="item in preflightResult.items" :key="item.code" class="workflow-result-item">
+                    <el-tag size="small" :type="item.severity === 'fatal' ? 'danger' : 'warning'">{{ item.severity }}</el-tag>
+                    <span>{{ item.message }}</span>
+                    <small>{{ item.suggestion }}</small>
+                  </div>
+                </div>
+
+                <div v-if="chapterAnalysisResult?.items.length" class="workflow-result-list">
+                  <div v-for="item in chapterAnalysisResult.items" :key="item.code" class="workflow-result-item">
+                    <el-tag size="small" :type="item.severity === 'fatal' ? 'danger' : 'warning'">{{ item.severity }}</el-tag>
+                    <span>{{ item.message }}</span>
+                    <small>{{ item.suggestion }}</small>
+                  </div>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
+              </div>
+
+              <div v-if="loopLog.length" class="workflow-log">
+                <div v-for="(item, index) in loopLog" :key="index" class="workflow-log__item">{{ item }}</div>
               </div>
             </div>
-          </div>
+          </el-collapse-item>
+        </el-collapse>
 
-          <div v-if="loopLog.length" class="workflow-log">
-            <div v-for="(item, index) in loopLog" :key="index" class="workflow-log__item">{{ item }}</div>
-          </div>
-        </div>
+        <el-collapse class="advanced-collapse">
+          <el-collapse-item name="ai-advanced">
+            <template #title>
+              <div class="collapse-title">
+                <span>高级 AI 参数</span>
+                <small>模型、Endpoint、Prompt、温度和 Tokens 默认收起，首屏只保留生成主流程。</small>
+              </div>
+            </template>
 
-        <el-form label-width="110px" class="ai-form" :disabled="generating">
-          <div class="ai-source-bar">
+            <el-form label-width="110px" class="ai-form" :disabled="generating">
+              <div class="ai-source-bar">
             <el-switch
               v-model="rerunValidationAfterSave"
               :active-text="t('chapterGeneration.ai.autoRerunValidation')"
@@ -1523,7 +1567,9 @@ onBeforeUnmount(async () => {
               <el-input-number v-model="promptForm.maxRewriteAttempts" :min="0" :max="3" :step="1" />
             </el-form-item>
           </div>
-        </el-form>
+            </el-form>
+          </el-collapse-item>
+        </el-collapse>
 
         <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
         <el-alert
@@ -1580,6 +1626,47 @@ onBeforeUnmount(async () => {
 .ai-form {
   max-width: 980px;
 }
+.secondary-collapse,
+.advanced-collapse {
+  margin-bottom: 14px;
+  border-top: 0;
+  border-bottom: 0;
+}
+.secondary-collapse :deep(.el-collapse-item__wrap),
+.advanced-collapse :deep(.el-collapse-item__wrap) {
+  border-bottom: 0;
+}
+.secondary-collapse :deep(.el-collapse-item__header),
+.advanced-collapse :deep(.el-collapse-item__header) {
+  min-height: 48px;
+  height: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+  line-height: 1.35;
+}
+.secondary-collapse :deep(.el-collapse-item__content),
+.advanced-collapse :deep(.el-collapse-item__content) {
+  padding: 12px 0 0;
+}
+.collapse-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.collapse-title span {
+  color: var(--el-text-color-primary);
+  font-weight: 650;
+  line-height: 20px;
+}
+.collapse-title small {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  white-space: normal;
+}
 .generation-mode-panel {
   display: flex;
   justify-content: space-between;
@@ -1614,6 +1701,31 @@ onBeforeUnmount(async () => {
   padding: 12px;
   margin-bottom: 14px;
   background: var(--el-bg-color);
+}
+.secondary-collapse .workflow-console {
+  margin-bottom: 0;
+}
+.detail-collapse {
+  margin-top: 2px;
+  border-top: 0;
+  border-bottom: 0;
+}
+.detail-collapse :deep(.el-collapse-item__header) {
+  min-height: 42px;
+  height: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+  line-height: 1.35;
+}
+.detail-collapse :deep(.el-collapse-item__wrap) {
+  border-bottom: 0;
+}
+.detail-collapse :deep(.el-collapse-item__content) {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0 0;
 }
 .batch-console__head,
 .batch-progress__meta,
@@ -1655,7 +1767,11 @@ onBeforeUnmount(async () => {
 .batch-console__actions {
   display: flex;
   align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+.batch-console__actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 .workflow-console__actions {
   display: flex;
@@ -1796,6 +1912,7 @@ onBeforeUnmount(async () => {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
   background: var(--el-bg-color);
+  overflow-x: auto;
 }
 .batch-preview__head {
   display: flex;
@@ -1906,9 +2023,24 @@ onBeforeUnmount(async () => {
   .workspace-grid {
     grid-template-columns: 1fr;
   }
+  .panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .head-actions {
+    justify-content: flex-start;
+  }
   .generation-mode-panel {
     flex-direction: column;
     align-items: stretch;
+  }
+  .generation-mode-panel :deep(.el-button),
+  .head-actions :deep(.el-button),
+  .batch-console__actions :deep(.el-button),
+  .workflow-console__actions :deep(.el-button) {
+    min-height: 32px;
+    height: auto;
+    white-space: normal;
   }
   .batch-controls {
     grid-template-columns: 1fr;
@@ -1918,15 +2050,28 @@ onBeforeUnmount(async () => {
   .workflow-console__head {
     flex-direction: column;
   }
+  .batch-console__actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
   .workflow-console__actions {
     justify-content: flex-start;
+  }
+  .batch-preview__head,
+  .ai-source-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .batch-preview__table {
+    min-width: 720px;
   }
   .workflow-controls,
   .workflow-result-item,
   .single-preview-scene__grid,
   .single-preview-scene__tracking-grid,
   .batch-scene__grid,
-  .batch-scene__tracking-grid {
+  .batch-scene__tracking-grid,
+  .inline-controls {
     grid-template-columns: 1fr;
   }
   .single-preview__head {

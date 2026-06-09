@@ -1,9 +1,11 @@
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { useI18n } from '@/composables/useI18n';
 import { getGenerationFlowStatus, getPromptRunSnapshot, listPromptRunSnapshots, packageGenerationContext } from '@/api/modules/generation';
 import { useWorkContextStore } from '@/stores/workContext';
 const workContext = useWorkContextStore();
+const router = useRouter();
 const { t } = useI18n();
 const packaging = ref(false);
 const loadingStatus = ref(false);
@@ -31,21 +33,21 @@ const fallbackCards = [
     {
         key: 'outline',
         title: '大纲/规划',
-        path: '/generate/outlines',
+        path: '/generate/planning?module=outlines',
         icon: '3',
         desc: '维护整书大纲、分卷目标、阶段推进和长期结构。'
     },
     {
         key: 'chapter_plans',
         title: '章节计划',
-        path: '/generate/chapter_plans',
+        path: '/generate/planning?module=chapter_plans',
         icon: '4',
         desc: '确认章节标题、简介、核心事件、实体准入、冲突值和宏观阶段。'
     },
     {
         key: 'chapter_blueprints',
         title: '章节蓝图',
-        path: '/generate/chapter_blueprints',
+        path: '/generate/planning?module=chapter_blueprints',
         icon: '5',
         desc: '把章节拆成场景卡，确认场景顺序、信息增量、POV、钩子和伏笔职责。'
     },
@@ -95,13 +97,56 @@ const cards = computed(() => {
             count: step?.count ?? 0,
             message: step?.message ?? card.desc,
             lastUpdatedAt: step?.lastUpdatedAt ?? null,
-            path: step?.path || card.path
+            path: normalizeStepPath(step?.path || card.path)
         };
     });
 });
+function normalizeStepPath(path) {
+    if (path === '/generate/outlines')
+        return '/generate/planning?module=outlines';
+    if (path === '/generate/volume_designs')
+        return '/generate/planning?module=volume_designs';
+    if (path === '/generate/chapter_plans')
+        return '/generate/planning?module=chapter_plans';
+    if (path === '/generate/chapter_blueprints')
+        return '/generate/planning?module=chapter_blueprints';
+    if (path === '/generate/gate')
+        return '/generate/tracking';
+    return path;
+}
 const nextSuggestion = computed(() => workContext.selectedProjectId
     ? flowStatus.value?.nextSuggestion || '正在读取当前项目的生成流程状态。'
     : '先选择或创建项目，再查看生成流程状态。');
+const nextAction = computed(() => {
+    if (!workContext.selectedProjectId)
+        return null;
+    const suggestionText = normalizeActionText(nextSuggestion.value);
+    const suggestedCard = cards.value.find((card) => {
+        if (!card.path)
+            return false;
+        const candidates = [
+            card.key,
+            card.key.replace(/_/g, ''),
+            card.title,
+            card.message,
+            card.desc
+        ].map(normalizeActionText);
+        return candidates.some((candidate) => candidate && suggestionText.includes(candidate));
+    });
+    const readyCards = cards.value.filter((card) => card.ready && card.path);
+    return suggestedCard ?? readyCards[0] ?? null;
+});
+function normalizeActionText(value) {
+    return value
+        .replace(/^待完成[:：]\s*/, '')
+        .replace(/[\s_/:：，。,.、/()（）-]+/g, '')
+        .toLowerCase();
+}
+async function continueNextAction() {
+    if (!nextAction.value)
+        return;
+    await router.push(nextAction.value.path);
+}
 async function refreshFlow() {
     if (!workContext.selectedProjectId) {
         flowStatus.value = null;
@@ -172,12 +217,17 @@ const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['context-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['next-action']} */ ;
 /** @type {__VLS_StyleScopedClasses['flow-head']} */ ;
 /** @type {__VLS_StyleScopedClasses['flow-head']} */ ;
 /** @type {__VLS_StyleScopedClasses['module-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['module-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['module-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['active']} */ ;
 /** @type {__VLS_StyleScopedClasses['module-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['module-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['disabled']} */ ;
+/** @type {__VLS_StyleScopedClasses['card-icon']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-title']} */ ;
 /** @type {__VLS_StyleScopedClasses['snapshot-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['snapshot-item']} */ ;
@@ -191,6 +241,7 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['hero']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['package-head']} */ ;
+/** @type {__VLS_StyleScopedClasses['next-action']} */ ;
 /** @type {__VLS_StyleScopedClasses['detail-grid']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
@@ -247,10 +298,12 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.section, __VLS_intrinsicElemen
     ...{ class: "flow-panel" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-    ...{ class: "flow-head" },
+    ...{ class: "next-action" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.h2, __VLS_intrinsicElements.h2)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+    ...{ class: "next-label" },
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
 (__VLS_ctx.nextSuggestion);
 const __VLS_4 = {}.ElButton;
@@ -258,40 +311,67 @@ const __VLS_4 = {}.ElButton;
 // @ts-ignore
 const __VLS_5 = __VLS_asFunctionalComponent(__VLS_4, new __VLS_4({
     ...{ 'onClick': {} },
-    loading: (__VLS_ctx.loadingStatus || __VLS_ctx.loadingSnapshots),
+    type: "primary",
+    disabled: (!__VLS_ctx.nextAction),
 }));
 const __VLS_6 = __VLS_5({
     ...{ 'onClick': {} },
-    loading: (__VLS_ctx.loadingStatus || __VLS_ctx.loadingSnapshots),
+    type: "primary",
+    disabled: (!__VLS_ctx.nextAction),
 }, ...__VLS_functionalComponentArgsRest(__VLS_5));
 let __VLS_8;
 let __VLS_9;
 let __VLS_10;
 const __VLS_11 = {
-    onClick: (__VLS_ctx.refreshFlow)
+    onClick: (__VLS_ctx.continueNextAction)
 };
 __VLS_7.slots.default;
 var __VLS_7;
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "flow-head" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.h2, __VLS_intrinsicElements.h2)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+const __VLS_12 = {}.ElButton;
+/** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
+// @ts-ignore
+const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({
+    ...{ 'onClick': {} },
+    loading: (__VLS_ctx.loadingStatus || __VLS_ctx.loadingSnapshots),
+}));
+const __VLS_14 = __VLS_13({
+    ...{ 'onClick': {} },
+    loading: (__VLS_ctx.loadingStatus || __VLS_ctx.loadingSnapshots),
+}, ...__VLS_functionalComponentArgsRest(__VLS_13));
+let __VLS_16;
+let __VLS_17;
+let __VLS_18;
+const __VLS_19 = {
+    onClick: (__VLS_ctx.refreshFlow)
+};
+__VLS_15.slots.default;
+var __VLS_15;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "card-grid" },
 });
 __VLS_asFunctionalDirective(__VLS_directives.vLoading)(null, { ...__VLS_directiveBindingRestFields, value: (__VLS_ctx.loadingStatus) }, null, null);
 for (const [card] of __VLS_getVForSourceType((__VLS_ctx.cards))) {
-    const __VLS_12 = ((card.ready && card.path ? 'router-link' : 'div'));
+    const __VLS_20 = ((card.ready && card.path ? 'router-link' : 'div'));
     // @ts-ignore
-    const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({
+    const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({
         key: (card.title),
         to: (card.ready && card.path ? card.path : undefined),
         ...{ class: "module-card" },
-        ...{ class: ({ disabled: !card.ready }) },
+        ...{ class: ({ disabled: !card.ready, active: __VLS_ctx.nextAction?.key === card.key }) },
     }));
-    const __VLS_14 = __VLS_13({
+    const __VLS_22 = __VLS_21({
         key: (card.title),
         to: (card.ready && card.path ? card.path : undefined),
         ...{ class: "module-card" },
-        ...{ class: ({ disabled: !card.ready }) },
-    }, ...__VLS_functionalComponentArgsRest(__VLS_13));
-    __VLS_15.slots.default;
+        ...{ class: ({ disabled: !card.ready, active: __VLS_ctx.nextAction?.key === card.key }) },
+    }, ...__VLS_functionalComponentArgsRest(__VLS_21));
+    __VLS_23.slots.default;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "card-icon" },
     });
@@ -310,34 +390,34 @@ for (const [card] of __VLS_getVForSourceType((__VLS_ctx.cards))) {
         ...{ class: "card-time" },
     });
     (__VLS_ctx.formatTime(card.lastUpdatedAt));
-    const __VLS_16 = {}.ElTag;
+    const __VLS_24 = {}.ElTag;
     /** @type {[typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ]} */ ;
     // @ts-ignore
-    const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({
+    const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
         size: "small",
         type: (card.ready ? 'success' : 'warning'),
     }));
-    const __VLS_18 = __VLS_17({
+    const __VLS_26 = __VLS_25({
         size: "small",
         type: (card.ready ? 'success' : 'warning'),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_17));
-    __VLS_19.slots.default;
+    }, ...__VLS_functionalComponentArgsRest(__VLS_25));
+    __VLS_27.slots.default;
     (card.ready ? __VLS_ctx.t('generationWorkbench.cardStatus.ready') : __VLS_ctx.t('generationWorkbench.cardStatus.pending'));
-    var __VLS_19;
-    var __VLS_15;
+    var __VLS_27;
+    var __VLS_23;
 }
-const __VLS_20 = {}.ElCard;
+const __VLS_28 = {}.ElCard;
 /** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
 // @ts-ignore
-const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({
+const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({
     shadow: "never",
     ...{ class: "package-panel" },
 }));
-const __VLS_22 = __VLS_21({
+const __VLS_30 = __VLS_29({
     shadow: "never",
     ...{ class: "package-panel" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_21));
-__VLS_23.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_29));
+__VLS_31.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "package-head" },
 });
@@ -350,40 +430,40 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
     ...{ class: "package-desc" },
 });
 (__VLS_ctx.t('generationWorkbench.cards.package.desc'));
-const __VLS_24 = {}.ElButton;
+const __VLS_32 = {}.ElButton;
 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
 // @ts-ignore
-const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
+const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
     ...{ 'onClick': {} },
     type: "primary",
     loading: (__VLS_ctx.packaging),
 }));
-const __VLS_26 = __VLS_25({
+const __VLS_34 = __VLS_33({
     ...{ 'onClick': {} },
     type: "primary",
     loading: (__VLS_ctx.packaging),
-}, ...__VLS_functionalComponentArgsRest(__VLS_25));
-let __VLS_28;
-let __VLS_29;
-let __VLS_30;
-const __VLS_31 = {
+}, ...__VLS_functionalComponentArgsRest(__VLS_33));
+let __VLS_36;
+let __VLS_37;
+let __VLS_38;
+const __VLS_39 = {
     onClick: (__VLS_ctx.runPackaging)
 };
-__VLS_27.slots.default;
+__VLS_35.slots.default;
 (__VLS_ctx.t('generationWorkbench.actions.packageNow'));
-var __VLS_27;
+var __VLS_35;
 if (!__VLS_ctx.packageResult) {
-    const __VLS_32 = {}.ElEmpty;
+    const __VLS_40 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
-    const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
+    const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
         description: (__VLS_ctx.t('generationWorkbench.empty.package')),
         imageSize: (72),
     }));
-    const __VLS_34 = __VLS_33({
+    const __VLS_42 = __VLS_41({
         description: (__VLS_ctx.t('generationWorkbench.empty.package')),
         imageSize: (72),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_33));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_41));
 }
 else {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -398,19 +478,19 @@ else {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
     (__VLS_ctx.t('generationWorkbench.labels.packageTime', { value: new Date(__VLS_ctx.packageResult.publishedAt).toLocaleString() }));
 }
-var __VLS_23;
-const __VLS_36 = {}.ElCard;
+var __VLS_31;
+const __VLS_44 = {}.ElCard;
 /** @type {[typeof __VLS_components.ElCard, typeof __VLS_components.elCard, typeof __VLS_components.ElCard, typeof __VLS_components.elCard, ]} */ ;
 // @ts-ignore
-const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({
+const __VLS_45 = __VLS_asFunctionalComponent(__VLS_44, new __VLS_44({
     shadow: "never",
     ...{ class: "snapshot-panel" },
 }));
-const __VLS_38 = __VLS_37({
+const __VLS_46 = __VLS_45({
     shadow: "never",
     ...{ class: "snapshot-panel" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_37));
-__VLS_39.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_45));
+__VLS_47.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "package-head" },
 });
@@ -421,37 +501,37 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "package-desc" },
 });
-const __VLS_40 = {}.ElButton;
+const __VLS_48 = {}.ElButton;
 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
 // @ts-ignore
-const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
+const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
     ...{ 'onClick': {} },
     loading: (__VLS_ctx.loadingSnapshots),
 }));
-const __VLS_42 = __VLS_41({
+const __VLS_50 = __VLS_49({
     ...{ 'onClick': {} },
     loading: (__VLS_ctx.loadingSnapshots),
-}, ...__VLS_functionalComponentArgsRest(__VLS_41));
-let __VLS_44;
-let __VLS_45;
-let __VLS_46;
-const __VLS_47 = {
+}, ...__VLS_functionalComponentArgsRest(__VLS_49));
+let __VLS_52;
+let __VLS_53;
+let __VLS_54;
+const __VLS_55 = {
     onClick: (__VLS_ctx.refreshFlow)
 };
-__VLS_43.slots.default;
-var __VLS_43;
+__VLS_51.slots.default;
+var __VLS_51;
 if (!__VLS_ctx.loadingSnapshots && __VLS_ctx.promptSnapshots.length === 0) {
-    const __VLS_48 = {}.ElEmpty;
+    const __VLS_56 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
-    const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
+    const __VLS_57 = __VLS_asFunctionalComponent(__VLS_56, new __VLS_56({
         description: "暂无 Prompt 运行快照。",
         imageSize: (72),
     }));
-    const __VLS_50 = __VLS_49({
+    const __VLS_58 = __VLS_57({
         description: "暂无 Prompt 运行快照。",
         imageSize: (72),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_49));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_57));
 }
 else {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -483,21 +563,21 @@ else {
         (item.outputSummary || item.error || '暂无输出摘要');
     }
 }
-var __VLS_39;
-const __VLS_52 = {}.ElDrawer;
+var __VLS_47;
+const __VLS_60 = {}.ElDrawer;
 /** @type {[typeof __VLS_components.ElDrawer, typeof __VLS_components.elDrawer, typeof __VLS_components.ElDrawer, typeof __VLS_components.elDrawer, ]} */ ;
 // @ts-ignore
-const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({
+const __VLS_61 = __VLS_asFunctionalComponent(__VLS_60, new __VLS_60({
     modelValue: (__VLS_ctx.snapshotDrawer),
     title: "Prompt 运行快照",
     size: "52%",
 }));
-const __VLS_54 = __VLS_53({
+const __VLS_62 = __VLS_61({
     modelValue: (__VLS_ctx.snapshotDrawer),
     title: "Prompt 运行快照",
     size: "52%",
-}, ...__VLS_functionalComponentArgsRest(__VLS_53));
-__VLS_55.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_61));
+__VLS_63.slots.default;
 if (__VLS_ctx.selectedSnapshot) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "snapshot-detail" },
@@ -546,7 +626,7 @@ if (__VLS_ctx.selectedSnapshot) {
         (__VLS_ctx.selectedSnapshot.error);
     }
 }
-var __VLS_55;
+var __VLS_63;
 /** @type {__VLS_StyleScopedClasses['generation-workbench']} */ ;
 /** @type {__VLS_StyleScopedClasses['hero']} */ ;
 /** @type {__VLS_StyleScopedClasses['eyebrow']} */ ;
@@ -555,10 +635,13 @@ var __VLS_55;
 /** @type {__VLS_StyleScopedClasses['context-row']} */ ;
 /** @type {__VLS_StyleScopedClasses['context-row']} */ ;
 /** @type {__VLS_StyleScopedClasses['flow-panel']} */ ;
+/** @type {__VLS_StyleScopedClasses['next-action']} */ ;
+/** @type {__VLS_StyleScopedClasses['next-label']} */ ;
 /** @type {__VLS_StyleScopedClasses['flow-head']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['module-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['disabled']} */ ;
+/** @type {__VLS_StyleScopedClasses['active']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-icon']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-title']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-desc']} */ ;
@@ -591,6 +674,8 @@ const __VLS_self = (await import('vue')).defineComponent({
             selectedSnapshot: selectedSnapshot,
             cards: cards,
             nextSuggestion: nextSuggestion,
+            nextAction: nextAction,
+            continueNextAction: continueNextAction,
             refreshFlow: refreshFlow,
             runPackaging: runPackaging,
             openSnapshot: openSnapshot,
